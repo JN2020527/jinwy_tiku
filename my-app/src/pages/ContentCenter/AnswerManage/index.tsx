@@ -64,7 +64,9 @@ const AnswerManage: React.FC = () => {
 
     const [editableKeys, setEditableRowKeys] = useState<React.Key[]>([]);
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-    const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
+    const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>(
+        () => directoryList.map((item) => item.id),
+    );
     const actionRef = useRef<ActionType>();
 
     // Helper to build tree data from flat list (for TreeSelect)
@@ -159,9 +161,7 @@ const AnswerManage: React.FC = () => {
                 <a key="addSub" onClick={() => {
                     const newId = (Math.random() * 1000000).toFixed(0);
                     // Auto-expand parent when adding sub-directory
-                    if (!expandedRowKeys.includes(record.id)) {
-                        setExpandedRowKeys([...expandedRowKeys, record.id]);
-                    }
+                    setExpandedRowKeys((keys) => (keys.includes(record.id) ? keys : [...keys, record.id]));
                     actionRef.current?.addEditRecord?.({
                         id: newId,
                         parentId: record.id,
@@ -390,7 +390,8 @@ const AnswerManage: React.FC = () => {
                     value={nestDirectoryList(directoryList)}
                     onChange={(values) => setDirectoryList(flattenDirectoryList(values as any))}
                     expandable={{
-                        defaultExpandAllRows: true,
+                        expandedRowKeys,
+                        onExpandedRowsChange: setExpandedRowKeys,
                     }}
                     editable={{
                         type: 'single',
