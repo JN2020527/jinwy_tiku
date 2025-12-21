@@ -1,5 +1,4 @@
 import {
-    ProFormSelect,
     ProFormTreeSelect,
     EditableProTable,
     ProTable,
@@ -7,12 +6,77 @@ import {
     ProFormUploadButton,
     PageContainer,
     ActionType,
-    ProColumns,
 } from '@ant-design/pro-components';
-import { Card, Space, message, Row, Col, Button, Modal, Descriptions, Tag } from 'antd';
-import React, { useState, useRef } from 'react';
+import {
+    DndContext,
+    MouseSensor,
+    PointerSensor,
+    rectIntersection,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Card, Space, message, Button, Modal, Descriptions, Tag } from 'antd';
+import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from '@umijs/max';
-import { PlusOutlined } from '@ant-design/icons';
+import { HolderOutlined, PlusOutlined } from '@ant-design/icons';
+
+const DragHandleContext = React.createContext<{ handle: React.ReactNode | null }>({ handle: null });
+
+const SortableItemCell: React.FC<any> = (props) => {
+    const { handle } = useContext(DragHandleContext);
+    const { children, ...rest } = props;
+    if (handle) {
+        return (
+            <td {...rest}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {handle}
+                    {children}
+                </div>
+            </td>
+        );
+    }
+    return <td {...rest}>{children}</td>;
+};
+
+const SortableRow: React.FC<any> = (props) => {
+    const { id, dragSortKey, children, ...rest } = props;
+    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+    const style = {
+        ...rest.style,
+        transform: CSS.Transform.toString(transform),
+        transition,
+    };
+    const handle = (
+        <span
+            {...listeners}
+            {...attributes}
+            style={{ cursor: 'grab', color: '#999', display: 'inline-flex' }}
+        >
+            <HolderOutlined />
+        </span>
+    );
+    const cells: React.ReactNode[] = [];
+    React.Children.forEach(children, (child, index) => {
+        if (child?.key === dragSortKey) {
+            cells.push(
+                <DragHandleContext.Provider key={child.key ?? index} value={{ handle }}>
+                    {child}
+                </DragHandleContext.Provider>,
+            );
+            return;
+        }
+        cells.push(child);
+    });
+    return (
+        <tr {...rest} ref={setNodeRef} style={style}>
+            {cells}
+        </tr>
+    );
+};
 
 const AnswerManage: React.FC = () => {
     const [searchParams] = useSearchParams();
@@ -43,6 +107,8 @@ const AnswerManage: React.FC = () => {
         updateTime: string;
     };
 
+    const normalizeParentId = (parentId?: string | null) => (parentId === undefined || parentId === null ? null : parentId);
+
     // State
     const [modalVisible, setModalVisible] = useState(false); // Directory Manage Modal
     const [createModalVisible, setCreateModalVisible] = useState(false); // Create Answer Modal
@@ -68,32 +134,46 @@ const AnswerManage: React.FC = () => {
         () => directoryList.map((item) => item.id),
     );
     const actionRef = useRef<ActionType>();
+    const dragSortKey = 'sort';
+
+    const addDirectoryRecord = (overrides: Partial<DirectoryItem> = {}) => {
+        const newId = (Math.random() * 1000000).toFixed(0);
+        setDirectoryList((list) => {
+            const parentKey = normalizeParentId(overrides.parentId);
+            const maxSort = list.reduce((max, item) => {
+                if (normalizeParentId(item.parentId) !== parentKey) {
+                    return max;
+                }
+                return Math.max(max, Number(item.sort) || 0);
+            }, 0);
+            const newRecord: DirectoryItem = {
+                id: newId,
+                name: '',
+                createTime: new Date().toISOString(),
+                ...overrides,
+                sort: Number(overrides.sort ?? maxSort + 1),
+            };
+            return [...list, newRecord];
+        });
+        setEditableRowKeys([newId]);
+        return newId;
+    };
 
     // Helper to build tree data from flat list (for TreeSelect)
     const buildTreeData = (list: DirectoryItem[]) => {
-        const map = new Map<string, any>();
-        const roots: any[] = [];
-
-        // Initialize map
-        list.forEach(item => {
-            map.set(item.id, { ...item, title: item.name, value: item.id, children: [] });
-        });
-
-        // Build hierarchy
-        list.forEach(item => {
-            const node = map.get(item.id);
-            if (item.parentId && map.has(item.parentId)) {
-                map.get(item.parentId).children.push(node);
-            } else {
-                roots.push(node);
-            }
-        });
-
-        return roots;
+        const tree = nestDirectoryList(list);
+        const mapToTreeData = (nodes: (DirectoryItem & { children?: DirectoryItem[] })[]) => nodes.map((node) => ({
+            title: node.name,
+            value: node.id,
+            children: node.children && node.children.length > 0 ? mapToTreeData(node.children) : undefined,
+        }));
+        return mapToTreeData(tree);
     };
 
     // Helper: Flat List -> Tree (for Table Display)
     const nestDirectoryList = (list: DirectoryItem[]) => {
+        const indexMap = new Map<string, number>();
+        list.forEach((item, index) => indexMap.set(item.id, index));
         const map = new Map<string, DirectoryItem & { children?: DirectoryItem[] }>();
         const roots: (DirectoryItem & { children?: DirectoryItem[] })[] = [];
 
@@ -112,26 +192,127 @@ const AnswerManage: React.FC = () => {
             }
         });
 
-        // 3. Clean up empty children for cleaner display (optional, but Antd handles auto)
+        const compareBySort = (a: DirectoryItem, b: DirectoryItem) => {
+            const aSort = Number(a.sort) || 0;
+            const bSort = Number(b.sort) || 0;
+            if (aSort !== bSort) {
+                return aSort - bSort;
+            }
+            return (indexMap.get(a.id) ?? 0) - (indexMap.get(b.id) ?? 0);
+        };
+        const sortTree = (nodes: (DirectoryItem & { children?: DirectoryItem[] })[]) => {
+            nodes.sort(compareBySort);
+            nodes.forEach((node) => {
+                if (node.children && node.children.length > 0) {
+                    sortTree(node.children);
+                }
+            });
+        };
+        sortTree(roots);
         return roots;
     };
 
     // Helper: Tree -> Flat List (for State Update)
     const flattenDirectoryList = (tree: (DirectoryItem & { children?: DirectoryItem[] })[]) => {
-        let flat: DirectoryItem[] = [];
-        const queue = [...tree];
-
-        while (queue.length > 0) {
-            const node = queue.shift()!;
-            const { children, ...rest } = node; // Remove children property for flat storage
-            flat.push(rest as DirectoryItem);
-
-            if (children && children.length > 0) {
-                queue.push(...children);
-            }
-        }
+        const flat: DirectoryItem[] = [];
+        const walk = (nodes: (DirectoryItem & { children?: DirectoryItem[] })[]) => {
+            nodes.forEach((node) => {
+                const { children, ...rest } = node;
+                flat.push(rest as DirectoryItem);
+                if (children && children.length > 0) {
+                    walk(children);
+                }
+            });
+        };
+        walk(tree);
         return flat;
     };
+
+    const flattenVisibleDirectoryList = (
+        tree: (DirectoryItem & { children?: DirectoryItem[] })[],
+        expandedKeys: React.Key[],
+    ) => {
+        const expandedSet = new Set(expandedKeys);
+        const flat: DirectoryItem[] = [];
+        const walk = (nodes: (DirectoryItem & { children?: DirectoryItem[] })[]) => {
+            nodes.forEach((node) => {
+                const { children, ...rest } = node;
+                flat.push(rest as DirectoryItem);
+                if (children && children.length > 0 && expandedSet.has(node.id)) {
+                    walk(children);
+                }
+            });
+        };
+        walk(tree);
+        return flat;
+    };
+
+    const directoryTree = useMemo(() => nestDirectoryList(directoryList), [directoryList]);
+    const visibleDirectoryList = useMemo(
+        () => flattenVisibleDirectoryList(directoryTree, expandedRowKeys),
+        [directoryTree, expandedRowKeys],
+    );
+    const visibleDirectoryIndexMap = useMemo(() => {
+        const map = new Map<string, number>();
+        visibleDirectoryList.forEach((item, index) => {
+            map.set(item.id, index);
+        });
+        return map;
+    }, [visibleDirectoryList]);
+
+    const sensors = useSensors(useSensor(PointerSensor), useSensor(MouseSensor));
+    const handleDirectoryDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over?.id || active.id === over.id) {
+            return;
+        }
+        const beforeIndex = Number(active.id);
+        const afterIndex = Number(over.id);
+        if (Number.isNaN(beforeIndex) || Number.isNaN(afterIndex)) {
+            return;
+        }
+        const movedItem = visibleDirectoryList[beforeIndex];
+        const targetItem = visibleDirectoryList[afterIndex];
+        if (!movedItem || !targetItem) {
+            return;
+        }
+        const parentKey = normalizeParentId(movedItem.parentId);
+        if (parentKey !== normalizeParentId(targetItem.parentId)) {
+            message.warning('仅支持同级目录拖拽排序');
+            return;
+        }
+        const newOrder = arrayMove(visibleDirectoryList, beforeIndex, afterIndex);
+        const siblings = newOrder.filter((item) => normalizeParentId(item.parentId) === parentKey);
+        const sortMap = new Map<string, number>();
+        siblings.forEach((item, index) => {
+            sortMap.set(item.id, index + 1);
+        });
+        setDirectoryList((list) => list.map((item) => {
+            const nextSort = sortMap.get(item.id);
+            if (nextSort === undefined) {
+                return item;
+            }
+            return { ...item, sort: nextSort };
+        }));
+    }, [visibleDirectoryList]);
+
+    const DraggableContainer = useCallback((props: any) => (
+        <SortableContext
+            items={visibleDirectoryList.map((_, index) => index.toString())}
+            strategy={verticalListSortingStrategy}
+        >
+            <tbody {...props} />
+        </SortableContext>
+    ), [visibleDirectoryList]);
+
+    const DraggableBodyRow = useCallback((props: any) => {
+        const rowKey = props['data-row-key'];
+        const index = visibleDirectoryIndexMap.get(String(rowKey));
+        if (index === undefined) {
+            return <tr {...props} />;
+        }
+        return <SortableRow {...props} id={index.toString()} dragSortKey={dragSortKey} />;
+    }, [dragSortKey, visibleDirectoryIndexMap]);
 
     // Columns
     const directoryColumns: any[] = [
@@ -143,15 +324,16 @@ const AnswerManage: React.FC = () => {
         {
             title: '上级目录',
             dataIndex: 'parentId',
-            valueType: 'treeSelect',
-            fieldProps: {
-                options: directoryList.map(item => ({ label: item.name, value: item.id })), // Fallback options
-                treeData: buildTreeData(directoryList), // Correct tree data
-                showSearch: true,
-                treeDefaultExpandAll: true,
+            editable: false,
+            render: (dom: any, record: DirectoryItem) => {
+                if (!record.parentId) {
+                    return <span style={{ color: '#999' }}>无</span>;
+                }
+                const parent = directoryList.find((item) => item.id === record.parentId);
+                return parent ? parent.name : <span style={{ color: '#999' }}>无</span>;
             },
         },
-        { title: '排序', dataIndex: 'sort', valueType: 'digit' },
+        { title: '排序', dataIndex: 'sort', key: dragSortKey, valueType: 'digit', width: 100 },
         {
             title: '操作',
             valueType: 'option',
@@ -159,15 +341,9 @@ const AnswerManage: React.FC = () => {
             render: (text: any, record: DirectoryItem, _: any, action: any) => [
                 <a key="editable" onClick={() => action?.startEditable?.(record.id)}>编辑</a>,
                 <a key="addSub" onClick={() => {
-                    const newId = (Math.random() * 1000000).toFixed(0);
                     // Auto-expand parent when adding sub-directory
                     setExpandedRowKeys((keys) => (keys.includes(record.id) ? keys : [...keys, record.id]));
-                    actionRef.current?.addEditRecord?.({
-                        id: newId,
-                        parentId: record.id,
-                        sort: 0,
-                        createTime: new Date().toISOString(),
-                    }, { position: 'bottom', parentKey: record.id } as any);
+                    addDirectoryRecord({ parentId: record.id });
                 }}>添加下级</a>,
                 <a key="delete" onClick={() => setDirectoryList(directoryList.filter((item) => item.id !== record.id))}>删除</a>,
             ],
@@ -374,21 +550,32 @@ const AnswerManage: React.FC = () => {
                             key="add"
                             type="primary"
                             onClick={() => {
-                                const newId = (Math.random() * 1000000).toFixed(0);
-                                actionRef.current?.addEditRecord?.({
-                                    id: newId,
-                                    name: '',
-                                    sort: 0,
-                                    createTime: new Date().toISOString(),
-                                });
+                                addDirectoryRecord();
                             }}
                         >
                             添加一级目录
                         </Button>
                     ]}
                     columns={directoryColumns}
-                    value={nestDirectoryList(directoryList)}
+                    value={directoryTree}
                     onChange={(values) => setDirectoryList(flattenDirectoryList(values as any))}
+                    components={{
+                        body: {
+                            wrapper: DraggableContainer,
+                            row: DraggableBodyRow,
+                            cell: SortableItemCell,
+                        },
+                    }}
+                    tableViewRender={(_, defaultDom) => (
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={rectIntersection}
+                            onDragEnd={handleDirectoryDragEnd}
+                            modifiers={[restrictToVerticalAxis]}
+                        >
+                            {defaultDom}
+                        </DndContext>
+                    )}
                     expandable={{
                         expandedRowKeys,
                         onExpandedRowsChange: setExpandedRowKeys,
