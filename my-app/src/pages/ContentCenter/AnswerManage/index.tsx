@@ -1,92 +1,28 @@
 import {
+    ProFormDependency,
+    ProFormSelect,
     ProFormTreeSelect,
-    EditableProTable,
     ProTable,
     ModalForm,
     ProFormUploadButton,
     PageContainer,
-    ActionType,
 } from '@ant-design/pro-components';
-import {
-    DndContext,
-    MouseSensor,
-    PointerSensor,
-    rectIntersection,
-    useSensor,
-    useSensors,
-    type DragEndEvent,
-} from '@dnd-kit/core';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { Card, Space, message, Button, Modal, Descriptions, Tag } from 'antd';
-import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { Card, Space, message, Button, Descriptions, Modal, Switch, Tag, Row, Col, Tree } from 'antd';
+import React, { useMemo, useState } from 'react';
 import { useSearchParams } from '@umijs/max';
-import { HolderOutlined, PlusOutlined } from '@ant-design/icons';
-
-const DragHandleContext = React.createContext<{ handle: React.ReactNode | null }>({ handle: null });
-
-const SortableItemCell: React.FC<any> = (props) => {
-    const { handle } = useContext(DragHandleContext);
-    const { children, ...rest } = props;
-    if (handle) {
-        return (
-            <td {...rest}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {handle}
-                    {children}
-                </div>
-            </td>
-        );
-    }
-    return <td {...rest}>{children}</td>;
-};
-
-const SortableRow: React.FC<any> = (props) => {
-    const { id, dragSortKey, children, ...rest } = props;
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
-    const style = {
-        ...rest.style,
-        transform: CSS.Transform.toString(transform),
-        transition,
-    };
-    const handle = (
-        <span
-            {...listeners}
-            {...attributes}
-            style={{ cursor: 'grab', color: '#999', display: 'inline-flex' }}
-        >
-            <HolderOutlined />
-        </span>
-    );
-    const cells: React.ReactNode[] = [];
-    React.Children.forEach(children, (child, index) => {
-        if (child?.key === dragSortKey) {
-            cells.push(
-                <DragHandleContext.Provider key={child.key ?? index} value={{ handle }}>
-                    {child}
-                </DragHandleContext.Provider>,
-            );
-            return;
-        }
-        cells.push(child);
-    });
-    return (
-        <tr {...rest} ref={setNodeRef} style={style}>
-            {cells}
-        </tr>
-    );
-};
+import { PlusOutlined } from '@ant-design/icons';
 
 const AnswerManage: React.FC = () => {
     const [searchParams] = useSearchParams();
     const productId = searchParams.get('productId');
+    const subjectId = searchParams.get('subjectId');
+    const subjectName = searchParams.get('subjectName');
 
     // Hardcoded Mock Data for Header
     const mockInfo = {
         productId: productId || '46',
         productName: '晋文源九年级考试-名师精讲',
-        subjectName: '语文',
+        subjectName: subjectName || '语文',
     };
 
     // Types
@@ -107,15 +43,16 @@ const AnswerManage: React.FC = () => {
         updateTime: string;
     };
 
-    const normalizeParentId = (parentId?: string | null) => (parentId === undefined || parentId === null ? null : parentId);
-
-    // State
-    const [modalVisible, setModalVisible] = useState(false); // Directory Manage Modal
+    const [directoryMode, setDirectoryMode] = useState<'disabled' | 'required'>('disabled');
+    const isDirectoryEnabled = directoryMode === 'required';
     const [createModalVisible, setCreateModalVisible] = useState(false); // Create Answer Modal
     const [moveModalVisible, setMoveModalVisible] = useState(false); // Move Answer Modal
+    const ALL_DIRECTORY_KEY = '__all__';
+    const UNASSIGNED_DIRECTORY_KEY = '__unassigned__';
+    const [selectedDirectoryKey, setSelectedDirectoryKey] = useState<string>(ALL_DIRECTORY_KEY);
 
     // Mock Data State
-    const [directoryList, setDirectoryList] = useState<DirectoryItem[]>([
+    const [directoryList] = useState<DirectoryItem[]>([
         { id: '1', name: '第一章', sort: 1, createTime: '2025-12-21' },
         { id: '1-1', name: '第一节', parentId: '1', sort: 1, createTime: '2025-12-21' },
         { id: '1-1-1', name: '知识点 1.1.1', parentId: '1-1', sort: 1, createTime: '2025-12-21' },
@@ -128,252 +65,166 @@ const AnswerManage: React.FC = () => {
         { id: '103', name: '参考答案.doc', type: 'DOC', size: '1.2MB', directoryId: null, updateTime: '2025-12-21 10:10:00' },
     ]);
 
-    const [editableKeys, setEditableRowKeys] = useState<React.Key[]>([]);
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-    const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>(
-        () => directoryList.map((item) => item.id),
-    );
-    const actionRef = useRef<ActionType>();
-    const dragSortKey = 'sort';
 
-    const addDirectoryRecord = (overrides: Partial<DirectoryItem> = {}) => {
-        const newId = (Math.random() * 1000000).toFixed(0);
-        setDirectoryList((list) => {
-            const parentKey = normalizeParentId(overrides.parentId);
-            const maxSort = list.reduce((max, item) => {
-                if (normalizeParentId(item.parentId) !== parentKey) {
-                    return max;
-                }
-                return Math.max(max, Number(item.sort) || 0);
-            }, 0);
-            const newRecord: DirectoryItem = {
-                id: newId,
-                name: '',
-                createTime: new Date().toISOString(),
-                ...overrides,
-                sort: Number(overrides.sort ?? maxSort + 1),
-            };
-            return [...list, newRecord];
-        });
-        setEditableRowKeys([newId]);
-        return newId;
+    const uploadTypeConfig = {
+        file: {
+            label: '答案文件',
+            accept: '.pdf,.doc,.docx,.ppt,.pptx',
+            title: '文件大小不能超过10M，仅支持PDF、DOC、DOCX、PPT、PPTX等格式。',
+            typeTag: 'FILE',
+        },
+        image: {
+            label: '答案图片',
+            accept: '.jpg,.jpeg,.png',
+            title: '单张图片大小不能超过10M，仅支持JPG、JPEG、PNG等格式。',
+            typeTag: 'IMAGE',
+        },
+        video: {
+            label: '答案视频',
+            accept: '.mp4',
+            title: '视频文件大小不能超过1G，仅支持MP4格式，MPEG-4编码格式',
+            typeTag: 'VIDEO',
+        },
+        audio: {
+            label: '答案音频',
+            accept: '.mp3',
+            title: '音频大小不能超过500M，仅支持MP3格式。',
+            typeTag: 'AUDIO',
+        },
+        archive: {
+            label: '答案压缩文档',
+            accept: '.zip,.rar',
+            title: '文件大小不能超过100M，仅支持ZIP、RAR格式。',
+            typeTag: 'ARCHIVE',
+        },
+    } as const;
+
+    const handleDirectoryModeChange = (checked: boolean) => {
+        if (checked) {
+            const resolvedProductId = productId || mockInfo.productId;
+            const resolvedSubjectName = subjectName || mockInfo.subjectName;
+            const encodedSubjectName = encodeURIComponent(resolvedSubjectName);
+            const unassignedCount = answerList.filter((item) => !item.directoryId).length;
+            if (directoryList.length === 0) {
+                Modal.confirm({
+                    title: '暂无目录，无法开启',
+                    content: '请先到目录管理页面新建目录。',
+                    okText: '去新建',
+                    cancelText: '取消',
+                    onOk: () => {
+                        window.location.href = `/content/product-list/subject-directory?subjectId=${subjectId || ''}&subjectName=${encodedSubjectName}&productId=${resolvedProductId}`;
+                    },
+                });
+                return;
+            }
+            if (unassignedCount > 0) {
+                const unassignedKeys = answerList
+                    .filter((item) => !item.directoryId)
+                    .map((item) => item.id);
+                Modal.confirm({
+                    title: `存在 ${unassignedCount} 条未归类答案`,
+                    content: '开启后新上传必须选择目录，建议先批量归类存量答案。',
+                    okText: '去批量归类',
+                    cancelText: '仍然开启',
+                    onOk: () => {
+                        setDirectoryMode('required');
+                        setSelectedDirectoryKey(ALL_DIRECTORY_KEY);
+                        setSelectedRowKeys(unassignedKeys);
+                        setMoveModalVisible(true);
+                        message.info('请批量选择目标目录完成归类');
+                    },
+                    onCancel: () => {
+                        setDirectoryMode('required');
+                        setSelectedDirectoryKey(ALL_DIRECTORY_KEY);
+                        setSelectedRowKeys([]);
+                        setMoveModalVisible(false);
+                        message.info('已开启目录管理，后续上传需选择目录');
+                    },
+                });
+                return;
+            }
+        }
+        setDirectoryMode(checked ? 'required' : 'disabled');
+        setSelectedDirectoryKey(ALL_DIRECTORY_KEY);
+        setSelectedRowKeys([]);
+        setMoveModalVisible(false);
+        message.info(checked ? '已开启目录管理，后续上传需选择目录' : '已关闭目录管理');
     };
 
     // Helper to build tree data from flat list (for TreeSelect)
     const buildTreeData = (list: DirectoryItem[]) => {
-        const tree = nestDirectoryList(list);
-        const mapToTreeData = (nodes: (DirectoryItem & { children?: DirectoryItem[] })[]) => nodes.map((node) => ({
-            title: node.name,
-            value: node.id,
-            children: node.children && node.children.length > 0 ? mapToTreeData(node.children) : undefined,
-        }));
-        return mapToTreeData(tree);
-    };
-
-    // Helper: Flat List -> Tree (for Table Display)
-    const nestDirectoryList = (list: DirectoryItem[]) => {
-        const indexMap = new Map<string, number>();
-        list.forEach((item, index) => indexMap.set(item.id, index));
-        const map = new Map<string, DirectoryItem & { children?: DirectoryItem[] }>();
-        const roots: (DirectoryItem & { children?: DirectoryItem[] })[] = [];
-
-        // 1. Create a shallow copy of items map
-        list.forEach(item => {
-            map.set(item.id, { ...item, children: [] });
+        const map = new Map<string, any>();
+        const roots: any[] = [];
+        list.forEach((item) => {
+            map.set(item.id, { title: item.name, value: item.id, children: [] });
         });
-
-        // 2. Build tree
-        list.forEach(item => {
-            const node = map.get(item.id)!;
+        list.forEach((item) => {
+            const node = map.get(item.id);
             if (item.parentId && map.has(item.parentId)) {
-                map.get(item.parentId)!.children!.push(node);
+                map.get(item.parentId).children.push(node);
             } else {
                 roots.push(node);
             }
         });
-
-        const compareBySort = (a: DirectoryItem, b: DirectoryItem) => {
-            const aSort = Number(a.sort) || 0;
-            const bSort = Number(b.sort) || 0;
-            if (aSort !== bSort) {
-                return aSort - bSort;
-            }
-            return (indexMap.get(a.id) ?? 0) - (indexMap.get(b.id) ?? 0);
-        };
-        const sortTree = (nodes: (DirectoryItem & { children?: DirectoryItem[] })[]) => {
-            nodes.sort(compareBySort);
-            nodes.forEach((node) => {
-                if (node.children && node.children.length > 0) {
-                    sortTree(node.children);
-                }
-            });
-        };
-        sortTree(roots);
         return roots;
     };
 
-    // Helper: Tree -> Flat List (for State Update)
-    const flattenDirectoryList = (tree: (DirectoryItem & { children?: DirectoryItem[] })[]) => {
-        const flat: DirectoryItem[] = [];
-        const walk = (nodes: (DirectoryItem & { children?: DirectoryItem[] })[]) => {
-            nodes.forEach((node) => {
-                const { children, ...rest } = node;
-                flat.push(rest as DirectoryItem);
-                if (children && children.length > 0) {
-                    walk(children);
-                }
-            });
-        };
-        walk(tree);
-        return flat;
-    };
-
-    const flattenVisibleDirectoryList = (
-        tree: (DirectoryItem & { children?: DirectoryItem[] })[],
-        expandedKeys: React.Key[],
-    ) => {
-        const expandedSet = new Set(expandedKeys);
-        const flat: DirectoryItem[] = [];
-        const walk = (nodes: (DirectoryItem & { children?: DirectoryItem[] })[]) => {
-            nodes.forEach((node) => {
-                const { children, ...rest } = node;
-                flat.push(rest as DirectoryItem);
-                if (children && children.length > 0 && expandedSet.has(node.id)) {
-                    walk(children);
-                }
-            });
-        };
-        walk(tree);
-        return flat;
-    };
-
-    const directoryTree = useMemo(() => nestDirectoryList(directoryList), [directoryList]);
-    const visibleDirectoryList = useMemo(
-        () => flattenVisibleDirectoryList(directoryTree, expandedRowKeys),
-        [directoryTree, expandedRowKeys],
+    const unassignedCount = useMemo(
+        () => answerList.filter((item) => !item.directoryId).length,
+        [answerList],
     );
-    const visibleDirectoryIndexMap = useMemo(() => {
-        const map = new Map<string, number>();
-        visibleDirectoryList.forEach((item, index) => {
-            map.set(item.id, index);
-        });
-        return map;
-    }, [visibleDirectoryList]);
-
-    const sensors = useSensors(useSensor(PointerSensor), useSensor(MouseSensor));
-    const handleDirectoryDragEnd = useCallback((event: DragEndEvent) => {
-        const { active, over } = event;
-        if (!over?.id || active.id === over.id) {
-            return;
-        }
-        const beforeIndex = Number(active.id);
-        const afterIndex = Number(over.id);
-        if (Number.isNaN(beforeIndex) || Number.isNaN(afterIndex)) {
-            return;
-        }
-        const movedItem = visibleDirectoryList[beforeIndex];
-        const targetItem = visibleDirectoryList[afterIndex];
-        if (!movedItem || !targetItem) {
-            return;
-        }
-        const parentKey = normalizeParentId(movedItem.parentId);
-        if (parentKey !== normalizeParentId(targetItem.parentId)) {
-            message.warning('仅支持同级目录拖拽排序');
-            return;
-        }
-        const newOrder = arrayMove(visibleDirectoryList, beforeIndex, afterIndex);
-        const siblings = newOrder.filter((item) => normalizeParentId(item.parentId) === parentKey);
-        const sortMap = new Map<string, number>();
-        siblings.forEach((item, index) => {
-            sortMap.set(item.id, index + 1);
-        });
-        setDirectoryList((list) => list.map((item) => {
-            const nextSort = sortMap.get(item.id);
-            if (nextSort === undefined) {
-                return item;
-            }
-            return { ...item, sort: nextSort };
+    const directoryTreeData = useMemo(() => {
+        const attachKeys = (nodes: any[]): any[] => nodes.map((node) => ({
+            ...node,
+            key: node.value,
+            children: node.children ? attachKeys(node.children) : undefined,
         }));
-    }, [visibleDirectoryList]);
-
-    const DraggableContainer = useCallback((props: any) => (
-        <SortableContext
-            items={visibleDirectoryList.map((_, index) => index.toString())}
-            strategy={verticalListSortingStrategy}
-        >
-            <tbody {...props} />
-        </SortableContext>
-    ), [visibleDirectoryList]);
-
-    const DraggableBodyRow = useCallback((props: any) => {
-        const rowKey = props['data-row-key'];
-        const index = visibleDirectoryIndexMap.get(String(rowKey));
-        if (index === undefined) {
-            return <tr {...props} />;
+        return [
+            { title: '全部', key: ALL_DIRECTORY_KEY },
+            { title: `未归类 (${unassignedCount})`, key: UNASSIGNED_DIRECTORY_KEY },
+            ...attachKeys(buildTreeData(directoryList)),
+        ];
+    }, [ALL_DIRECTORY_KEY, UNASSIGNED_DIRECTORY_KEY, directoryList, unassignedCount]);
+    const filteredAnswerList = useMemo(() => {
+        if (!isDirectoryEnabled || selectedDirectoryKey === ALL_DIRECTORY_KEY) {
+            return answerList;
         }
-        return <SortableRow {...props} id={index.toString()} dragSortKey={dragSortKey} />;
-    }, [dragSortKey, visibleDirectoryIndexMap]);
+        if (selectedDirectoryKey === UNASSIGNED_DIRECTORY_KEY) {
+            return answerList.filter((item) => !item.directoryId);
+        }
+        return answerList.filter((item) => item.directoryId === selectedDirectoryKey);
+    }, [answerList, isDirectoryEnabled, selectedDirectoryKey, ALL_DIRECTORY_KEY, UNASSIGNED_DIRECTORY_KEY]);
 
-    // Columns
-    const directoryColumns: any[] = [
-        {
-            title: '目录名称',
-            dataIndex: 'name',
-            formItemProps: { rules: [{ required: true, message: '此项是必填项' }] },
-        },
-        {
-            title: '上级目录',
-            dataIndex: 'parentId',
-            editable: false,
-            render: (dom: any, record: DirectoryItem) => {
-                if (!record.parentId) {
-                    return <span style={{ color: '#999' }}>无</span>;
-                }
-                const parent = directoryList.find((item) => item.id === record.parentId);
-                return parent ? parent.name : <span style={{ color: '#999' }}>无</span>;
+    const answerColumns = useMemo(() => {
+        const columns: any[] = [
+            { title: '文件名称', dataIndex: 'name' },
+            { title: '类型', dataIndex: 'type', render: (text: string) => <Tag>{text}</Tag> },
+            { title: '大小', dataIndex: 'size' },
+            { title: '更新时间', dataIndex: 'updateTime' },
+            {
+                title: '操作',
+                valueType: 'option',
+                render: (text: any, record: AnswerItem) => [
+                    <a key="delete" onClick={() => {
+                        setAnswerList((list) => list.filter(item => item.id !== record.id));
+                        message.success('删除成功');
+                    }}>删除</a>
+                ],
             },
-        },
-        { title: '排序', dataIndex: 'sort', key: dragSortKey, valueType: 'digit', width: 100 },
-        {
-            title: '操作',
-            valueType: 'option',
-            width: 200,
-            render: (text: any, record: DirectoryItem, _: any, action: any) => [
-                <a key="editable" onClick={() => action?.startEditable?.(record.id)}>编辑</a>,
-                <a key="addSub" onClick={() => {
-                    // Auto-expand parent when adding sub-directory
-                    setExpandedRowKeys((keys) => (keys.includes(record.id) ? keys : [...keys, record.id]));
-                    addDirectoryRecord({ parentId: record.id });
-                }}>添加下级</a>,
-                <a key="delete" onClick={() => setDirectoryList(directoryList.filter((item) => item.id !== record.id))}>删除</a>,
-            ],
-        },
-    ];
-
-    const answerColumns: any[] = [
-        { title: '文件名称', dataIndex: 'name' },
-        { title: '类型', dataIndex: 'type', render: (text: string) => <Tag>{text}</Tag> },
-        { title: '大小', dataIndex: 'size' },
-        {
-            title: '所属目录',
-            dataIndex: 'directoryId',
-            render: (dom: any, record: AnswerItem) => {
-                const dir = directoryList.find(d => d.id === record.directoryId);
-                return dir ? dir.name : <span style={{ color: '#999' }}>无目录</span>;
-            }
-        },
-        { title: '更新时间', dataIndex: 'updateTime' },
-        {
-            title: '操作',
-            valueType: 'option',
-            render: (text: any, record: AnswerItem) => [
-                <a key="delete" onClick={() => {
-                    setAnswerList(answerList.filter(item => item.id !== record.id));
-                    message.success('删除成功');
-                }}>删除</a>
-            ],
-        },
-    ];
+        ];
+        if (isDirectoryEnabled) {
+            columns.splice(3, 0, {
+                title: '所属目录',
+                dataIndex: 'directoryId',
+                render: (dom: any, record: AnswerItem) => {
+                    const dir = directoryList.find(d => d.id === record.directoryId);
+                    return dir ? dir.name : <span style={{ color: '#999' }}>无目录</span>;
+                }
+            });
+        }
+        return columns;
+    }, [directoryList, isDirectoryEnabled]);
 
     return (
         <PageContainer>
@@ -383,41 +234,81 @@ const AnswerManage: React.FC = () => {
                     <Descriptions.Item label="产品ID">{mockInfo.productId}</Descriptions.Item>
                     <Descriptions.Item label="产品名称">{mockInfo.productName}</Descriptions.Item>
                     <Descriptions.Item label="科目名称">{mockInfo.subjectName}</Descriptions.Item>
+                    <Descriptions.Item label="目录模式">
+                        <Switch
+                            checked={isDirectoryEnabled}
+                            onChange={handleDirectoryModeChange}
+                            checkedChildren="开启"
+                            unCheckedChildren="关闭"
+                        />
+                    </Descriptions.Item>
                 </Descriptions>
             </Card>
 
             {/* Answer List Table */}
-            <ProTable<AnswerItem>
-                headerTitle="答案列表"
-                rowKey="id"
-                dataSource={answerList}
-                search={false}
-                options={false}
-                toolBarRender={() => [
-                    <Button key="create" type="primary" onClick={() => setCreateModalVisible(true)} icon={<PlusOutlined />}>
-                        新增答案
-                    </Button>,
-                    <Button key="dir" onClick={() => setModalVisible(true)}>
-                        目录管理
-                    </Button>
-                ]}
-                rowSelection={{
-                    selectedRowKeys,
-                    onChange: (keys) => setSelectedRowKeys(keys),
-                }}
-                tableAlertRender={({ selectedRowKeys, onCleanSelected }) => (
-                    <Space size={24}>
-                        <span>已选 {selectedRowKeys.length} 项</span>
-                        <a onClick={onCleanSelected}>取消选择</a>
-                    </Space>
-                )}
-                tableAlertOptionRender={() => (
-                    <Space size={16}>
-                        <a onClick={() => setMoveModalVisible(true)}>批量移动</a>
-                    </Space>
-                )}
-                columns={answerColumns}
-            />
+            {isDirectoryEnabled ? (
+                <Row gutter={16} align="top">
+                    <Col xs={24} md={6} lg={5}>
+                        <Card title="目录">
+                            <Tree
+                                blockNode
+                                defaultExpandAll
+                                selectedKeys={[selectedDirectoryKey]}
+                                treeData={directoryTreeData}
+                                onSelect={(keys) => {
+                                    const nextKey = (keys[0] as string) || ALL_DIRECTORY_KEY;
+                                    setSelectedDirectoryKey(nextKey);
+                                    setSelectedRowKeys([]);
+                                }}
+                            />
+                        </Card>
+                    </Col>
+                    <Col xs={24} md={18} lg={19}>
+                        <ProTable<AnswerItem>
+                            headerTitle="答案列表"
+                            rowKey="id"
+                            dataSource={filteredAnswerList}
+                            search={false}
+                            options={false}
+                            toolBarRender={() => [
+                                <Button key="create" type="primary" onClick={() => setCreateModalVisible(true)} icon={<PlusOutlined />}>
+                                    新增答案
+                                </Button>,
+                            ]}
+                            rowSelection={{
+                                selectedRowKeys,
+                                onChange: (keys) => setSelectedRowKeys(keys),
+                            }}
+                            tableAlertRender={({ selectedRowKeys, onCleanSelected }) => (
+                                <Space size={24}>
+                                    <span>已选 {selectedRowKeys.length} 项</span>
+                                    <a onClick={onCleanSelected}>取消选择</a>
+                                </Space>
+                            )}
+                            tableAlertOptionRender={() => (
+                                <Space size={16}>
+                                    <a onClick={() => setMoveModalVisible(true)}>批量移动</a>
+                                </Space>
+                            )}
+                            columns={answerColumns}
+                        />
+                    </Col>
+                </Row>
+            ) : (
+                <ProTable<AnswerItem>
+                    headerTitle="答案列表"
+                    rowKey="id"
+                    dataSource={answerList}
+                    search={false}
+                    options={false}
+                    toolBarRender={() => [
+                        <Button key="create" type="primary" onClick={() => setCreateModalVisible(true)} icon={<PlusOutlined />}>
+                            新增答案
+                        </Button>,
+                    ]}
+                    columns={answerColumns}
+                />
+            )}
 
             {/* Create Answer Modal */}
             <ModalForm
@@ -434,12 +325,16 @@ const AnswerManage: React.FC = () => {
                     const newFiles = [];
                     // Simple logic to mock adding entries based on upload inputs
                     // In real app, we parse values.file or answerFile list
+                    const selectedType = (values.answerType || 'file') as keyof typeof uploadTypeConfig;
+                    const typeConfig = uploadTypeConfig[selectedType] || uploadTypeConfig.file;
+                    const directoryId = isDirectoryEnabled ? (values.directoryId || null) : null;
+                    const fileName = `New Uploaded ${typeConfig.typeTag} File`;
                     newFiles.push({
                         id: newId,
-                        name: 'New Uploaded File.doc', // Mock name
-                        type: 'DOC',
+                        name: fileName, // Mock file name
+                        type: typeConfig.typeTag,
                         size: '1.5MB',
-                        directoryId: values.directoryId || null,
+                        directoryId,
                         updateTime: new Date().toLocaleTimeString(),
                     });
                     setAnswerList([...answerList, ...newFiles]);
@@ -447,147 +342,87 @@ const AnswerManage: React.FC = () => {
                     return true;
                 }}
             >
-                <div style={{ paddingBottom: 16 }}>
+                {isDirectoryEnabled && (
                     <ProFormTreeSelect
                         name="directoryId"
                         label="所属目录"
-                        placeholder="请选择目录（可选）"
+                        placeholder="请选择目录"
                         fieldProps={{
                             treeData: buildTreeData(directoryList),
                             showSearch: true,
                             treeDefaultExpandAll: true,
-                            allowClear: true,
                         }}
+                        rules={[{ required: true, message: '请选择所属目录' }]}
                         width="md"
                     />
-                </div>
+                )}
 
-                {/* 5 Types of Uploads */}
-                <ProFormUploadButton
-                    label="答案文件"
-                    name="answerFile"
-                    max={99}
-                    fieldProps={{ name: 'file', multiple: true, accept: '.pdf,.doc,.docx,.ppt,.pptx' }}
-                    title="文件大小不能超过10M，仅支持PDF、DOC、DOCX、PPT、PPTX等格式。"
+                <ProFormSelect
+                    name="answerType"
+                    label="答案类型"
+                    width="md"
+                    initialValue="file"
+                    rules={[{ required: true, message: '请选择答案类型' }]}
+                    options={[
+                        { label: '答案文件', value: 'file' },
+                        { label: '答案图片', value: 'image' },
+                        { label: '答案视频', value: 'video' },
+                        { label: '答案音频', value: 'audio' },
+                        { label: '答案压缩文档', value: 'archive' },
+                    ]}
                 />
-                <ProFormUploadButton
-                    label="答案图片"
-                    name="answerImage"
-                    max={99}
-                    fieldProps={{ name: 'file', multiple: true, accept: '.jpg,.jpeg,.png' }}
-                    title="单张图片大小不能超过10M，仅支持JPG、JPEG、PNG等格式。"
-                />
-                <ProFormUploadButton
-                    label="答案视频"
-                    name="answerVideo"
-                    max={99}
-                    fieldProps={{ name: 'file', multiple: true, accept: '.mp4' }}
-                    title="视频文件大小不能超过1G，仅支持MP4格式，MPEG-4编码格式"
-                />
-                <ProFormUploadButton
-                    label="答案音频"
-                    name="answerAudio"
-                    max={99}
-                    fieldProps={{ name: 'file', multiple: true, accept: '.mp3' }}
-                    title="音频大小不能超过500M，仅支持MP3格式。"
-                />
-                <ProFormUploadButton
-                    label="答案压缩文档"
-                    name="answerArchive"
-                    max={99}
-                    fieldProps={{ name: 'file', multiple: true, accept: '.zip,.rar' }}
-                    title="文件大小不能超过100M，仅支持ZIP、RAR格式。"
-                />
+
+                <ProFormDependency name={['answerType']}>
+                    {({ answerType }) => {
+                        const typeKey = (answerType || 'file') as keyof typeof uploadTypeConfig;
+                        const typeConfig = uploadTypeConfig[typeKey] || uploadTypeConfig.file;
+                        return (
+                            <ProFormUploadButton
+                                label={typeConfig.label}
+                                name="answerUpload"
+                                max={99}
+                                fieldProps={{ name: 'file', multiple: true, accept: typeConfig.accept }}
+                                title={typeConfig.title}
+                            />
+                        );
+                    }}
+                </ProFormDependency>
             </ModalForm>
 
             {/* Move Answer Modal */}
-            <ModalForm
-                title="批量移动"
-                width={500}
-                open={moveModalVisible}
-                onOpenChange={setMoveModalVisible}
-                onFinish={async (values) => {
-                    const targetDirId = values.targetDirectoryId;
-                    setAnswerList(answerList.map(item => {
-                        if (selectedRowKeys.includes(item.id)) {
-                            return { ...item, directoryId: targetDirId };
-                        }
-                        return item;
-                    }));
-                    message.success('移动成功');
-                    setSelectedRowKeys([]); // Clear selection
-                    return true;
-                }}
-            >
-                <ProFormTreeSelect
-                    name="targetDirectoryId"
-                    label="移动到"
-                    placeholder="请选择目标目录"
-                    fieldProps={{
-                        treeData: buildTreeData(directoryList),
-                        showSearch: true,
-                        treeDefaultExpandAll: true,
+            {isDirectoryEnabled && (
+                <ModalForm
+                    title="批量移动"
+                    width={500}
+                    open={moveModalVisible}
+                    onOpenChange={setMoveModalVisible}
+                    onFinish={async (values) => {
+                        const targetDirId = values.targetDirectoryId;
+                        setAnswerList(answerList.map(item => {
+                            if (selectedRowKeys.includes(item.id)) {
+                                return { ...item, directoryId: targetDirId };
+                            }
+                            return item;
+                        }));
+                        message.success('移动成功');
+                        setSelectedRowKeys([]); // Clear selection
+                        return true;
                     }}
-                    rules={[{ required: true, message: '请选择目标目录' }]}
-                />
-            </ModalForm>
+                >
+                    <ProFormTreeSelect
+                        name="targetDirectoryId"
+                        label="移动到"
+                        placeholder="请选择目标目录"
+                        fieldProps={{
+                            treeData: buildTreeData(directoryList),
+                            showSearch: true,
+                            treeDefaultExpandAll: true,
+                        }}
+                        rules={[{ required: true, message: '请选择目标目录' }]}
+                    />
+                </ModalForm>
+            )}
 
-            {/* Directory Manage Modal (Existing Logic) */}
-            <Modal
-                title="目录管理"
-                width={800}
-                open={modalVisible}
-                onCancel={() => setModalVisible(false)}
-                footer={null}
-            >
-                <EditableProTable<DirectoryItem>
-                    rowKey="id"
-                    actionRef={actionRef}
-                    headerTitle="目录列表"
-                    recordCreatorProps={false}
-                    toolBarRender={() => [
-                        <Button
-                            key="add"
-                            type="primary"
-                            onClick={() => {
-                                addDirectoryRecord();
-                            }}
-                        >
-                            添加一级目录
-                        </Button>
-                    ]}
-                    columns={directoryColumns}
-                    value={directoryTree}
-                    onChange={(values) => setDirectoryList(flattenDirectoryList(values as any))}
-                    components={{
-                        body: {
-                            wrapper: DraggableContainer,
-                            row: DraggableBodyRow,
-                            cell: SortableItemCell,
-                        },
-                    }}
-                    tableViewRender={(_, defaultDom) => (
-                        <DndContext
-                            sensors={sensors}
-                            collisionDetection={rectIntersection}
-                            onDragEnd={handleDirectoryDragEnd}
-                            modifiers={[restrictToVerticalAxis]}
-                        >
-                            {defaultDom}
-                        </DndContext>
-                    )}
-                    expandable={{
-                        expandedRowKeys,
-                        onExpandedRowsChange: setExpandedRowKeys,
-                    }}
-                    editable={{
-                        type: 'single',
-                        editableKeys,
-                        onSave: async (rowKey, data, row) => { console.log(rowKey, data, row); },
-                        onChange: setEditableRowKeys,
-                    }}
-                />
-            </Modal>
         </PageContainer>
     );
 };

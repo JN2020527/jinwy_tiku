@@ -49,6 +49,12 @@ export default [
                 component: './ContentCenter/AnswerManage',
                 hideInMenu: true,
             },
+            {
+                path: '/content/product-list/subject-directory',
+                name: '目录管理',
+                component: './ContentCenter/SubjectDirectory',
+                hideInMenu: true,
+            },
         ],
     },
     {
