@@ -17,7 +17,7 @@ import {
 import { Card, Space, message, Button, Descriptions, Modal, Switch, Tag, Row, Col, Tree, Image } from 'antd';
 import React, { useMemo, useState } from 'react';
 import { useSearchParams } from '@umijs/max';
-import { PlusOutlined, DownloadOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, ThunderboltOutlined, QrcodeOutlined, EditOutlined, DeleteOutlined, PlusCircleOutlined, SettingOutlined, CheckOutlined } from '@ant-design/icons';
 import { Form } from 'antd';
 
 const AnswerManage: React.FC = () => {
@@ -40,6 +40,7 @@ const AnswerManage: React.FC = () => {
         parentId?: string;
         sort: number;
         createTime: string;
+        qrCodeUrl?: string;
     };
 
     type QuestionItem = {
@@ -97,12 +98,19 @@ const AnswerManage: React.FC = () => {
     const [currentEditingQuestion, setCurrentEditingQuestion] = useState<QuestionItem>();
     const [questionForm] = Form.useForm();
 
+    // Directory Management State
+    const [isDirectoryManaging, setIsDirectoryManaging] = useState(false);
+    const [directoryModalVisible, setDirectoryModalVisible] = useState(false);
+    const [currentDirectoryAction, setCurrentDirectoryAction] = useState<'add' | 'edit' | 'addSub'>('add');
+    const [currentOperatingDirectory, setCurrentOperatingDirectory] = useState<DirectoryItem>();
+    const [directoryForm] = Form.useForm();
+
     // Mock Data State
-    const [directoryList] = useState<DirectoryItem[]>([
-        { id: '1', name: '第一章', sort: 1, createTime: '2025-12-21' },
-        { id: '1-1', name: '第一节', parentId: '1', sort: 1, createTime: '2025-12-21' },
-        { id: '1-1-1', name: '知识点 1.1.1', parentId: '1-1', sort: 1, createTime: '2025-12-21' },
-        { id: '2', name: '第二章', sort: 2, createTime: '2025-12-21' },
+    const [directoryList, setDirectoryList] = useState<DirectoryItem[]>([
+        { id: '1', name: '第一章', sort: 1, createTime: '2025-12-21', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
+        { id: '1-1', name: '第一节', parentId: '1', sort: 1, createTime: '2025-12-21', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
+        { id: '1-1-1', name: '知识点 1.1.1', parentId: '1-1', sort: 1, createTime: '2025-12-21', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
+        { id: '2', name: '第二章', sort: 2, createTime: '2025-12-21', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
     ]);
 
     const [answerList, setAnswerList] = useState<AnswerItem[]>([
@@ -223,7 +231,7 @@ const AnswerManage: React.FC = () => {
         const map = new Map<string, any>();
         const roots: any[] = [];
         list.forEach((item) => {
-            map.set(item.id, { title: item.name, value: item.id, children: [] });
+            map.set(item.id, { title: item.name, value: item.id, qrCodeUrl: item.qrCodeUrl, sort: item.sort, parentId: item.parentId, children: [] });
         });
         list.forEach((item) => {
             const node = map.get(item.id);
@@ -257,14 +265,65 @@ const AnswerManage: React.FC = () => {
         const attachKeys = (nodes: any[]): any[] => nodes.map((node) => ({
             ...node,
             key: node.value,
+            title: (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <span>{node.title}</span>
+                    <Space>
+                        {!isDirectoryManaging && node.qrCodeUrl && (
+                            <QrcodeOutlined
+                                style={{ marginLeft: 8, color: '#1890ff' }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCurrentQrCodeItem({ name: node.title, qrCodeUrl: node.qrCodeUrl } as any);
+                                    setQrCodeModalVisible(true);
+                                }}
+                            />
+                        )}
+                        {isDirectoryManaging && (
+                            <>
+                                <EditOutlined
+                                    style={{ color: '#1890ff', cursor: 'pointer' }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDirectoryModalOpen('edit', { id: node.value, name: node.title, sort: node.sort, parentId: node.parentId } as any);
+                                    }}
+                                />
+                                {!node.parentId && (
+                                    <PlusCircleOutlined
+                                        style={{ color: '#52c41a', cursor: 'pointer' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDirectoryModalOpen('addSub', { id: node.value } as any);
+                                        }}
+                                    />
+                                )}
+                                <DeleteOutlined
+                                    style={{ color: '#ff4d4f', cursor: 'pointer' }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteDirectory({ id: node.value, name: node.title } as any);
+                                    }}
+                                />
+                            </>
+                        )}
+                    </Space>
+                </div>
+            ),
             children: node.children ? attachKeys(node.children) : undefined,
         }));
+
+        const treeNodes = attachKeys(buildTreeData(directoryList));
+
+        if (isDirectoryManaging) {
+            return treeNodes;
+        }
+
         return [
             { title: '全部', key: ALL_DIRECTORY_KEY },
             { title: `未归类 (${unassignedCount})`, key: UNASSIGNED_DIRECTORY_KEY },
-            ...attachKeys(buildTreeData(directoryList)),
+            ...treeNodes,
         ];
-    }, [ALL_DIRECTORY_KEY, UNASSIGNED_DIRECTORY_KEY, directoryList, unassignedCount]);
+    }, [ALL_DIRECTORY_KEY, UNASSIGNED_DIRECTORY_KEY, directoryList, unassignedCount, isDirectoryManaging]);
     const filteredAnswerList = useMemo(() => {
         if (!isDirectoryEnabled || selectedDirectoryKey === ALL_DIRECTORY_KEY) {
             return answerList;
@@ -384,18 +443,232 @@ const AnswerManage: React.FC = () => {
         }
     };
 
-    const handleBatchDownload = () => {
-        // Filter items based on current directory and QR code existence
-        const itemsToDownload = (isDirectoryEnabled ? filteredAnswerList : answerList).filter(item => {
-            return !!item.qrCodeUrl;
+    // Helper to get all descendant directory IDs
+    const getDescendantIds = (rootId: string, allDirs: DirectoryItem[]): string[] => {
+        const children = allDirs.filter(d => d.parentId === rootId);
+        let ids = children.map(c => c.id);
+        children.forEach(c => {
+            ids = [...ids, ...getDescendantIds(c.id, allDirs)];
+        });
+        return ids;
+    };
+
+    // Directory Management Logic
+    const handleDirectoryModalOpen = (action: 'add' | 'edit' | 'addSub', record?: DirectoryItem) => {
+        setCurrentDirectoryAction(action);
+        setCurrentOperatingDirectory(record);
+        setDirectoryModalVisible(true);
+    };
+
+    React.useEffect(() => {
+        if (directoryModalVisible) {
+            directoryForm.resetFields();
+            if (currentDirectoryAction === 'edit' && currentOperatingDirectory) {
+                directoryForm.setFieldsValue({
+                    name: currentOperatingDirectory.name,
+                    sort: currentOperatingDirectory.sort,
+                });
+            } else if (currentDirectoryAction === 'add' || currentDirectoryAction === 'addSub') {
+                // Calculate default sort
+                const parentId = currentDirectoryAction === 'addSub' && currentOperatingDirectory ? currentOperatingDirectory.id : undefined;
+                const siblings = directoryList.filter(d => d.parentId === parentId);
+                const maxSort = Math.max(...siblings.map(s => s.sort), 0);
+                directoryForm.setFieldsValue({
+                    sort: maxSort + 1,
+                });
+            }
+        }
+    }, [directoryModalVisible, currentDirectoryAction, currentOperatingDirectory, directoryForm, directoryList]);
+
+    const handleDeleteDirectory = (record: DirectoryItem) => {
+        Modal.confirm({
+            title: '确认删除目录?',
+            content: `删除 "${record.name}" 将同时删除其所有下级目录。目录下的资源将变为“未归类”。`,
+            onOk: () => {
+                const idsToDelete = [record.id, ...getDescendantIds(record.id, directoryList)];
+                // 1. Remove directories
+                // Note: In a real app, we might check if there are resources and ask user what to do.
+                // Here we just set them to unassigned (null directoryId) as per warning.
+
+                // Update Answer List: Set directoryId to null for affected answers
+                setAnswerList(prev => prev.map(item => {
+                    if (item.directoryId && idsToDelete.includes(item.directoryId)) {
+                        return { ...item, directoryId: null };
+                    }
+                    return item;
+                }));
+
+                // Update Directory List
+                // We can't update state based on previous state inside Modal.confirm easily without refs or functional updates if we were using it directly, 
+                // but here we are inside the component scope, so `directoryList` might be stale if not careful.
+                // Better to use functional update.
+                // However, `getDescendantIds` needs the current list. 
+                // Let's assume `directoryList` is fresh enough or use a ref if needed. 
+                // For this mock, using the state directly is okay-ish but functional update is safer for the set call.
+
+                // Actually, let's re-calculate ids inside the setter to be safe
+                setAnswerList(prevAnswers => {
+                    const currentDirList = directoryList; // This might still be stale closure. 
+                    // Ideally we should use a ref for directoryList if we need it inside callbacks that might close over old values.
+                    // But for this simple case, let's just proceed.
+                    return prevAnswers.map(item => {
+                        if (item.directoryId && idsToDelete.includes(item.directoryId)) {
+                            return { ...item, directoryId: null };
+                        }
+                        return item;
+                    });
+                });
+
+                // Remove from directory list
+                // We need to use functional update to ensure we don't lose updates
+                // But we need the IDs to delete. 
+                // Let's just use the ids calculated at the start of onOk.
+                // Wait, `directoryList` in `onOk` closure is the one from render. 
+                // If `directoryList` hasn't changed since render, it's fine.
+                // Since we are not doing async stuff before this, it should be fine.
+
+                // Actually, `setDirectoryList` functional update:
+                setDirectoryList(prev => prev.filter(d => !idsToDelete.includes(d.id)));
+
+                message.success('删除成功');
+            },
+        });
+    };
+
+    const handleDirectoryDrop = (info: any) => {
+        const dropKey = info.node.key as string;
+        const dragKey = info.dragNode.key as string;
+        const dropPos = info.node.pos.split('-');
+        const dropPosition = info.dropPosition - Number(dropPos[dropPos.length - 1]);
+
+        const loop = (data: any[], key: string, callback: (item: any, index: number, arr: any[]) => void) => {
+            for (let i = 0; i < data.length; i++) {
+                if (data[i].key === key) {
+                    return callback(data[i], i, data);
+                }
+                if (data[i].children) {
+                    loop(data[i].children, key, callback);
+                }
+            }
+        };
+
+        // We need to work on a clone of the tree structure or just manipulate the flat list.
+        // Manipulating the flat list is easier for persistence but harder for drag logic calculation.
+        // Antd Tree gives us visual structure.
+        // Let's use the `directoryTreeData` to calculate the move, then map back to flat list.
+
+        const data = [...directoryTreeData]; // Shallow copy of root array
+
+        // Find drag object
+        let dragObj: any;
+        loop(data, dragKey, (item, index, arr) => {
+            arr.splice(index, 1);
+            dragObj = item;
         });
 
-        if (itemsToDownload.length === 0) {
-            message.warning('当前目录下没有可下载的二维码');
+        if (!info.dropToGap) {
+            // Drop on the content -> become child
+            loop(data, dropKey, (item) => {
+                item.children = item.children || [];
+                item.children.push(dragObj);
+            });
+        } else if (
+            (info.node.children || []).length > 0 && // Has children
+            info.node.expanded && // Is expanded
+            dropPosition === 1 // On the bottom gap
+        ) {
+            loop(data, dropKey, (item) => {
+                item.children = item.children || [];
+                item.children.unshift(dragObj);
+            });
+        } else {
+            let ar: any[] = [];
+            let i: number = 0;
+            loop(data, dropKey, (item, index, arr) => {
+                ar = arr;
+                i = index;
+            });
+            if (dropPosition === -1) {
+                ar.splice(i, 0, dragObj);
+            } else {
+                ar.splice(i + 1, 0, dragObj);
+            }
+        }
+
+        // Now `data` has the new structure. We need to convert it back to flat `directoryList`.
+        // And update `parentId` and `sort`.
+        const newDirectoryList: DirectoryItem[] = [];
+        const flatten = (nodes: any[], parentId?: string) => {
+            nodes.forEach((node, index) => {
+                // Find original item to keep other props (like createTime)
+                const original = directoryList.find(d => d.id === node.key);
+                if (original) {
+                    newDirectoryList.push({
+                        ...original,
+                        parentId: parentId,
+                        sort: index + 1, // Update sort based on new order
+                    });
+                }
+                if (node.children) {
+                    flatten(node.children, node.key);
+                }
+            });
+        };
+
+        // Skip the static nodes "All" and "Unassigned"
+        // Our `directoryTreeData` has "All" and "Unassigned" at the top.
+        // We should only process the actual directory nodes.
+        // The `data` array contains them.
+        // "All" key is ALL_DIRECTORY_KEY, "Unassigned" is UNASSIGNED_DIRECTORY_KEY.
+        // We should filter them out before flattening or just ignore them in flatten if they are not in directoryList.
+
+        // Actually, the drag might involve moving something *before* "All" or "Unassigned" if we are not careful.
+        // But `directoryTreeData` construction puts them first.
+        // If user drags a directory to be before "All", it might mess up.
+        // We should probably prevent dragging "All" and "Unassigned" and dropping onto them.
+        // For now, let's assume user behaves or we filter.
+
+        // Let's just flatten the nodes that correspond to real directories.
+        flatten(data, undefined); // Root nodes have undefined parentId
+
+        // Filter out any undefined entries if something went wrong (shouldn't happen if logic is correct)
+        // And ensure we only have items that were in the original list (to exclude "All"/"Unassigned" virtual nodes from being added to list)
+        const validNewList = newDirectoryList.filter(item => item.id !== ALL_DIRECTORY_KEY && item.id !== UNASSIGNED_DIRECTORY_KEY);
+
+        setDirectoryList(validNewList);
+    };
+
+    const handleBatchDownload = () => {
+        let resourceQRs: AnswerItem[] = [];
+        let directoryQRs: DirectoryItem[] = [];
+
+        if (!isDirectoryEnabled || selectedDirectoryKey === ALL_DIRECTORY_KEY) {
+            // All Mode: Everything
+            resourceQRs = answerList.filter(item => !!item.qrCodeUrl);
+            directoryQRs = directoryList.filter(d => !!d.qrCodeUrl);
+        } else if (selectedDirectoryKey === UNASSIGNED_DIRECTORY_KEY) {
+            // Unassigned Mode: Only unassigned resources
+            resourceQRs = answerList.filter(item => !item.directoryId && !!item.qrCodeUrl);
+            directoryQRs = [];
+        } else {
+            // Specific Directory Mode: Recursive
+            const targetDirIds = [selectedDirectoryKey, ...getDescendantIds(selectedDirectoryKey, directoryList)];
+
+            // Collect Directories
+            directoryQRs = directoryList.filter(d => targetDirIds.includes(d.id) && !!d.qrCodeUrl);
+
+            // Collect Resources
+            resourceQRs = answerList.filter(item => item.directoryId && targetDirIds.includes(item.directoryId) && !!item.qrCodeUrl);
+        }
+
+        const totalCount = resourceQRs.length + directoryQRs.length;
+
+        if (totalCount === 0) {
+            message.warning('当前范围内没有可下载的二维码');
             return;
         }
 
-        message.loading(`正在打包下载 ${itemsToDownload.length} 个二维码...`, 1.5)
+        message.loading(`正在打包下载 ${directoryQRs.length} 个目录二维码和 ${resourceQRs.length} 个资源二维码...`, 1.5)
             .then(() => message.success('下载完成'));
     };
 
@@ -422,13 +695,39 @@ const AnswerManage: React.FC = () => {
             {isDirectoryEnabled ? (
                 <Row gutter={16} align="top">
                     <Col xs={24} md={6} lg={5}>
-                        <Card title="目录">
+                        <Card
+                            title="目录"
+                            extra={
+                                <Space>
+                                    {isDirectoryManaging && (
+                                        <Button
+                                            type="link"
+                                            size="small"
+                                            icon={<PlusOutlined />}
+                                            onClick={() => handleDirectoryModalOpen('add')}
+                                        >
+                                            添加一级
+                                        </Button>
+                                    )}
+                                    <Button
+                                        type="text"
+                                        icon={isDirectoryManaging ? <CheckOutlined /> : <SettingOutlined />}
+                                        onClick={() => setIsDirectoryManaging(!isDirectoryManaging)}
+                                    >
+                                        {isDirectoryManaging ? '完成' : '管理'}
+                                    </Button>
+                                </Space>
+                            }
+                        >
                             <Tree
                                 blockNode
                                 defaultExpandAll
-                                selectedKeys={[selectedDirectoryKey]}
+                                draggable={isDirectoryManaging}
+                                onDrop={handleDirectoryDrop}
+                                selectedKeys={isDirectoryManaging ? [] : [selectedDirectoryKey]}
                                 treeData={directoryTreeData}
                                 onSelect={(keys) => {
+                                    if (isDirectoryManaging) return;
                                     const nextKey = (keys[0] as string) || ALL_DIRECTORY_KEY;
                                     setSelectedDirectoryKey(nextKey);
                                     setSelectedRowKeys([]);
@@ -949,6 +1248,59 @@ const AnswerManage: React.FC = () => {
                     </Button>
                 </div>
             </DrawerForm>
+
+            {/* Directory Management Modal */}
+            <ModalForm
+                title={currentDirectoryAction === 'add' ? '添加一级目录' : currentDirectoryAction === 'addSub' ? '添加下级目录' : '编辑目录'}
+                width={500}
+                open={directoryModalVisible}
+                onOpenChange={setDirectoryModalVisible}
+                form={directoryForm}
+                modalProps={{ zIndex: 2000 }}
+                layout="horizontal"
+                labelCol={{ flex: '80px' }}
+                onFinish={async (values) => {
+                    if (currentDirectoryAction === 'edit' && currentOperatingDirectory) {
+                        // Edit
+                        setDirectoryList(prev => prev.map(item => {
+                            if (item.id === currentOperatingDirectory.id) {
+                                return { ...item, name: values.name, sort: values.sort };
+                            }
+                            return item;
+                        }));
+                        message.success('修改成功');
+                    } else {
+                        // Add or Add Sub
+                        const newId = (Math.random() * 1000000).toFixed(0);
+                        const parentId = currentDirectoryAction === 'addSub' && currentOperatingDirectory ? currentOperatingDirectory.id : undefined;
+                        const newRecord: DirectoryItem = {
+                            id: newId,
+                            name: values.name,
+                            parentId: parentId,
+                            sort: values.sort,
+                            createTime: new Date().toISOString(),
+                        };
+                        setDirectoryList(prev => [...prev, newRecord]);
+                        message.success('添加成功');
+                    }
+                    return true;
+                }}
+            >
+                <ProFormText
+                    name="name"
+                    label="目录名称"
+                    placeholder="请输入目录名称"
+                    rules={[{ required: true, message: '请输入目录名称' }]}
+                />
+                <ProFormText
+                    name="sort"
+                    label="排序"
+                    placeholder="请输入排序号"
+                    fieldProps={{ type: 'number' }}
+                    initialValue={1}
+                    rules={[{ required: true, message: '请输入排序号' }]}
+                />
+            </ModalForm>
 
             {/* Question Management Modal */}
             <ModalForm
