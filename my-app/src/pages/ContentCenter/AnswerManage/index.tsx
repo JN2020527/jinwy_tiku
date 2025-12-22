@@ -12,11 +12,12 @@ import {
     ProFormTextArea,
     EditableProTable,
     ProFormTimePicker,
+    ProFormList,
 } from '@ant-design/pro-components';
 import { Card, Space, message, Button, Descriptions, Modal, Switch, Tag, Row, Col, Tree, Image } from 'antd';
 import React, { useMemo, useState } from 'react';
 import { useSearchParams } from '@umijs/max';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Form } from 'antd';
 
 const AnswerManage: React.FC = () => {
@@ -53,6 +54,13 @@ const AnswerManage: React.FC = () => {
         analysis: string;
     };
 
+    type VideoSummaryItem = {
+        id: string;
+        startTime: string;
+        endTime: string;
+        content: string;
+    };
+
     type AnswerItem = {
         id: string;
         name: string;
@@ -62,7 +70,7 @@ const AnswerManage: React.FC = () => {
         directoryId: string | null;
         updateTime: string;
         allowDownload?: boolean;
-        videoSummary?: string;
+        videoSummary?: VideoSummaryItem[];
         questions?: QuestionItem[];
         qrCodeUrl?: string;
     };
@@ -82,6 +90,7 @@ const AnswerManage: React.FC = () => {
     const [currentQrCodeItem, setCurrentQrCodeItem] = useState<AnswerItem>();
     const [currentVideoItem, setCurrentVideoItem] = useState<AnswerItem>();
     const [currentEditingItem, setCurrentEditingItem] = useState<AnswerItem>();
+    const [editableRowKeys, setEditableRowKeys] = useState<React.Key[]>([]);
 
     // Question Management State
     const [questionModalVisible, setQuestionModalVisible] = useState(false);
@@ -102,7 +111,10 @@ const AnswerManage: React.FC = () => {
         { id: '103', name: '参考答案.doc', type: 'DOC', answerType: 'file', size: '1.2MB', directoryId: null, updateTime: '2025-12-21 10:10:00', allowDownload: false },
         {
             id: '104', name: '名师讲解.mp4', type: 'MP4', answerType: 'video', size: '500MB', directoryId: '1-1-1', updateTime: '2025-12-21 12:00:00',
-            videoSummary: '本视频详细讲解了第一章的重点难点。',
+            videoSummary: [
+                { id: 'vs1', startTime: '00:00:00', endTime: '00:03:37', content: '太行一号旅游公路圆弧段弧长计算详解' },
+                { id: 'vs2', startTime: '00:03:38', endTime: '00:10:00', content: '圆弧段弧长计算公式推导' }
+            ],
             qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg',
             questions: [
                 {
@@ -325,6 +337,7 @@ const AnswerManage: React.FC = () => {
                     record.answerType === 'video' && (
                         <a key="config" onClick={() => {
                             setCurrentVideoItem(record);
+                            setShowVideoSummary(!!(record.videoSummary && record.videoSummary.length > 0));
                             setVideoConfigVisible(true);
                         }}>配置</a>
                     ),
@@ -343,6 +356,48 @@ const AnswerManage: React.FC = () => {
         }
         return columns;
     }, [directoryList, isDirectoryEnabled]);
+
+    // AI Generation State
+    const [aiGenerating, setAiGenerating] = useState(false);
+    const [showVideoSummary, setShowVideoSummary] = useState(false);
+
+    const handleAiGenerate = async () => {
+        setAiGenerating(true);
+        setShowVideoSummary(true);
+        try {
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            const mockSummary: VideoSummaryItem[] = [
+                { id: Date.now().toString() + '1', startTime: '00:00:00', endTime: '00:05:00', content: 'AI生成：课程导入与背景介绍' },
+                { id: Date.now().toString() + '2', startTime: '00:05:01', endTime: '00:15:30', content: 'AI生成：核心知识点深度解析' },
+                { id: Date.now().toString() + '3', startTime: '00:15:31', endTime: '00:25:00', content: 'AI生成：典型例题分析与解题技巧' },
+                { id: Date.now().toString() + '4', startTime: '00:25:01', endTime: '00:30:00', content: 'AI生成：课程总结与课后作业布置' },
+            ];
+
+            form.setFieldValue('videoSummary', mockSummary);
+            message.success('AI摘要生成成功');
+        } catch (error) {
+            message.error('生成失败，请重试');
+        } finally {
+            setAiGenerating(false);
+        }
+    };
+
+    const handleBatchDownload = () => {
+        // Filter items based on current directory and QR code existence
+        const itemsToDownload = (isDirectoryEnabled ? filteredAnswerList : answerList).filter(item => {
+            return !!item.qrCodeUrl;
+        });
+
+        if (itemsToDownload.length === 0) {
+            message.warning('当前目录下没有可下载的二维码');
+            return;
+        }
+
+        message.loading(`正在打包下载 ${itemsToDownload.length} 个二维码...`, 1.5)
+            .then(() => message.success('下载完成'));
+    };
 
     return (
         <PageContainer>
@@ -389,6 +444,13 @@ const AnswerManage: React.FC = () => {
                             search={false}
                             options={false}
                             toolBarRender={() => [
+                                <Button
+                                    key="download"
+                                    icon={<DownloadOutlined />}
+                                    onClick={handleBatchDownload}
+                                >
+                                    二维码下载
+                                </Button>,
                                 <Button key="create" type="primary" onClick={() => {
                                     setCurrentEditingItem(undefined);
                                     form.resetFields();
@@ -424,6 +486,13 @@ const AnswerManage: React.FC = () => {
                     search={false}
                     options={false}
                     toolBarRender={() => [
+                        <Button
+                            key="download"
+                            icon={<DownloadOutlined />}
+                            onClick={handleBatchDownload}
+                        >
+                            二维码下载
+                        </Button>,
                         <Button key="create" type="primary" onClick={() => {
                             setCurrentEditingItem(undefined);
                             form.resetFields();
@@ -695,35 +764,114 @@ const AnswerManage: React.FC = () => {
                     questions: currentVideoItem?.questions || [],
                 }}
             >
-                <Descriptions column={1} style={{ marginBottom: 24 }}>
-                    <Descriptions.Item label="视频名称">{currentVideoItem?.name}</Descriptions.Item>
-                </Descriptions>
-
-                <Row gutter={24}>
-                    <Col span={12}>
-                        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                            <Image
-                                width={150}
-                                src={currentVideoItem?.qrCodeUrl}
-                                fallback="https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg"
-                                preview={false}
-                            />
-                            <p style={{ marginTop: 10, color: '#999' }}>视频二维码</p>
-                        </div>
-                    </Col>
-                    <Col span={12}>
-                        <ProFormTextArea
+                <div style={{ marginBottom: 24 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16, gap: 12 }}>
+                        <div style={{ fontSize: 16, fontWeight: 'bold' }}>视频摘要</div>
+                        <Button
+                            type="primary"
+                            ghost
+                            size="small"
+                            icon={<ThunderboltOutlined />}
+                            loading={aiGenerating}
+                            onClick={handleAiGenerate}
+                        >
+                            AI生成视频摘要
+                        </Button>
+                    </div>
+                    {showVideoSummary && (
+                        <EditableProTable<VideoSummaryItem>
                             name="videoSummary"
-                            label="视频摘要"
-                            placeholder="请输入视频摘要"
-                            fieldProps={{ rows: 6 }}
+                            rowKey="id"
+                            toolBarRender={false}
+                            columns={[
+                                {
+                                    title: '开始时间',
+                                    dataIndex: 'startTime',
+                                    valueType: 'time',
+                                    width: 110,
+                                    fieldProps: {
+                                        format: 'HH:mm:ss',
+                                    },
+                                    formItemProps: {
+                                        rules: [{ required: true, message: '此项为必填项' }],
+                                    },
+                                },
+                                {
+                                    title: '结束时间',
+                                    dataIndex: 'endTime',
+                                    valueType: 'time',
+                                    width: 110,
+                                    fieldProps: {
+                                        format: 'HH:mm:ss',
+                                    },
+                                    formItemProps: {
+                                        rules: [{ required: true, message: '此项为必填项' }],
+                                    },
+                                },
+                                {
+                                    title: '摘要内容',
+                                    dataIndex: 'content',
+                                    valueType: 'textarea',
+                                    formItemProps: {
+                                        rules: [{ required: true, message: '此项为必填项' }],
+                                    },
+                                },
+                                {
+                                    title: '操作',
+                                    valueType: 'option',
+                                    width: 120,
+                                    render: (text, record, _, action) => [
+                                        <a
+                                            key="editable"
+                                            onClick={() => {
+                                                action?.startEditable?.(record.id);
+                                            }}
+                                        >
+                                            编辑
+                                        </a>,
+                                        <a
+                                            key="delete"
+                                            onClick={() => {
+                                                const dataSource = form.getFieldValue('videoSummary') as VideoSummaryItem[];
+                                                form.setFieldValue(
+                                                    'videoSummary',
+                                                    dataSource.filter((item) => item.id !== record.id),
+                                                );
+                                            }}
+                                        >
+                                            删除
+                                        </a>,
+                                    ],
+                                },
+                            ]}
+                            recordCreatorProps={{
+                                newRecordType: 'dataSource',
+                                record: () => ({
+                                    id: Date.now().toString(),
+                                    startTime: '00:00:00',
+                                    endTime: '00:00:00',
+                                    content: '',
+                                }),
+                            }}
+                            editable={{
+                                type: 'multiple',
+                                editableKeys: editableRowKeys,
+                                actionRender: (row, config, defaultDom) => [
+                                    defaultDom.save,
+                                    defaultDom.cancel,
+                                ],
+                                onSave: async (rowKey, data, row) => {
+                                    console.log(rowKey, data, row);
+                                },
+                                onChange: setEditableRowKeys,
+                            }}
                         />
-                    </Col>
-                </Row>
+                    )}
+                </div>
 
                 <div style={{ marginBottom: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                        <span style={{ fontWeight: 'bold' }}>互动题目管理</span>
+                        <div style={{ fontSize: 16, fontWeight: 'bold' }}>选择题列表</div>
                     </div>
 
                     <ProTable<QuestionItem>
@@ -809,6 +957,7 @@ const AnswerManage: React.FC = () => {
                 open={questionModalVisible}
                 onOpenChange={setQuestionModalVisible}
                 form={questionForm}
+                modalProps={{ zIndex: 2000 }}
                 layout="horizontal"
                 labelCol={{ flex: '80px' }}
                 onFinish={async (values) => {
@@ -844,7 +993,7 @@ const AnswerManage: React.FC = () => {
                     return false;
                 }}
             >
-                <ProFormText
+                <ProFormTextArea
                     name="title"
                     label="题目"
                     placeholder="请输入"
