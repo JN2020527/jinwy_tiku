@@ -109,7 +109,6 @@ const AnswerManage: React.FC = () => {
     const [directoryList, setDirectoryList] = useState<DirectoryItem[]>([
         { id: '1', name: '第一章', sort: 1, createTime: '2025-12-21', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
         { id: '1-1', name: '第一节', parentId: '1', sort: 1, createTime: '2025-12-21', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
-        { id: '1-1-1', name: '知识点 1.1.1', parentId: '1-1', sort: 1, createTime: '2025-12-21', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
         { id: '2', name: '第二章', sort: 2, createTime: '2025-12-21', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
     ]);
 
@@ -118,7 +117,7 @@ const AnswerManage: React.FC = () => {
         { id: '102', name: '语文听力.mp3', type: 'MP3', answerType: 'audio', size: '5MB', directoryId: null, updateTime: '2025-12-21 10:05:00', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
         { id: '103', name: '参考答案.doc', type: 'DOC', answerType: 'file', size: '1.2MB', directoryId: null, updateTime: '2025-12-21 10:10:00', allowDownload: false },
         {
-            id: '104', name: '名师讲解.mp4', type: 'MP4', answerType: 'video', size: '500MB', directoryId: '1-1-1', updateTime: '2025-12-21 12:00:00',
+            id: '104', name: '名师讲解.mp4', type: 'MP4', answerType: 'video', size: '500MB', directoryId: '1-1', updateTime: '2025-12-21 12:00:00',
             videoSummary: [
                 { id: 'vs1', startTime: '00:00:00', endTime: '00:03:37', content: '太行一号旅游公路圆弧段弧长计算详解' },
                 { id: 'vs2', startTime: '00:03:38', endTime: '00:10:00', content: '圆弧段弧长计算公式推导' }

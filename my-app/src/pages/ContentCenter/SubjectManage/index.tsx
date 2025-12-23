@@ -101,11 +101,7 @@ const SubjectManage: React.FC = () => {
                     <Divider type="vertical" />
                     <a key="view">查看科目</a>
                     <Divider type="vertical" />
-                    <a key="directory" onClick={() => {
-                        const subjectName = encodeURIComponent(record.name);
-                        window.location.href = `/content/product-list/subject-directory?subjectId=${record.id}&subjectName=${subjectName}&productId=${productId || mockProductInfo.id}`;
-                    }}>目录管理</a>
-                    <Divider type="vertical" />
+
                     <Popconfirm title="确定删除吗？" onConfirm={() => { }}>
                         <a key="delete" style={{ color: 'red' }}>删除</a>
                     </Popconfirm>

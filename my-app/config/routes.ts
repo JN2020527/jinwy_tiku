@@ -50,6 +50,7 @@ export default [
                 hideInMenu: true,
             },
 
+
         ],
     },
     {
@@ -62,7 +63,17 @@ export default [
         path: '/question-bank',
         name: '晋文源题库',
         icon: 'database',
-        component: './QuestionBank',
+        routes: [
+            {
+                path: '/question-bank',
+                redirect: '/question-bank/tag-system',
+            },
+            {
+                path: '/question-bank/tag-system',
+                name: '标签体系',
+                component: './ContentCenter/TagManage',
+            },
+        ],
     },
     {
         path: '/',
