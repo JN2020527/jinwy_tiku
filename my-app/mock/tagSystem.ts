@@ -190,10 +190,32 @@ export default {
     },
     // Category CRUD
     'POST /api/tags/category': (req: Request, res: Response) => {
-        const { name } = req.body;
-        const newCat = { id: `cat-${Date.now()}`, name, tags: [] };
+        const { name, tags } = req.body;
+        const newCat = {
+            id: `cat-${Date.now()}`,
+            name,
+            tags: (tags || []).map((tag: any, index: number) => ({
+                id: tag.id || `tag-${Date.now()}-${index}`,
+                name: tag.name,
+                color: tag.color || 'default'
+            }))
+        };
         tagCategories.push(newCat);
         res.send({ success: true, message: 'Category created successfully' });
+    },
+    'PUT /api/tags/category': (req: Request, res: Response) => {
+        const { id, name, tags } = req.body;
+        const category = tagCategories.find(c => c.id === id);
+        if (category) {
+            category.name = name;
+            // Sync tags: Replace all with new list, preserving IDs if present
+            category.tags = (tags || []).map((tag: any, index: number) => ({
+                id: tag.id || `tag-${Date.now()}-${index}`,
+                name: tag.name,
+                color: tag.color || 'default'
+            }));
+        }
+        res.send({ success: true, message: 'Category updated successfully' });
     },
     'DELETE /api/tags/category': (req: Request, res: Response) => {
         const { id } = req.query;

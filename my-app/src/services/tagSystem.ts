@@ -20,6 +20,13 @@ export async function addTagCategory(data: any) {
     });
 }
 
+export async function updateTagCategory(data: any) {
+    return request('/api/tags/category', {
+        method: 'PUT',
+        data,
+    });
+}
+
 export async function deleteTagCategory(id: string) {
     return request('/api/tags/category', {
         method: 'DELETE',

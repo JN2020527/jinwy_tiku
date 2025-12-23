@@ -18,6 +18,7 @@ import {
     updateKnowledgeNode,
     updateQuestionTypeNode,
     updateTextbookChapter,
+    updateTagCategory,
 } from '@/services/tagSystem';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined, SearchOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import {
@@ -26,6 +27,8 @@ import {
     ProFormText,
     ProFormTextArea,
     ProFormSelect,
+    ProFormList,
+    ProFormGroup,
 } from '@ant-design/pro-components';
 import { Button, Card, Col, Form, Input, message, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Tree, Table } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -103,6 +106,7 @@ const TagManage: React.FC = () => {
 
     // Category Modal State
     const [catModalVisible, setCatModalVisible] = useState<boolean>(false);
+    const [catModalType, setCatModalType] = useState<'add' | 'edit'>('add');
     const [catForm] = Form.useForm();
 
     // Textbook State
@@ -406,14 +410,33 @@ const TagManage: React.FC = () => {
 
     // --- Attribute Category Handlers ---
     const handleAddCategory = () => {
+        setCatModalType('add');
         catForm.resetFields();
         setCatModalVisible(true);
     };
 
+    const handleEditCategory = (category: any) => {
+        setCatModalType('edit');
+        setCurrentCategoryId(category.id);
+        catForm.setFieldsValue({
+            name: category.name,
+            tags: category.tags,
+        });
+        setCatModalVisible(true);
+    };
+
+
+
     const handleCatModalFinish = async (values: any) => {
-        const res = await addTagCategory(values);
+        let res;
+        if (catModalType === 'add') {
+            res = await addTagCategory(values);
+        } else {
+            res = await updateTagCategory({ ...values, id: currentCategoryId });
+        }
+
         if (res.success) {
-            message.success('分类添加成功');
+            message.success(catModalType === 'add' ? '分类添加成功' : '分类更新成功');
             setCatModalVisible(false);
             fetchData();
             return true;
@@ -596,34 +619,22 @@ const TagManage: React.FC = () => {
                 const isEditing = editingCategories[record.id];
                 return (
                     <Space>
-                        {!inputVisible[record.id] && (
-                            <Button
-                                type="link"
-                                size="small"
-                                icon={<PlusOutlined />}
-                                onClick={() => showInput(record.id)}
-                            >
-                                添加标签
-                            </Button>
-                        )}
                         <Button
-                            type={isEditing ? 'primary' : 'link'}
+                            type="link"
                             size="small"
-                            icon={isEditing ? null : <SettingOutlined />}
-                            onClick={() => toggleEdit(record.id)}
+                            icon={<EditOutlined />}
+                            onClick={() => handleEditCategory(record)}
                         >
-                            {isEditing ? '完成' : '管理'}
+                            编辑
                         </Button>
-                        {!isEditing && (
-                            <Button
-                                type="text"
-                                danger
-                                size="small"
-                                onClick={() => handleDeleteCategory(record)}
-                            >
-                                删除
-                            </Button>
-                        )}
+                        <Button
+                            type="text"
+                            danger
+                            size="small"
+                            onClick={() => handleDeleteCategory(record)}
+                        >
+                            删除
+                        </Button>
                     </Space>
                 );
             },
@@ -1017,12 +1028,43 @@ const TagManage: React.FC = () => {
                     rules={[{ required: true, message: '请输入分类名称' }]}
                     placeholder="例如：年份、来源、VIP属性"
                 />
-                <ProFormSelect
-                    name="initialTags"
-                    label="初始标签 (回车添加多个)"
-                    mode="tags"
-                    placeholder="请输入标签名称并回车"
-                />
+                <ProFormList
+                    name="tags"
+                    label="包含标签"
+                    creatorButtonProps={{
+                        position: 'bottom',
+                        creatorButtonText: '添加新标签',
+                    }}
+                    copyIconProps={false}
+                    deleteIconProps={{
+                        tooltipText: '删除标签',
+                    }}
+                >
+                    <ProFormGroup key="group">
+                        <ProFormText
+                            name="name"
+                            placeholder="标签名称"
+                            rules={[{ required: true, message: '请输入' }]}
+                        />
+                        <ProFormSelect
+                            name="color"
+                            placeholder="颜色"
+                            options={[
+                                { label: '默认(灰色)', value: 'default' },
+                                { label: '红色(困难)', value: 'red' },
+                                { label: '绿色(容易)', value: 'green' },
+                                { label: '蓝色(中等)', value: 'blue' },
+                                { label: '橙色(较难)', value: 'orange' },
+                                { label: '青色(较易)', value: 'cyan' },
+                                { label: '紫色(能力)', value: 'purple' },
+                                { label: '极客蓝(逻辑)', value: 'geekblue' },
+                                { label: '洋红(空间)', value: 'magenta' },
+                                { label: '金黄(数据)', value: 'gold' },
+                            ]}
+                            initialValue="default"
+                        />
+                    </ProFormGroup>
+                </ProFormList>
             </ModalForm>
         </PageContainer>
     );
