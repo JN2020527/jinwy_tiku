@@ -610,12 +610,28 @@ const AnswerManage: React.FC = () => {
         setDirectoryList(validNewList);
     };
 
+    const downloadMockFile = (filename: string, content: string) => {
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    };
+
     const handleBatchDownload = () => {
         let resourceQRs: AnswerItem[] = [];
         let directoryQRs: DirectoryItem[] = [];
 
-        if (!isDirectoryEnabled || selectedDirectoryKey === ALL_DIRECTORY_KEY) {
-            // All Mode: Everything
+        if (!isDirectoryEnabled) {
+            // Directory Mode Disabled: Only resources
+            resourceQRs = answerList.filter(item => !!item.qrCodeUrl);
+            directoryQRs = [];
+        } else if (selectedDirectoryKey === ALL_DIRECTORY_KEY) {
+            // All Mode (Enabled): Everything
             resourceQRs = answerList.filter(item => !!item.qrCodeUrl);
             directoryQRs = directoryList.filter(d => !!d.qrCodeUrl);
         } else if (selectedDirectoryKey === UNASSIGNED_DIRECTORY_KEY) {
@@ -640,8 +656,16 @@ const AnswerManage: React.FC = () => {
             return;
         }
 
-        message.loading(`正在打包下载 ${directoryQRs.length} 个目录二维码和 ${resourceQRs.length} 个资源二维码...`, 1.5)
-            .then(() => message.success('下载完成'));
+        const loadingMsg = isDirectoryEnabled
+            ? `正在打包下载 ${directoryQRs.length} 个目录二维码和 ${resourceQRs.length} 个资源二维码...`
+            : `正在打包下载 ${resourceQRs.length} 个资源二维码...`;
+
+        message.loading(loadingMsg, 1.5)
+            .then(() => {
+                const content = `Mock Download Manifest\n\nDirectories:\n${directoryQRs.map(d => `- ${d.name}`).join('\n')}\n\nResources:\n${resourceQRs.map(r => `- ${r.name}`).join('\n')}`;
+                downloadMockFile(`qrcode_package_${Date.now()}.txt`, content);
+                message.success('下载完成 (模拟文件已生成)');
+            });
     };
 
     const handleDragSortEnd = (beforeIndex: number, afterIndex: number, newDataSource: AnswerItem[]) => {
