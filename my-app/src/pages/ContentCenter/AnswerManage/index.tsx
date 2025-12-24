@@ -13,6 +13,7 @@ import {
     EditableProTable,
     ProFormTimePicker,
     ProFormList,
+    DragSortTable,
 } from '@ant-design/pro-components';
 import { Card, Space, message, Button, Descriptions, Modal, Switch, Tag, Row, Col, Tree, Image } from 'antd';
 import React, { useMemo, useState } from 'react';
@@ -74,6 +75,7 @@ const AnswerManage: React.FC = () => {
         videoSummary?: VideoSummaryItem[];
         questions?: QuestionItem[];
         qrCodeUrl?: string;
+        sort: number;
     };
 
     const [directoryMode, setDirectoryMode] = useState<'disabled' | 'required'>('disabled');
@@ -113,9 +115,9 @@ const AnswerManage: React.FC = () => {
     ]);
 
     const [answerList, setAnswerList] = useState<AnswerItem[]>([
-        { id: '101', name: '语文试卷A.pdf', type: 'PDF', answerType: 'file', size: '2.5MB', directoryId: '1-1', updateTime: '2025-12-21 10:00:00', allowDownload: true },
-        { id: '102', name: '语文听力.mp3', type: 'MP3', answerType: 'audio', size: '5MB', directoryId: null, updateTime: '2025-12-21 10:05:00', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg' },
-        { id: '103', name: '参考答案.doc', type: 'DOC', answerType: 'file', size: '1.2MB', directoryId: null, updateTime: '2025-12-21 10:10:00', allowDownload: false },
+        { id: '101', name: '语文试卷A.pdf', type: 'PDF', answerType: 'file', size: '2.5MB', directoryId: '1-1', updateTime: '2025-12-21 10:00:00', allowDownload: true, sort: 1 },
+        { id: '102', name: '语文听力.mp3', type: 'MP3', answerType: 'audio', size: '5MB', directoryId: null, updateTime: '2025-12-21 10:05:00', qrCodeUrl: 'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg', sort: 2 },
+        { id: '103', name: '参考答案.doc', type: 'DOC', answerType: 'file', size: '1.2MB', directoryId: null, updateTime: '2025-12-21 10:10:00', allowDownload: false, sort: 3 },
         {
             id: '104', name: '名师讲解.mp4', type: 'MP4', answerType: 'video', size: '500MB', directoryId: '1-1', updateTime: '2025-12-21 12:00:00',
             videoSummary: [
@@ -134,7 +136,8 @@ const AnswerManage: React.FC = () => {
                     optionA: '选项A内容', optionB: '选项B内容', optionC: '选项C内容', optionD: '选项D内容',
                     correctAnswer: 'B', analysis: '解析内容...'
                 },
-            ]
+            ],
+            sort: 4
         },
     ]);
 
@@ -174,56 +177,25 @@ const AnswerManage: React.FC = () => {
     } as const;
 
     const handleDirectoryModeChange = (checked: boolean) => {
-        if (checked) {
-            const resolvedProductId = productId || mockInfo.productId;
-            const resolvedSubjectName = subjectName || mockInfo.subjectName;
-            const encodedSubjectName = encodeURIComponent(resolvedSubjectName);
-            const unassignedCount = answerList.filter((item) => !item.directoryId).length;
-            if (directoryList.length === 0) {
-                Modal.confirm({
-                    title: '暂无目录，无法开启',
-                    content: '请先到目录管理页面新建目录。',
-                    okText: '去新建',
-                    cancelText: '取消',
-                    onOk: () => {
-                        window.location.href = `/content/product-list/subject-directory?subjectId=${subjectId || ''}&subjectName=${encodedSubjectName}&productId=${resolvedProductId}`;
-                    },
-                });
-                return;
-            }
-            if (unassignedCount > 0) {
-                const unassignedKeys = answerList
-                    .filter((item) => !item.directoryId)
-                    .map((item) => item.id);
-                Modal.confirm({
-                    title: `存在 ${unassignedCount} 条未归类答案`,
-                    content: '开启后新上传必须选择目录，建议先批量归类存量答案。',
-                    okText: '去批量归类',
-                    cancelText: '仍然开启',
-                    onOk: () => {
-                        setDirectoryMode('required');
-                        setSelectedDirectoryKey(ALL_DIRECTORY_KEY);
-                        setSelectedRowKeys(unassignedKeys);
-                        setMoveModalVisible(true);
-                        message.info('请批量选择目标目录完成归类');
-                    },
-                    onCancel: () => {
-                        setDirectoryMode('required');
-                        setSelectedDirectoryKey(ALL_DIRECTORY_KEY);
-                        setSelectedRowKeys([]);
-                        setMoveModalVisible(false);
-                        message.info('已开启目录管理，后续上传需选择目录');
-                    },
-                });
-                return;
-            }
-        }
         setDirectoryMode(checked ? 'required' : 'disabled');
-        setSelectedDirectoryKey(ALL_DIRECTORY_KEY);
-        setSelectedRowKeys([]);
-        setMoveModalVisible(false);
-        message.info(checked ? '已开启目录管理，后续上传需选择目录' : '已关闭目录管理');
+        if (checked) {
+            // Default to 'Unassigned' view when enabled
+            setSelectedDirectoryKey(UNASSIGNED_DIRECTORY_KEY);
+
+            const unassignedCount = answerList.filter((item) => !item.directoryId).length;
+            if (unassignedCount > 0) {
+                Modal.info({
+                    title: '目录模式已开启',
+                    content: `现有 ${unassignedCount} 个文件未关联目录，已自动归入“未归类”中。您可以在该分类下进行查看或批量移动。`,
+                    okText: '知道了',
+                });
+            }
+        } else {
+            // Reset to 'All' when disabled
+            setSelectedDirectoryKey(ALL_DIRECTORY_KEY);
+        }
     };
+
 
     // Helper to build tree data from flat list (for TreeSelect)
     const buildTreeData = (list: DirectoryItem[], leafOnly: boolean = false) => {
@@ -335,6 +307,7 @@ const AnswerManage: React.FC = () => {
 
     const answerColumns = useMemo(() => {
         const columns: any[] = [
+            { title: '排序', dataIndex: 'sort', width: 60 },
             { title: '文件名称', dataIndex: 'name' },
             {
                 title: '答案类型',
@@ -671,6 +644,11 @@ const AnswerManage: React.FC = () => {
             .then(() => message.success('下载完成'));
     };
 
+    const handleDragSortEnd = (beforeIndex: number, afterIndex: number, newDataSource: AnswerItem[]) => {
+        setAnswerList(newDataSource);
+        message.success('排序已更新');
+    };
+
     return (
         <PageContainer>
             {/* Header Info */}
@@ -735,7 +713,7 @@ const AnswerManage: React.FC = () => {
                         </Card>
                     </Col>
                     <Col xs={24} md={18} lg={19}>
-                        <ProTable<AnswerItem>
+                        <DragSortTable<AnswerItem>
                             headerTitle="答案列表"
                             rowKey="id"
                             dataSource={filteredAnswerList}
@@ -773,11 +751,13 @@ const AnswerManage: React.FC = () => {
                                 </Space>
                             )}
                             columns={answerColumns}
+                            dragSortKey="sort"
+                            onDragSortEnd={handleDragSortEnd}
                         />
                     </Col>
                 </Row>
             ) : (
-                <ProTable<AnswerItem>
+                <DragSortTable<AnswerItem>
                     headerTitle="答案列表"
                     rowKey="id"
                     dataSource={answerList}
@@ -800,6 +780,8 @@ const AnswerManage: React.FC = () => {
                         </Button>,
                     ]}
                     columns={answerColumns}
+                    dragSortKey="sort"
+                    onDragSortEnd={handleDragSortEnd}
                 />
             )}
 
@@ -864,6 +846,7 @@ const AnswerManage: React.FC = () => {
                                 const ss = String(now.getSeconds()).padStart(2, '0');
                                 return `${YYYY}-${MM}-${DD} ${HH}:${mm}:${ss}`;
                             })(),
+                            sort: answerList.length + 1,
                         });
                         setAnswerList([...answerList, ...newFiles]);
                         message.success('上传成功');
