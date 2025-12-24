@@ -73,6 +73,11 @@ export default [
                 name: '标签体系',
                 component: './ContentCenter/TagManage',
             },
+            {
+                path: '/question-bank/task',
+                name: '题库任务',
+                component: './ContentCenter/QuestionBankTask',
+            },
         ],
     },
     {

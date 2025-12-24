@@ -29,6 +29,7 @@ import {
     ProFormSelect,
     ProFormList,
     ProFormGroup,
+    EditableProTable,
 } from '@ant-design/pro-components';
 import { Button, Card, Col, Form, Input, message, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Tree, Table } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -412,6 +413,7 @@ const TagManage: React.FC = () => {
     const handleAddCategory = () => {
         setCatModalType('add');
         catForm.resetFields();
+        setEditableKeys([]);
         setCatModalVisible(true);
     };
 
@@ -422,6 +424,7 @@ const TagManage: React.FC = () => {
             name: category.name,
             tags: category.tags,
         });
+        setEditableKeys([]);
         setCatModalVisible(true);
     };
 
@@ -517,6 +520,7 @@ const TagManage: React.FC = () => {
     };
 
     const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+    const [editableKeys, setEditableKeys] = useState<React.Key[]>([]);
 
     const toggleExpand = (categoryId: string) => {
         setExpandedCategories(prev => ({ ...prev, [categoryId]: !prev[categoryId] }));
@@ -570,7 +574,7 @@ const TagManage: React.FC = () => {
                         {visibleTags.map((item: any) => (
                             <Tag
                                 key={item.id}
-                                color={item.color || 'default'}
+                                color="default"
                                 closable={isEditing}
                                 onClose={(e) => {
                                     e.preventDefault();
@@ -994,33 +998,17 @@ const TagManage: React.FC = () => {
                     label="标签名称"
                     rules={[{ required: true, message: '请输入标签名称' }]}
                 />
-                <ProFormSelect
-                    name="color"
-                    label="标签颜色"
-                    options={[
-                        { label: '默认(灰色)', value: 'default' },
-                        { label: '红色(困难)', value: 'red' },
-                        { label: '绿色(容易)', value: 'green' },
-                        { label: '蓝色(中等)', value: 'blue' },
-                        { label: '橙色(较难)', value: 'orange' },
-                        { label: '青色(较易)', value: 'cyan' },
-                        { label: '紫色(能力)', value: 'purple' },
-                        { label: '极客蓝(逻辑)', value: 'geekblue' },
-                        { label: '洋红(空间)', value: 'magenta' },
-                        { label: '金黄(数据)', value: 'gold' },
-                    ]}
-                    initialValue="default"
-                />
+
             </ModalForm>
 
             {/* Category Modal [NEW] */}
             <ModalForm
-                title="添加标签分类"
+                title={catModalType === 'add' ? '添加标签分类' : '编辑标签分类'}
                 open={catModalVisible}
                 onOpenChange={setCatModalVisible}
                 form={catForm}
                 onFinish={handleCatModalFinish}
-                width={400}
+                width={580}
             >
                 <ProFormText
                     name="name"
@@ -1028,45 +1016,66 @@ const TagManage: React.FC = () => {
                     rules={[{ required: true, message: '请输入分类名称' }]}
                     placeholder="例如：年份、来源、VIP属性"
                 />
-                <ProFormList
+                <EditableProTable<any>
                     name="tags"
-                    label="包含标签"
-                    creatorButtonProps={{
+                    rowKey="id"
+                    toolBarRender={false}
+                    columns={[
+                        {
+                            title: '标签名称',
+                            dataIndex: 'name',
+                            formItemProps: {
+                                rules: [{ required: true, message: '此项为必填项' }],
+                            },
+                            width: '80%',
+                        },
+                        {
+                            title: '操作',
+                            valueType: 'option',
+                            width: 100,
+                            render: (text: any, record: any, _: any, action: any) => [
+                                <a
+                                    key="editable"
+                                    onClick={() => {
+                                        action?.startEditable?.(record.id);
+                                    }}
+                                >
+                                    编辑
+                                </a>,
+                                <a
+                                    key="delete"
+                                    onClick={() => {
+                                        const dataSource = catForm.getFieldValue('tags');
+                                        const newDataSource = dataSource.filter((item: any) => item.id !== record.id);
+                                        catForm.setFieldsValue({ tags: newDataSource });
+                                    }}
+                                >
+                                    删除
+                                </a>,
+                            ],
+                        },
+                    ]}
+                    recordCreatorProps={{
+                        newRecordType: 'dataSource',
                         position: 'bottom',
+                        record: () => ({ id: Date.now(), name: '' }),
                         creatorButtonText: '添加新标签',
                     }}
-                    copyIconProps={false}
-                    deleteIconProps={{
-                        tooltipText: '删除标签',
+                    editable={{
+                        type: 'multiple',
+                        editableKeys,
+                        onChange: setEditableKeys,
+                        onValuesChange: (record: any, recordList: any) => {
+                            catForm.setFieldsValue({ tags: recordList });
+                        },
+                        actionRender: (row, config, defaultDom) => [
+                            defaultDom.save,
+                            defaultDom.cancel,
+                        ],
                     }}
-                >
-                    <ProFormGroup key="group">
-                        <ProFormText
-                            name="name"
-                            placeholder="标签名称"
-                            rules={[{ required: true, message: '请输入' }]}
-                        />
-                        <ProFormSelect
-                            name="color"
-                            placeholder="颜色"
-                            options={[
-                                { label: '默认(灰色)', value: 'default' },
-                                { label: '红色(困难)', value: 'red' },
-                                { label: '绿色(容易)', value: 'green' },
-                                { label: '蓝色(中等)', value: 'blue' },
-                                { label: '橙色(较难)', value: 'orange' },
-                                { label: '青色(较易)', value: 'cyan' },
-                                { label: '紫色(能力)', value: 'purple' },
-                                { label: '极客蓝(逻辑)', value: 'geekblue' },
-                                { label: '洋红(空间)', value: 'magenta' },
-                                { label: '金黄(数据)', value: 'gold' },
-                            ]}
-                            initialValue="default"
-                        />
-                    </ProFormGroup>
-                </ProFormList>
+                />
             </ModalForm>
-        </PageContainer>
+        </PageContainer >
     );
 };
 
