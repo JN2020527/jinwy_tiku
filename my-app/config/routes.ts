@@ -84,24 +84,15 @@ export default [
                 component: './ContentCenter/QuestionList',
             },
             {
-                path: '/question-bank/entry',
+                path: '/question-bank/entry/paper',
                 name: '试题录入',
-                routes: [
-                    {
-                        path: '/question-bank/entry',
-                        redirect: '/question-bank/entry/single',
-                    },
-                    {
-                        path: '/question-bank/entry/single',
-                        name: '单题录入',
-                        component: './ContentCenter/QuestionEntry/Single',
-                    },
-                    {
-                        path: '/question-bank/entry/paper',
-                        name: '整卷录入',
-                        component: './ContentCenter/QuestionEntry/Paper',
-                    },
-                ],
+                component: './ContentCenter/QuestionEntry/Paper',
+            },
+            {
+                path: '/question-bank/entry/single',
+                name: '单题录入',
+                component: './ContentCenter/QuestionEntry/Single',
+                hideInMenu: true,
             },
         ],
     },

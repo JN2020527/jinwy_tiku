@@ -1,7 +1,9 @@
 import { addPaper, parsePaper } from '@/services/questionEntry';
 import {
     ProForm,
+    ProFormDependency,
     ProFormDigit,
+    ProFormRadio,
     ProFormSelect,
     ProFormText,
     StepsForm,
@@ -9,28 +11,27 @@ import {
 import { PageContainer } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, Card, Divider, message, Modal, Space, Upload } from 'antd';
-import { UploadOutlined } from '@ant-design/icons';
+import SingleEntry from '../Single';
+import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import React, { useState } from 'react';
 
 const PaperEntry: React.FC = () => {
     const [previewVisible, setPreviewVisible] = useState(false);
+    const [addQuestionVisible, setAddQuestionVisible] = useState(false);
     const [paperData, setPaperData] = useState<any>();
 
     const handleFinish = async (values: any) => {
         try {
-            // Transform values to match Paper interface
-            // Note: This is a simplified transformation. In a real app, you'd need more complex logic
-            // to handle the nested structure from the dynamic form.
-            // For this MVP, we assume the 'questions' field in values contains the structured data
-            // or we just save the metadata.
+            // If Question Entry mode, we don't create a paper. Questions are already added via SingleEntry.
+            if (paperData?.entryMode === 'question') {
+                message.success('散题录入完成');
+                history.push('/question-bank/list');
+                return true;
+            }
 
-            // Since ProFormList inside StepsForm can be tricky with deep nesting, 
-            // for this MVP we will focus on the "Smart Import" flow which populates the data.
-
+            // Paper Entry mode
             const paperPayload = {
                 ...values,
-                // If we had a full manual entry UI here, we would map it.
-                // For now, we rely on the OCR result or basic metadata.
                 sections: paperData?.sections || []
             };
 
@@ -89,61 +90,106 @@ const PaperEntry: React.FC = () => {
                             return true;
                         }}
                     >
-                        <ProFormText
-                            name="title"
-                            label="试卷标题"
-                            width="lg"
-                            placeholder="请输入试卷标题"
-                            rules={[{ required: true }]}
-                            initialValue={paperData?.title}
+                        <ProFormRadio.Group
+                            name="entryMode"
+                            label="录入模式"
+                            initialValue="paper"
+                            options={[
+                                { label: '试卷录入', value: 'paper' },
+                                { label: '试题录入', value: 'question' },
+                            ]}
+                            fieldProps={{
+                                onChange: (e) => {
+                                    setPaperData({ ...paperData, entryMode: e.target.value });
+                                }
+                            }}
                         />
+
+                        <ProFormDependency name={['entryMode']}>
+                            {({ entryMode }) => {
+                                return entryMode === 'paper' ? (
+                                    <ProFormText
+                                        name="title"
+                                        label="试卷标题"
+                                        width="lg"
+                                        placeholder="请输入试卷标题"
+                                        rules={[{ required: true }]}
+                                        initialValue={paperData?.title}
+                                    />
+                                ) : null;
+                            }}
+                        </ProFormDependency>
+
                         <ProForm.Group>
                             <ProFormSelect
                                 name="subject"
                                 label="学科"
                                 width="md"
-                                options={['前端技术', '后端技术']}
+                                options={['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治']}
                                 rules={[{ required: true }]}
                                 initialValue={paperData?.subject}
                             />
-                            <ProFormText
-                                name="year"
-                                label="年份"
-                                width="sm"
-                                placeholder="2025"
-                                initialValue={paperData?.year}
-                            />
-                            <ProFormText
-                                name="region"
-                                label="地区"
-                                width="sm"
-                                placeholder="全国"
-                                initialValue={paperData?.region}
-                            />
-                            <ProFormDigit
-                                name="totalScore"
-                                label="总分"
-                                width="sm"
-                                initialValue={paperData?.totalScore}
+                            <ProFormSelect
+                                name="grade"
+                                label="年级"
+                                width="md"
+                                options={['初一', '初二', '初三']}
+                                rules={[{ required: true }]}
+                                initialValue={paperData?.grade}
                             />
                         </ProForm.Group>
 
-                        <Divider orientation="left">智能导入</Divider>
-                        <Upload
-                            beforeUpload={(file) => {
-                                handleOCRUpload(file);
-                                return false;
+                        <ProFormDependency name={['entryMode']}>
+                            {({ entryMode }) => {
+                                if (entryMode === 'paper') {
+                                    return (
+                                        <>
+                                            <ProForm.Group>
+                                                <ProFormSelect
+                                                    name="year"
+                                                    label="年份"
+                                                    width="sm"
+                                                    placeholder="请选择年份"
+                                                    options={['2025', '2024', '2023', '2022', '2021', '2020']}
+                                                    initialValue={paperData?.year}
+                                                />
+                                                <ProFormSelect
+                                                    name="region"
+                                                    label="地区"
+                                                    width="sm"
+                                                    placeholder="请选择地区"
+                                                    options={['全国', '北京', '上海', '江苏', '浙江', '山东', '河南', '河北', '广东']}
+                                                    initialValue={paperData?.region}
+                                                />
+                                            </ProForm.Group>
+                                            <Divider orientation="left">智能导入</Divider>
+                                            <Upload
+                                                beforeUpload={(file) => {
+                                                    handleOCRUpload(file);
+                                                    return false;
+                                                }}
+                                                showUploadList={false}
+                                            >
+                                                <Button icon={<UploadOutlined />}>上传试卷文件 (PDF/图片) 进行OCR识别</Button>
+                                            </Upload>
+                                            <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
+                                                * 上传后系统将自动识别试卷结构和题目内容
+                                            </div>
+                                        </>
+                                    );
+                                }
+                                return null;
                             }}
-                            showUploadList={false}
-                        >
-                            <Button icon={<UploadOutlined />}>上传试卷文件 (PDF/图片) 进行OCR识别</Button>
-                        </Upload>
-                        <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
-                            * 上传后系统将自动识别试卷结构和题目内容
-                        </div>
+                        </ProFormDependency>
                     </StepsForm.StepForm>
 
                     <StepsForm.StepForm name="structure" title="试题录入">
+                        <div style={{ marginBottom: 16 }}>
+                            <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddQuestionVisible(true)}>
+                                添加试题
+                            </Button>
+                        </div>
+
                         {/* 
                 In a real implementation, this would be a complex nested form with 
                 ProFormList for Sections -> ProFormList for Questions.
@@ -170,7 +216,7 @@ const PaperEntry: React.FC = () => {
                             </div>
                         ) : (
                             <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
-                                暂无试题数据，请在第一步上传试卷进行识别，或等待后续版本开放手动结构化录入。
+                                暂无试题数据，请点击上方“添加试题”按钮进行录入，或在第一步上传试卷进行识别。
                             </div>
                         )}
                     </StepsForm.StepForm>
@@ -220,6 +266,28 @@ const PaperEntry: React.FC = () => {
                 ) : (
                     <div>暂无数据</div>
                 )}
+            </Modal>
+
+            <Modal
+                title="添加试题"
+                open={addQuestionVisible}
+                onCancel={() => setAddQuestionVisible(false)}
+                footer={null}
+                width={1000}
+                destroyOnClose
+            >
+                <SingleEntry
+                    embedded
+                    paperId={paperData?.entryMode === 'paper' ? paperData?.id : undefined}
+                    paperContext={{
+                        subject: paperData?.subject,
+                        grade: paperData?.grade,
+                        year: paperData?.year
+                    }}
+                    onSuccess={() => {
+                        message.success('试题添加成功');
+                    }}
+                />
             </Modal>
         </PageContainer>
     );

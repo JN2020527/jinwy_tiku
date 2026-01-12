@@ -1,10 +1,12 @@
 import RichTextEditor from '@/components/RichTextEditor';
 import { addQuestion, getQuestion, Question, updateQuestion } from '@/services/questionEntry';
+import { getKnowledgeTree } from '@/services/tagSystem';
 import {
     ProForm,
     ProFormDependency,
     ProFormList,
     ProFormSelect,
+    ProFormTreeSelect,
     StepsForm,
 } from '@ant-design/pro-components';
 import { PageContainer } from '@ant-design/pro-components';
@@ -12,9 +14,26 @@ import { history, useSearchParams } from '@umijs/max';
 import { Button, Card, Form, message, Modal, Tag } from 'antd';
 import React, { useEffect, useState, useRef } from 'react';
 
-const SingleEntry: React.FC = () => {
+interface SingleEntryProps {
+    paperId?: number;
+    paperContext?: {
+        subject?: string;
+        grade?: string;
+        year?: string;
+    };
+    onSuccess?: () => void;
+    onCancel?: () => void;
+    embedded?: boolean;
+}
+
+const SingleEntry: React.FC<SingleEntryProps> = (props) => {
     const [searchParams] = useSearchParams();
-    const id = searchParams.get('id');
+    const urlId = searchParams.get('id');
+    // Use props.id if embedded, otherwise use URL param
+    // Note: props.id is not defined in interface but we might want to support editing in modal too.
+    // For now, let's assume embedded is mostly for adding new questions to a paper.
+    const id = urlId;
+
     const formRef = useRef<any>();
     const [previewVisible, setPreviewVisible] = useState(false);
     const [previewData, setPreviewData] = useState<Question>();
@@ -42,19 +61,33 @@ const SingleEntry: React.FC = () => {
                     formRef.current.setFieldsValue(transformInitialValues(res.data));
                 }
             });
+        } else if (props.paperContext && formRef.current) {
+            // Pre-fill context from paper
+            formRef.current.setFieldsValue({
+                subject: props.paperContext.subject,
+                grade: props.paperContext.grade,
+            });
         }
-    }, [id]);
+    }, [id, props.paperContext]);
 
     const handleFinish = async (values: any) => {
-        const data = { ...transformValues(values), id: id ? Number(id) : undefined };
+        const data = {
+            ...transformValues(values),
+            id: id ? Number(id) : undefined,
+            paperId: props.paperId // Link to paper if embedded
+        };
         try {
             if (id) {
                 await updateQuestion(data);
                 message.success('更新成功');
-                history.push('/question-bank/list');
             } else {
                 await addQuestion(data);
                 message.success('添加成功');
+            }
+
+            if (props.embedded) {
+                props.onSuccess?.();
+            } else {
                 history.push('/question-bank/list');
             }
             return true;
@@ -66,17 +99,15 @@ const SingleEntry: React.FC = () => {
 
     const handleSubmitAndContinue = async () => {
         const values = formRef.current?.getFieldsValue();
-        // Validate Step 2 fields manually if needed, or rely on form state if possible.
-        // Since we are inside the form, we can try to validate.
         try {
-            await formRef.current?.validateFields(); // Validate all
-            const data = transformValues(values);
+            await formRef.current?.validateFields();
+            const data = {
+                ...transformValues(values),
+                paperId: props.paperId
+            };
             await addQuestion(data);
             message.success('添加成功，请继续录入下一题');
 
-            // Clear Content fields but keep Context fields
-            // Context fields: subject, grade, difficulty, type, tags
-            // Content fields: content, options, answer, analysis
             const { subject, grade, difficulty, type, tags } = values;
             formRef.current?.resetFields();
             formRef.current?.setFieldsValue({
@@ -93,141 +124,159 @@ const SingleEntry: React.FC = () => {
         setPreviewVisible(true);
     };
 
+    const content = (
+        <StepsForm
+            formRef={formRef}
+            onFinish={handleFinish}
+            submitter={{
+                render: (props, dom) => {
+                    if (props.step === 1) {
+                        return [
+                            <Button key="pre" onClick={() => props.onPre?.()}>
+                                上一步
+                            </Button>,
+                            <Button key="preview" onClick={handlePreview}>
+                                预览
+                            </Button>,
+                            !id && (
+                                <Button key="saveAndContinue" type="primary" ghost onClick={handleSubmitAndContinue}>
+                                    提交并继续录入
+                                </Button>
+                            ),
+                            <Button key="submit" type="primary" onClick={() => props.onSubmit?.()}>
+                                {id ? '保存修改' : '提交'}
+                            </Button>,
+                        ];
+                    }
+                    return dom;
+                },
+            }}
+        >
+            <StepsForm.StepForm
+                name="context"
+                title="设置上下文"
+                stepProps={{
+                    description: '设定学科、年级与知识点',
+                }}
+            >
+                <ProForm.Group>
+                    <ProFormSelect
+                        name="subject"
+                        label="学科"
+                        width="md"
+                        options={['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治']}
+                        rules={[{ required: true }]}
+                        disabled={!!props.paperContext?.subject} // Lock if from paper
+                    />
+                    <ProFormSelect
+                        name="grade"
+                        label="年级/阶段"
+                        width="md"
+                        options={['初一', '初二', '初三']}
+                        rules={[{ required: true }]}
+                        disabled={!!props.paperContext?.grade} // Lock if from paper
+                    />
+                </ProForm.Group>
+                <ProForm.Group>
+                    <ProFormSelect
+                        name="difficulty"
+                        label="难度"
+                        width="md"
+                        options={['简单', '中等', '困难']}
+                        rules={[{ required: true }]}
+                    />
+                    <ProFormSelect
+                        name="type"
+                        label="题型"
+                        width="md"
+                        options={['单选题', '多选题', '简答题']}
+                        rules={[{ required: true }]}
+                    />
+                </ProForm.Group>
+                <ProFormTreeSelect
+                    name="tags"
+                    label="知识点/标签"
+                    width="lg"
+                    placeholder="请选择知识点（支持多选）"
+                    rules={[{ required: true }]}
+                    fieldProps={{
+                        multiple: true,
+                        treeCheckable: true,
+                        showCheckedStrategy: 'SHOW_PARENT',
+                    }}
+                    request={async () => {
+                        const res = await getKnowledgeTree();
+                        return res.data;
+                    }}
+                />
+            </StepsForm.StepForm>
+
+            <StepsForm.StepForm
+                name="content"
+                title="生产内容"
+                stepProps={{
+                    description: '录入题干、选项与解析',
+                }}
+            >
+                <ProForm.Item
+                    name="content"
+                    label="题干内容"
+                    rules={[{ required: true, message: '请输入题干内容' }]}
+                >
+                    <RichTextEditor placeholder="请输入题干内容，支持公式和图片" />
+                </ProForm.Item>
+
+                <ProFormDependency name={['type']}>
+                    {({ type }) => {
+                        if (type === '单选题' || type === '多选题') {
+                            return (
+                                <ProFormList
+                                    name="options"
+                                    label="选项"
+                                    creatorButtonProps={{
+                                        position: 'bottom',
+                                        creatorButtonText: '添加选项',
+                                    }}
+                                >
+                                    <ProForm.Item name="text" noStyle>
+                                        <RichTextEditor placeholder="选项内容" style={{ height: 150, marginBottom: 10 }} />
+                                    </ProForm.Item>
+                                </ProFormList>
+                            );
+                        }
+                        return null;
+                    }}
+                </ProFormDependency>
+
+                <ProForm.Item
+                    name="answer"
+                    label="答案"
+                    rules={[{ required: true, message: '请输入答案' }]}
+                >
+                    <RichTextEditor placeholder="请输入答案" />
+                </ProForm.Item>
+
+                <ProForm.Item
+                    name="analysis"
+                    label="解析"
+                >
+                    <RichTextEditor placeholder="请输入解析" />
+                </ProForm.Item>
+            </StepsForm.StepForm>
+        </StepsForm>
+    );
+
+    // If embedded, return content directly (or wrapped in Card if needed, but usually Modal handles it)
+    if (props.embedded) {
+        return content;
+    }
+
+    // If standalone page, wrap in PageContainer and Card
     return (
         <PageContainer title={id ? '编辑试题' : '单题录入'}>
             <Card bordered={false}>
-                <StepsForm
-                    formRef={formRef}
-                    onFinish={handleFinish}
-                    submitter={{
-                        render: (props, dom) => {
-                            if (props.step === 1) {
-                                return [
-                                    <Button key="pre" onClick={() => props.onPre?.()}>
-                                        上一步
-                                    </Button>,
-                                    <Button key="preview" onClick={handlePreview}>
-                                        预览
-                                    </Button>,
-                                    !id && (
-                                        <Button key="saveAndContinue" type="primary" ghost onClick={handleSubmitAndContinue}>
-                                            提交并继续录入
-                                        </Button>
-                                    ),
-                                    <Button key="submit" type="primary" onClick={() => props.onSubmit?.()}>
-                                        提交并返回列表
-                                    </Button>,
-                                ];
-                            }
-                            return dom;
-                        },
-                    }}
-                >
-                    <StepsForm.StepForm
-                        name="context"
-                        title="设置上下文"
-                        stepProps={{
-                            description: '设定学科、年级与知识点',
-                        }}
-                    >
-                        <ProForm.Group>
-                            <ProFormSelect
-                                name="subject"
-                                label="学科"
-                                width="md"
-                                options={['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治']}
-                                rules={[{ required: true }]}
-                            />
-                            <ProFormSelect
-                                name="grade"
-                                label="年级/阶段"
-                                width="md"
-                                options={['初一', '初二', '初三']}
-                                rules={[{ required: true }]}
-                            />
-                        </ProForm.Group>
-                        <ProForm.Group>
-                            <ProFormSelect
-                                name="difficulty"
-                                label="难度"
-                                width="md"
-                                options={['简单', '中等', '困难']}
-                                rules={[{ required: true }]}
-                            />
-                            <ProFormSelect
-                                name="type"
-                                label="题型"
-                                width="md"
-                                options={['单选题', '多选题', '简答题']}
-                                rules={[{ required: true }]}
-                            />
-                        </ProForm.Group>
-                        <ProFormSelect
-                            name="tags"
-                            label="知识点/标签"
-                            width="lg"
-                            mode="multiple"
-                            options={['函数', '几何', '力学', '电学', '古诗词', '阅读理解', '语法', '化学方程式']}
-                            placeholder="请选择知识点（支持多选）"
-                            rules={[{ required: true }]}
-                        />
-                    </StepsForm.StepForm>
-
-                    <StepsForm.StepForm
-                        name="content"
-                        title="生产内容"
-                        stepProps={{
-                            description: '录入题干、选项与解析',
-                        }}
-                    >
-                        <ProForm.Item
-                            name="content"
-                            label="题干内容"
-                            rules={[{ required: true, message: '请输入题干内容' }]}
-                        >
-                            <RichTextEditor placeholder="请输入题干内容，支持公式和图片" />
-                        </ProForm.Item>
-
-                        <ProFormDependency name={['type']}>
-                            {({ type }) => {
-                                if (type === '单选题' || type === '多选题') {
-                                    return (
-                                        <ProFormList
-                                            name="options"
-                                            label="选项"
-                                            creatorButtonProps={{
-                                                position: 'bottom',
-                                                creatorButtonText: '添加选项',
-                                            }}
-                                        >
-                                            <ProForm.Item name="text" noStyle>
-                                                <RichTextEditor placeholder="选项内容" style={{ height: 150, marginBottom: 10 }} />
-                                            </ProForm.Item>
-                                        </ProFormList>
-                                    );
-                                }
-                                return null;
-                            }}
-                        </ProFormDependency>
-
-                        <ProForm.Item
-                            name="answer"
-                            label="答案"
-                            rules={[{ required: true, message: '请输入答案' }]}
-                        >
-                            <RichTextEditor placeholder="请输入答案" />
-                        </ProForm.Item>
-
-                        <ProForm.Item
-                            name="analysis"
-                            label="解析"
-                        >
-                            <RichTextEditor placeholder="请输入解析" />
-                        </ProForm.Item>
-                    </StepsForm.StepForm>
-                </StepsForm>
+                {content}
             </Card>
-
             <Modal
                 title="试题预览"
                 open={previewVisible}
