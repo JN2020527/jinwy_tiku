@@ -78,6 +78,31 @@ export default [
                 name: '题库任务',
                 component: './ContentCenter/QuestionBankTask',
             },
+            {
+                path: '/question-bank/list',
+                name: '试题列表',
+                component: './ContentCenter/QuestionList',
+            },
+            {
+                path: '/question-bank/entry',
+                name: '试题录入',
+                routes: [
+                    {
+                        path: '/question-bank/entry',
+                        redirect: '/question-bank/entry/single',
+                    },
+                    {
+                        path: '/question-bank/entry/single',
+                        name: '单题录入',
+                        component: './ContentCenter/QuestionEntry/Single',
+                    },
+                    {
+                        path: '/question-bank/entry/paper',
+                        name: '整卷录入',
+                        component: './ContentCenter/QuestionEntry/Paper',
+                    },
+                ],
+            },
         ],
     },
     {
