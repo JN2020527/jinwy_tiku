@@ -712,7 +712,7 @@ const TagManage: React.FC = () => {
 
     return (
         <PageContainer>
-            <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: '16px 24px' }}>
+            <Card style={{ marginBottom: 16 }} styles={{ body: { padding: '16px 24px' } }}>
                 <Space size="large">
                     <Space>
                         <span>学段：</span>
@@ -771,7 +771,7 @@ const TagManage: React.FC = () => {
                                                         />
                                                     </Space>
                                                 }
-                                                bordered={false}
+                                                variant="borderless"
                                                 className="h-full"
                                                 extra={
                                                     <Button type="primary" size="small" onClick={handleAddTextbookRoot} disabled={!selectedVersion}>
@@ -816,7 +816,7 @@ const TagManage: React.FC = () => {
                                                                         selectedSubject === 'history' ? '历史' :
                                                                             selectedSubject === 'geography' ? '地理' : '道德与法治'
                                                     }知识点结构树`}
-                                                bordered={false}
+                                                variant="borderless"
                                                 extra={
                                                     <Button type="primary" size="small" onClick={handleAddRoot}>
                                                         添加根节点
@@ -856,7 +856,7 @@ const TagManage: React.FC = () => {
                                 children: (
                                     <Card
                                         title="题型结构树"
-                                        bordered={false}
+                                        variant="borderless"
                                         extra={
                                             <Button type="primary" size="small" onClick={handleAddQtRoot}>
                                                 添加根节点
