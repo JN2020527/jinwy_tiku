@@ -11,11 +11,10 @@ interface QuestionCardProps {
 const QuestionCard: React.FC<QuestionCardProps> = ({ question, selected, onClick }) => {
     return (
         <Card
-            hoverable
             onClick={onClick}
             style={{
                 marginBottom: 16,
-                border: selected ? '2px solid #1890ff' : '1px solid #f0f0f0',
+                border: selected ? '2px solid #1890ff' : '1px solid #d9d9d9',
                 cursor: 'pointer',
             }}
             size="small"
@@ -43,17 +42,23 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, selected, onClick
                 </div>
             )}
 
-            <div style={{ background: '#f6f7f9', padding: 8, borderRadius: 4 }}>
-                <Typography.Text strong>【答案】</Typography.Text>
-                <span dangerouslySetInnerHTML={{ __html: question.answer }} />
-            </div>
-
-            {question.analysis && (
-                <div style={{ marginTop: 8, fontSize: 13, color: '#666' }}>
-                    <Typography.Text type="secondary">【解析】</Typography.Text>
-                    <span dangerouslySetInnerHTML={{ __html: question.analysis }} />
+            <div style={{ background: '#f6f7f9', padding: '12px', borderRadius: 4, marginTop: 12 }}>
+                <div style={{ marginBottom: question.analysis ? 12 : 0 }}>
+                    <div style={{ marginBottom: 4 }}>
+                        <Typography.Text strong>【答案】</Typography.Text>
+                    </div>
+                    <div dangerouslySetInnerHTML={{ __html: question.answer }} />
                 </div>
-            )}
+
+                {question.analysis && (
+                    <div>
+                        <div style={{ marginBottom: 4 }}>
+                            <Typography.Text strong>【解析】</Typography.Text>
+                        </div>
+                        <div dangerouslySetInnerHTML={{ __html: question.analysis }} />
+                    </div>
+                )}
+            </div>
 
             {/* Render children questions if any (e.g. for Reading Comprehension) */}
             {question.children && question.children.length > 0 && (
@@ -64,8 +69,11 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, selected, onClick
                                 <Tag>{child.number}</Tag> <Tag>{child.type}</Tag>
                             </div>
                             <div dangerouslySetInnerHTML={{ __html: child.stem }} />
-                            <div style={{ marginTop: 4 }}>
-                                <b>答案：</b>{child.answer}
+                            <div style={{ background: '#f6f7f9', padding: '12px', borderRadius: 4, marginTop: 8 }}>
+                                <div style={{ marginBottom: 4 }}>
+                                    <Typography.Text strong>【答案】</Typography.Text>
+                                </div>
+                                <div>{child.answer}</div>
                             </div>
                         </div>
                     ))}

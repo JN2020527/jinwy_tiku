@@ -94,7 +94,7 @@ const PaperEdit: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div style={{ flex: 1, overflow: 'hidden', padding: 16 }}>
+            <div style={{ flex: 1, overflow: 'hidden', padding: 0 }}>
                 <Spin spinning={loading} wrapperClassName="h-full">
                     <Row gutter={16} style={{ height: '100%' }}>
                         {/* Left: Source Preview */}
@@ -114,17 +114,19 @@ const PaperEdit: React.FC = () => {
                         </Col>
 
                         {/* Middle: Question List */}
-                        <Col span={12} style={{ height: '100%', overflowY: 'auto' }}>
-                            <div style={{ paddingBottom: 20 }}>
-                                {questions.map((q) => (
-                                    <QuestionCard
-                                        key={q.id}
-                                        question={q}
-                                        selected={selectedId === q.id}
-                                        onClick={() => setSelectedId(q.id)}
-                                    />
-                                ))}
-                            </div>
+                        <Col span={12} style={{ height: '100%' }}>
+                            <Card title="试题列表" style={{ height: '100%', display: 'flex', flexDirection: 'column' }} bodyStyle={{ flex: 1, padding: '16px', overflowY: 'auto', background: '#fff' }}>
+                                <div style={{ paddingBottom: 20 }}>
+                                    {questions.map((q) => (
+                                        <QuestionCard
+                                            key={q.id}
+                                            question={q}
+                                            selected={selectedId === q.id}
+                                            onClick={() => setSelectedId(q.id)}
+                                        />
+                                    ))}
+                                </div>
+                            </Card>
                         </Col>
 
                         {/* Right: Attribute Panel */}
@@ -137,7 +139,12 @@ const PaperEdit: React.FC = () => {
                     </Row>
                 </Spin>
             </div>
-        </div>
+
+            <style>{`
+                .ant-spin-nested-loading { height: 100%; }
+                .ant-spin-container { height: 100%; }
+            `}</style>
+        </div >
     );
 };
 
