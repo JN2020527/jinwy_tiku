@@ -78,6 +78,17 @@ export default [
                 name: '题库任务',
                 component: './ContentCenter/QuestionBankTask',
             },
+            {
+                path: '/question-bank/word-upload',
+                name: 'Word试卷上传',
+                component: './PaperUpload',
+            },
+            {
+                path: '/question-bank/word-upload/edit',
+                name: '在线校对',
+                component: './PaperUpload/Edit',
+                hideInMenu: true,
+            },
 
         ],
     },
