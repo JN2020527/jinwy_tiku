@@ -96,26 +96,43 @@ const PaperEdit: React.FC = () => {
             {/* Content */}
             <div style={{ flex: 1, overflow: 'hidden', padding: 0 }}>
                 <Spin spinning={loading} wrapperClassName="h-full">
-                    <Row gutter={16} style={{ height: '100%' }}>
+                    <Row gutter={0} style={{ height: '100%' }}>
                         {/* Left: Source Preview */}
-                        <Col span={6} style={{ height: '100%' }}>
-                            <Card title="原件预览" style={{ height: '100%', display: 'flex', flexDirection: 'column' }} bodyStyle={{ flex: 1, padding: 0, overflow: 'hidden' }}>
-                                <div style={{
-                                    height: '100%',
-                                    background: '#f0f2f5',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#999'
-                                }}>
-                                    Word原件预览区域 (Mock)
-                                </div>
-                            </Card>
+                        <Col span={6} style={{ height: '100%', borderRight: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+                            <div style={{
+                                height: 50,
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '0 16px',
+                                background: '#fafafa',
+                                borderBottom: '1px solid #f0f0f0',
+                                fontWeight: 600,
+                                fontSize: '15px',
+                                color: '#333'
+                            }}>
+                                原件预览
+                            </div>
+                            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', color: '#999' }}>
+                                Word原件预览区域 (Mock)
+                            </div>
                         </Col>
 
                         {/* Middle: Question List */}
-                        <Col span={12} style={{ height: '100%' }}>
-                            <Card title="试题列表" style={{ height: '100%', display: 'flex', flexDirection: 'column' }} bodyStyle={{ flex: 1, padding: '16px', overflowY: 'auto', background: '#fff' }}>
+                        <Col span={12} style={{ height: '100%', borderRight: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+                            <div style={{
+                                height: 50,
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '0 16px',
+                                background: '#fafafa',
+                                borderBottom: '1px solid #f0f0f0',
+                                fontWeight: 600,
+                                fontSize: '15px',
+                                color: '#333'
+                            }}>
+                                试题列表
+                            </div>
+                            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
                                 <div style={{ paddingBottom: 20 }}>
                                     {questions.map((q) => (
                                         <QuestionCard
@@ -126,11 +143,11 @@ const PaperEdit: React.FC = () => {
                                         />
                                     ))}
                                 </div>
-                            </Card>
+                            </div>
                         </Col>
 
                         {/* Right: Attribute Panel */}
-                        <Col span={6} style={{ height: '100%' }}>
+                        <Col span={6} style={{ height: '100%', background: '#fff' }}>
                             <AttributePanel
                                 question={questions.find((q) => q.id === selectedId) || null}
                                 onUpdate={handleUpdate}
@@ -143,6 +160,22 @@ const PaperEdit: React.FC = () => {
             <style>{`
                 .ant-spin-nested-loading { height: 100%; }
                 .ant-spin-container { height: 100%; }
+                
+                /* Custom Scrollbar */
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
+                    height: 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #ccc;
+                    border-radius: 3px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #999;
+                }
             `}</style>
         </div >
     );
