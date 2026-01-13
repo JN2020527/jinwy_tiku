@@ -1,3 +1,4 @@
+import { ArrowLeftOutlined } from '@ant-design/icons';
 import { getParseResult, QuestionItem, submitPaper } from '@/services/paperUpload';
 import { PageContainer } from '@ant-design/pro-components';
 import { history, useSearchParams } from '@umijs/max';
@@ -63,56 +64,80 @@ const PaperEdit: React.FC = () => {
     }
 
     return (
-        <PageContainer
-            title={`校对：${metadata?.name || '未命名试卷'}`}
-            extra={[
-                <Button key="save">保存草稿</Button>,
-                <Button key="submit" type="primary" onClick={handleSubmit}>确认入库</Button>,
-            ]}
-            style={{ height: 'calc(100vh - 100px)' }}
-        >
-            <Spin spinning={loading}>
-                <Row gutter={16} style={{ height: 'calc(100vh - 200px)' }}>
-                    {/* Left: Source Preview */}
-                    <Col span={6} style={{ height: '100%' }}>
-                        <Card title="原件预览" style={{ height: '100%', overflow: 'hidden' }} bodyStyle={{ padding: 0, height: 'calc(100% - 57px)' }}>
-                            <div style={{
-                                height: '100%',
-                                background: '#f0f2f5',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#999'
-                            }}>
-                                Word原件预览区域 (Mock)
+        <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f0f2f5' }}>
+            {/* Header */}
+            <div style={{
+                height: 56,
+                background: '#fff',
+                borderBottom: '1px solid #f0f0f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 24px',
+                flexShrink: 0
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <Button
+                        type="text"
+                        icon={<ArrowLeftOutlined />}
+                        onClick={() => history.back()}
+                        style={{ fontSize: '16px' }}
+                    />
+                    <span style={{ fontSize: 16, fontWeight: 500 }}>
+                        {`校对：${metadata?.name || '未命名试卷'}`}
+                    </span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <Button key="save">保存草稿</Button>
+                    <Button key="submit" type="primary" onClick={handleSubmit}>确认入库</Button>
+                </div>
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, overflow: 'hidden', padding: 16 }}>
+                <Spin spinning={loading} wrapperClassName="h-full">
+                    <Row gutter={16} style={{ height: '100%' }}>
+                        {/* Left: Source Preview */}
+                        <Col span={6} style={{ height: '100%' }}>
+                            <Card title="原件预览" style={{ height: '100%', display: 'flex', flexDirection: 'column' }} bodyStyle={{ flex: 1, padding: 0, overflow: 'hidden' }}>
+                                <div style={{
+                                    height: '100%',
+                                    background: '#f0f2f5',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#999'
+                                }}>
+                                    Word原件预览区域 (Mock)
+                                </div>
+                            </Card>
+                        </Col>
+
+                        {/* Middle: Question List */}
+                        <Col span={12} style={{ height: '100%', overflowY: 'auto' }}>
+                            <div style={{ paddingBottom: 20 }}>
+                                {questions.map((q) => (
+                                    <QuestionCard
+                                        key={q.id}
+                                        question={q}
+                                        selected={selectedId === q.id}
+                                        onClick={() => setSelectedId(q.id)}
+                                    />
+                                ))}
                             </div>
-                        </Card>
-                    </Col>
+                        </Col>
 
-                    {/* Middle: Question List */}
-                    <Col span={12} style={{ height: '100%', overflowY: 'auto' }}>
-                        <div style={{ paddingBottom: 20 }}>
-                            {questions.map((q) => (
-                                <QuestionCard
-                                    key={q.id}
-                                    question={q}
-                                    selected={selectedId === q.id}
-                                    onClick={() => setSelectedId(q.id)}
-                                />
-                            ))}
-                        </div>
-                    </Col>
-
-                    {/* Right: Attribute Panel */}
-                    <Col span={6} style={{ height: '100%' }}>
-                        <AttributePanel
-                            question={questions.find((q) => q.id === selectedId) || null}
-                            onUpdate={handleUpdate}
-                        />
-                    </Col>
-                </Row>
-            </Spin>
-        </PageContainer>
+                        {/* Right: Attribute Panel */}
+                        <Col span={6} style={{ height: '100%' }}>
+                            <AttributePanel
+                                question={questions.find((q) => q.id === selectedId) || null}
+                                onUpdate={handleUpdate}
+                            />
+                        </Col>
+                    </Row>
+                </Spin>
+            </div>
+        </div>
     );
 };
 

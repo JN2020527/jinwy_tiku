@@ -83,12 +83,7 @@ export default [
                 name: 'Word试卷上传',
                 component: './PaperUpload',
             },
-            {
-                path: '/question-bank/word-upload/edit',
-                name: '在线校对',
-                component: './PaperUpload/Edit',
-                hideInMenu: true,
-            },
+
 
         ],
     },
@@ -98,5 +93,12 @@ export default [
     },
     {
         component: './404',
+    },
+    {
+        path: '/question-bank/word-upload/edit',
+        name: '在线校对',
+        component: './PaperUpload/Edit',
+        hideInMenu: true,
+        layout: false,
     },
 ];

@@ -7,6 +7,8 @@ import { useState } from 'react';
 const PaperUpload: React.FC = () => {
     const [mode, setMode] = useState<'paper' | 'question'>('paper');
 
+    const [form] = ProForm.useForm();
+
     const handleFinish = async (values: any) => {
         const file = values.file?.[0]?.originFileObj;
         if (!file) {
@@ -45,11 +47,16 @@ const PaperUpload: React.FC = () => {
                 </div>
 
                 <ProForm
+                    form={form}
                     onFinish={handleFinish}
                     submitter={{
                         searchConfig: {
                             submitText: '下一步：智能解析',
                         },
+                    }}
+                    grid={true}
+                    rowProps={{
+                        gutter: [16, 16],
                     }}
                 >
                     <ProFormUploadDragger
@@ -60,9 +67,14 @@ const PaperUpload: React.FC = () => {
                         max={1}
                         fieldProps={{
                             accept: '.docx',
-                            beforeUpload: () => false, // 阻止自动上传
+                            beforeUpload: (file) => {
+                                const fileName = file.name.replace(/\.[^/.]+$/, "");
+                                form.setFieldsValue({ name: fileName });
+                                return false;
+                            },
                         }}
                         rules={[{ required: true, message: '请上传文件' }]}
+                        colProps={{ span: 24 }}
                     />
 
                     <ProFormText
@@ -71,11 +83,13 @@ const PaperUpload: React.FC = () => {
                         placeholder="请输入试卷名称（默认使用文件名）"
                         rules={[{ required: mode === 'paper', message: '请输入试卷名称' }]}
                         hidden={mode === 'question'}
+                        colProps={{ span: 24 }}
                     />
 
                     <ProFormSelect
                         name="subject"
                         label="学科"
+                        colProps={{ span: 6 }}
                         valueEnum={{
                             math: '数学',
                             chinese: '语文',
@@ -89,11 +103,38 @@ const PaperUpload: React.FC = () => {
                     <ProFormSelect
                         name="year"
                         label="年份"
+                        colProps={{ span: 6 }}
                         valueEnum={{
                             '2026': '2026',
                             '2025': '2025',
                             '2024': '2024',
                         }}
+                        hidden={mode === 'question'}
+                    />
+
+                    <ProFormSelect
+                        name="source"
+                        label="试题来源"
+                        colProps={{ span: 6 }}
+                        options={[
+                            { label: '真题', value: 'real' },
+                            { label: '模拟题', value: 'mock' },
+                            { label: '原创', value: 'original' },
+                        ]}
+                        hidden={mode === 'question'}
+                    />
+
+                    <ProFormSelect
+                        name="region"
+                        label="地区"
+                        colProps={{ span: 6 }}
+                        options={[
+                            { label: '全国', value: 'national' },
+                            { label: '北京', value: 'beijing' },
+                            { label: '上海', value: 'shanghai' },
+                            { label: '山西', value: 'shanxi' },
+                            { label: '江苏', value: 'jiangsu' },
+                        ]}
                         hidden={mode === 'question'}
                     />
                 </ProForm>
