@@ -179,17 +179,36 @@ const PaperEdit: React.FC = () => {
                 }
                 .option-grid {
                     display: grid;
-                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    grid-template-columns: 1fr;
                     gap: 6px 16px;
                     margin: 8px 0 12px;
                     font-size: 14px;
+                }
+                .option-grid--single {
+                    grid-template-columns: 1fr;
+                }
+                .option-grid--two {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+                .option-grid--three {
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
                 }
                 .option-item {
                     padding: 4px 0;
                     word-break: break-word;
                 }
+                .option-item img.question-img.inline {
+                    height: 2.4em;
+                    margin: 0 2px;
+                }
+                .option-item math {
+                    font-size: 1em;
+                    vertical-align: middle;
+                }
                 @media (max-width: 1200px) {
-                    .option-grid {
+                    .option-grid,
+                    .option-grid--two,
+                    .option-grid--three {
                         grid-template-columns: 1fr;
                     }
                 }

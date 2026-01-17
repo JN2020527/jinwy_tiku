@@ -88,6 +88,7 @@ class StructureParser:
         for i, para in enumerate(self.paragraphs):
             text = para.text.strip()
             has_image = self._paragraph_has_image(para)
+            is_fill_section = current_section and "填空" in current_section.type_name
 
             if not text and not has_image:
                 continue
@@ -104,7 +105,7 @@ class StructureParser:
                 continue
 
             # Check for material question keywords
-            if any(keyword in text.strip() for keyword in self.MATERIAL_KEYWORDS):
+            if not is_fill_section and any(keyword in text.strip() for keyword in self.MATERIAL_KEYWORDS):
                 # Close previous question before starting new material collection
                 if current_question:
                     current_question.end_index = i - 1
@@ -183,6 +184,10 @@ class StructureParser:
             # Check for sub-question number (material question)
             sub_match = self.SUB_QUESTION_PATTERN.match(text)
             if sub_match and current_question:
+                if is_fill_section:
+                    current_question.paragraphs.append(para)
+                    continue
+
                 sub_number = sub_match.group(1)
 
                 # Mark parent as material question

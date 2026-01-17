@@ -95,12 +95,65 @@ class ParseService:
 
         return re.match(r"^[A-D][.．、]\s*", text) is not None
 
-    def _filter_question_paragraphs(
-        self, paragraphs: List[Paragraph], question_type: str
+    def _paragraph_has_attribute_marker(self, paragraph: Paragraph) -> bool:
+        text = paragraph.text.strip()
+        if not text:
+            return False
+        return any(
+            marker in text
+            for marker in ["【答案】", "【难度】", "【知识点】", "【解析】", "【详解】"]
+        )
+
+    def _filter_choice_options_before_attributes(
+        self, paragraphs: List[Paragraph]
     ) -> List[Paragraph]:
-        filtered = self.filter_attribute_paragraphs(paragraphs)
+        filtered = []
+        seen_attributes = False
+        for para in paragraphs:
+            if self._paragraph_has_attribute_marker(para):
+                seen_attributes = True
+                filtered.append(para)
+                continue
+
+            if not seen_attributes and self._paragraph_is_option(para):
+                continue
+
+            filtered.append(para)
+
+        return filtered
+
+    def _get_choice_option_paragraphs_before_attributes(
+        self, paragraphs: List[Paragraph]
+    ) -> List[Paragraph]:
+        options = []
+        for para in paragraphs:
+            if self._paragraph_has_attribute_marker(para):
+                break
+            if self._paragraph_is_option(para):
+                options.append(para)
+        return options
+
+    def _filter_question_paragraphs(
+        self,
+        paragraphs: List[Paragraph],
+        question_type: str,
+        remove_attributes: bool = True,
+    ) -> List[Paragraph]:
+        if remove_attributes:
+            filtered = self.filter_attribute_paragraphs(paragraphs)
+        else:
+            filtered = [
+                p
+                for p in paragraphs
+                if p.text.strip() or self._paragraph_has_image(p)
+            ]
+
         if self._is_choice_type(question_type):
-            filtered = [p for p in filtered if not self._paragraph_is_option(p)]
+            if remove_attributes:
+                filtered = [p for p in filtered if not self._paragraph_is_option(p)]
+            else:
+                filtered = self._filter_choice_options_before_attributes(filtered)
+
         return filtered
 
     def _paragraph_has_image(self, paragraph: Paragraph) -> bool:
@@ -112,6 +165,61 @@ class ParseService:
             except Exception:
                 continue
         return False
+
+    def _paragraph_has_formula(self, paragraph: Paragraph) -> bool:
+        """Check if paragraph contains OMML formulas."""
+        try:
+            return "oMath" in paragraph._element.xml
+        except Exception:
+            return False
+
+    def _escape_html(self, text: str) -> str:
+        return (
+            text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+
+    def _build_option_html(
+        self, options: List[str], paragraphs: List[Paragraph]
+    ) -> List[str]:
+        import re
+
+        option_paragraphs = self._get_choice_option_paragraphs_before_attributes(paragraphs)
+
+        option_map = {}
+        order = []
+        for opt in options:
+            match = re.match(r"^([A-D])\.\s*(.*)$", opt)
+            if match:
+                letter, content = match.groups()
+                order.append(letter)
+                option_map[letter] = {"content": content, "is_html": False}
+
+        for para in option_paragraphs:
+            text = para.text.strip()
+            match = re.match(r"^([A-D])[.．、]\s*", text)
+            if not match:
+                continue
+            letter = match.group(1)
+            if self._paragraph_has_formula(para):
+                html = self.token_generator.tokens_to_html(
+                    self.token_generator.generate_tokens([para])
+                )
+                html = re.sub(rf"^\s*{letter}[.．、]\s*", "", html)
+                option_map[letter] = {"content": html, "is_html": True}
+
+        result = []
+        for letter in order:
+            entry = option_map.get(letter, {"content": "", "is_html": False})
+            content = entry["content"] or ""
+            if entry["is_html"]:
+                html = content
+            else:
+                html = self._escape_html(content)
+            result.append(f"{letter}. {html}")
+
+        return result
 
     def text_to_html(self, text: str) -> str:
         """
@@ -174,19 +282,51 @@ class ParseService:
         Returns:
             QuestionItem object with children
         """
-        # Process sub-questions with answer index
+        # Parse parent attributes to distribute answers/analyses
+        parent_content = self.content_parser.parse_question_content(
+            block["paragraphs"], block["type"], mode="sub"
+        )
+
+        parent_paragraphs_filtered = self._filter_question_paragraphs(
+            block["paragraphs"], block["type"]
+        )
+        parent_tokens = self.token_generator.generate_tokens(parent_paragraphs_filtered)
+        parent_html = self.token_generator.tokens_to_html(parent_tokens)
+
+        # Process sub-questions with per-sub answers
         children = []
-        for idx, sub_block in enumerate(block["sub_questions"]):
-            sub_question = self._process_regular_question(sub_block, answer_index=idx)
-            sub_question.parentId = block["number"]
+        for sub_block in block["sub_questions"]:
+            sub_number = sub_block["number"]
+
+            sub_answer = parent_content["sub_answers"].get(sub_number, "")
+            sub_analysis = parent_content["sub_analyses"].get(sub_number, "")
+            sub_analysis_html = self.text_to_html(sub_analysis)
+
+            sub_paragraphs_filtered = self._filter_question_paragraphs(
+                sub_block["paragraphs"], block["type"]
+            )
+            sub_tokens = self.token_generator.generate_tokens(sub_paragraphs_filtered)
+            sub_stem_html = self.token_generator.tokens_to_html(sub_tokens)
+
+            sub_question = QuestionItem(
+                id=f"{block['number']}-{sub_number}",
+                number=sub_number,
+                type=block["type"],
+                stem=sub_stem_html,
+                answer=sub_answer or "",
+                analysis=sub_analysis_html or None,
+                knowledgePoints=parent_content["knowledge_points"],
+                difficulty=parent_content["difficulty"],
+                parentId=block["number"],
+            )
             children.append(sub_question)
 
-        # Create parent QuestionItem (empty stem, only has children)
+        # Create parent QuestionItem (intro stem + children)
         parent_question = QuestionItem(
             id=block["number"],
             number=block["number"],
             type=block["type"],
-            stem="",
+            stem=parent_html,
             answer="",
             children=children,
         )
@@ -213,7 +353,7 @@ class ParseService:
 
         # Generate tokens for stem
         stem_paragraphs = self._filter_question_paragraphs(
-            content["paragraphs"], block["type"]
+            content["paragraphs"], block["type"], remove_attributes=False
         )
         stem_tokens = self.token_generator.generate_tokens(stem_paragraphs)
         stem_html = self.token_generator.tokens_to_html(stem_tokens)
@@ -239,12 +379,16 @@ class ParseService:
         ):
             difficulty_value = None
 
+        options = content["options"]
+        if options and self._is_choice_type(block["type"]):
+            options = self._build_option_html(options, content["paragraphs"])
+
         question = QuestionItem(
             id=block["number"],
             number=block["number"],
             type=block["type"],
             stem=stem_html,
-            options=content["options"],
+            options=options,
             answer=answer_html,
             analysis=analysis_html,
             knowledgePoints=content["knowledge_points"],

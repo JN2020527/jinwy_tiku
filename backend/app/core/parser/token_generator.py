@@ -1,4 +1,5 @@
 from typing import List, Dict, Any
+from lxml import etree
 from docx.text.paragraph import Paragraph
 from docx.text.run import Run
 from app.core.parser.formula_parser import FormulaParser
@@ -34,14 +35,49 @@ class TokenGenerator:
         tokens = []
 
         for paragraph in paragraphs:
-            # Process each run in the paragraph
-            for run in paragraph.runs:
-                run_tokens = self._process_run(run)
-                tokens.extend(run_tokens)
+            tokens.extend(self._process_paragraph(paragraph))
 
             # Add line break after paragraph (except for last one)
             if paragraph != paragraphs[-1]:
                 tokens.append({"t": "text", "v": "\n"})
+
+        return tokens
+
+    def _process_paragraph(self, paragraph: Paragraph) -> List[Dict[str, Any]]:
+        """Process a paragraph and keep the order of text, formulas, and images."""
+        tokens: List[Dict[str, Any]] = []
+        run_map = {run._element: run for run in paragraph.runs}
+
+        for child in paragraph._element:
+            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+
+            if tag == "r":
+                run = run_map.get(child)
+                if run:
+                    tokens.extend(self._process_run(run))
+                continue
+
+            if tag in ("oMath", "oMathPara"):
+                omml_element = child
+                if tag == "oMathPara":
+                    math_nodes = child.xpath('.//*[local-name()="oMath"]')
+                    if math_nodes:
+                        omml_element = math_nodes[0]
+
+                omml_xml = None
+                try:
+                    omml_xml = etree.tostring(omml_element, encoding='unicode')
+                except Exception:
+                    omml_xml = None
+
+                if omml_xml:
+                    mathml = self.formula_parser.omml_to_mathml(omml_xml)
+                    tokens.append({
+                        "t": "math",
+                        "omml": omml_xml,
+                        "mathml": mathml or ""
+                    })
+                continue
 
         return tokens
 
@@ -93,6 +129,11 @@ class TokenGenerator:
         elif run.font.superscript:
             tokens.append({
                 "t": "sup",
+                "v": text
+            })
+        elif run.font.underline:
+            tokens.append({
+                "t": "u",
                 "v": text
             })
         else:
@@ -193,6 +234,13 @@ class TokenGenerator:
             elif token_type == "sup":
                 text = token.get("v", "")
                 html_parts.append(f"<sup>{text}</sup>")
+
+            elif token_type == "u":
+                text = token.get("v", "")
+                text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                # Preserve underline length for blank lines
+                text = text.replace(" ", "&nbsp;")
+                html_parts.append(f"<u>{text}</u>")
 
             elif token_type == "math":
                 mathml = token.get("mathml", "")

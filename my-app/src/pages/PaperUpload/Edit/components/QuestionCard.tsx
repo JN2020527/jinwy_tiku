@@ -1,5 +1,5 @@
 import { QuestionItem } from '@/services/paperUpload';
-import { Card, Tag, Typography } from 'antd';
+import { Card, Tag } from 'antd';
 import React from 'react';
 import { parseStem, ParsedStem } from '@/utils/parseStem';
 
@@ -19,9 +19,58 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, selected, onClick
         marginTop: '12px',
     };
 
+    const renderInfoItem = (label: string, content: string | undefined) => {
+        if (!content) return null;
+        return (
+            <div style={{ marginBottom: 8 }}>
+                <div style={{ marginBottom: 4, fontWeight: 600 }}>
+                    {label}
+                </div>
+                <div dangerouslySetInnerHTML={{ __html: content }} />
+            </div>
+        );
+    };
+
+    const getOptionGridClass = (options?: string[]) => {
+        if (!options || options.length === 0) {
+            return 'option-grid';
+        }
+
+        const stripHtml = (html: string) =>
+            html
+                .replace(/<[^>]*>/g, '')
+                .replace(/&nbsp;/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+        const maxLength = Math.max(
+            ...options.map((opt) => stripHtml(opt).length),
+            0
+        );
+        const hasRichContent = options.some((opt) => /<math|<img/i.test(opt));
+
+        if (hasRichContent || maxLength > 26) {
+            return 'option-grid option-grid--single';
+        }
+
+        if (options.length === 4) {
+            return 'option-grid option-grid--two';
+        }
+
+        if (options.length === 3) {
+            if (maxLength <= 18) {
+                return 'option-grid option-grid--three';
+            }
+            return 'option-grid option-grid--two';
+        }
+
+        return 'option-grid option-grid--two';
+    };
+
     const renderSubQuestion = (child: QuestionItem, index: number) => {
         const childParsed = parseStem(child.stem || '');
         const subNumber = index + 1;
+        const optionGridClass = getOptionGridClass(child.options);
 
         return (
             <div key={child.id} style={{ marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid #f0f0f0' }}>
@@ -35,11 +84,13 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, selected, onClick
 
                 {/* 子题选项 */}
                 {child.options && child.options.length > 0 && (
-                    <div className="option-grid">
+                    <div className={optionGridClass}>
                         {child.options.map((opt, idx) => (
-                            <div key={idx} className="option-item">
-                                {opt}
-                            </div>
+                            <div
+                                key={idx}
+                                className="option-item"
+                                dangerouslySetInnerHTML={{ __html: opt }}
+                            />
                         ))}
                     </div>
                 )}
@@ -93,19 +144,8 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, selected, onClick
         );
     };
 
-    const renderInfoItem = (label: string, content: string | undefined) => {
-        if (!content) return null;
-        return (
-            <div style={{ marginBottom: 8 }}>
-                <div style={{ marginBottom: 4, fontWeight: 600 }}>
-                    {label}
-                </div>
-                <div dangerouslySetInnerHTML={{ __html: content }} />
-            </div>
-        );
-    };
-
     const isMaterialQuestion = question.children && question.children.length > 0;
+    const optionGridClass = getOptionGridClass(question.options || []);
 
     return (
         <Card
@@ -153,11 +193,13 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, selected, onClick
                     />
 
                     {question.options && (
-                        <div className="option-grid">
+                        <div className={optionGridClass}>
                             {question.options.map((opt, idx) => (
-                                <div key={idx} className="option-item">
-                                    {opt}
-                                </div>
+                                <div
+                                    key={idx}
+                                    className="option-item"
+                                    dangerouslySetInnerHTML={{ __html: opt }}
+                                />
                             ))}
                         </div>
                     )}
