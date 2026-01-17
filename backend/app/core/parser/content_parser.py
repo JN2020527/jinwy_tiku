@@ -14,6 +14,9 @@ class ContentParser:
 
     # Option patterns for multiple choice questions
     OPTION_PATTERN = re.compile(r"^([A-D])[.．、]\s*(.+)$")
+    INLINE_OPTION_PATTERN = re.compile(
+        r"([A-D])[.．、]\s*([^A-D]+?)(?=(?:\s*[A-D][.．、])|$)"
+    )
 
     # Grouped answer pattern: 3．B    4．A
     GROUPED_ANSWER_PATTERN = re.compile(r"(\d+)[．.]\s*([A-Z\u4e00-\u9fa5]+)")
@@ -259,6 +262,14 @@ class ContentParser:
             if not line:
                 continue
 
+            inline_matches = []
+            if re.match(r"^[A-D][.．、]", line):
+                inline_matches = self.INLINE_OPTION_PATTERN.findall(line)
+            if inline_matches:
+                for option_letter, option_text in inline_matches:
+                    options.append(f"{option_letter}. {option_text.strip()}")
+                continue
+
             option_match = self.OPTION_PATTERN.match(line)
             if option_match:
                 option_letter, option_text = option_match.groups()
@@ -294,7 +305,7 @@ class ContentParser:
         clean_text = self.remove_attributes(full_text)
 
         # Extract stem and options
-        if "选择" in question_type:
+        if any(key in question_type for key in ["选择", "单选", "多选", "选"]):
             stem, options = self.extract_options(clean_text)
         else:
             stem = clean_text

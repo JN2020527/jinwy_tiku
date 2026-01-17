@@ -12,6 +12,7 @@ from app.config import get_settings
 
 class ParseService:
     """Service for orchestrating Word document parsing workflow"""
+    CHOICE_TYPE_KEYS = ("选择", "单选", "多选", "选")
 
     def __init__(self, file_path: str, task_id: str):
         """
@@ -58,9 +59,10 @@ class ParseService:
         filtered = []
         for para in paragraphs:
             text = para.text.strip()
+            has_image = self._paragraph_has_image(para)
 
             # Skip empty paragraphs
-            if not text:
+            if not text and not has_image:
                 continue
 
             # Skip paragraphs that contain attribute markers
@@ -81,6 +83,35 @@ class ParseService:
 
             filtered.append(para)
         return filtered
+
+    def _is_choice_type(self, question_type: str) -> bool:
+        return any(key in question_type for key in self.CHOICE_TYPE_KEYS)
+
+    def _paragraph_is_option(self, paragraph: Paragraph) -> bool:
+        text = paragraph.text.strip()
+        if not text:
+            return False
+        import re
+
+        return re.match(r"^[A-D][.．、]\s*", text) is not None
+
+    def _filter_question_paragraphs(
+        self, paragraphs: List[Paragraph], question_type: str
+    ) -> List[Paragraph]:
+        filtered = self.filter_attribute_paragraphs(paragraphs)
+        if self._is_choice_type(question_type):
+            filtered = [p for p in filtered if not self._paragraph_is_option(p)]
+        return filtered
+
+    def _paragraph_has_image(self, paragraph: Paragraph) -> bool:
+        """Check if paragraph contains embedded images."""
+        for run in paragraph.runs:
+            try:
+                if run._element.xpath('.//a:blip') or run._element.xpath('.//v:imagedata'):
+                    return True
+            except Exception:
+                continue
+        return False
 
     def text_to_html(self, text: str) -> str:
         """
@@ -181,9 +212,10 @@ class ParseService:
         )
 
         # Generate tokens for stem
-        stem_tokens = self.token_generator.generate_tokens(
-            [p for p in content["paragraphs"]]
+        stem_paragraphs = self._filter_question_paragraphs(
+            content["paragraphs"], block["type"]
         )
+        stem_tokens = self.token_generator.generate_tokens(stem_paragraphs)
         stem_html = self.token_generator.tokens_to_html(stem_tokens)
 
         # Use specified answer index if multiple answers exist
@@ -284,7 +316,9 @@ class ParseService:
             )
 
             # Filter out attribute blocks and analysis details from sub-question paragraphs
-            sub_paragraphs_filtered = self.filter_attribute_paragraphs(sub_block["paragraphs"])
+            sub_paragraphs_filtered = self._filter_question_paragraphs(
+                sub_block["paragraphs"], block["type"]
+            )
 
             # Generate sub-question HTML (without analysis details)
             sub_tokens = self.token_generator.generate_tokens(sub_paragraphs_filtered)
@@ -372,7 +406,9 @@ class ParseService:
             )
 
             # Filter out attribute blocks and analysis details from sub-question paragraphs
-            sub_paragraphs_filtered = self.filter_attribute_paragraphs(sub_block["paragraphs"])
+            sub_paragraphs_filtered = self._filter_question_paragraphs(
+                sub_block["paragraphs"], block["type"]
+            )
 
             # Generate sub-question stem HTML (only sub-question content, no material or analysis)
             sub_tokens = self.token_generator.generate_tokens(sub_paragraphs_filtered)

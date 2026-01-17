@@ -119,11 +119,28 @@ class TokenGenerator:
         # Check for drawing elements
         if hasattr(run._element, 'xpath'):
             try:
-                drawings = run._element.xpath('.//w:drawing')
-                for drawing in drawings:
-                    # For now, use a simple counter
-                    # In production, extract actual image reference
-                    image_refs.append(len(image_refs) + 1)
+                # DrawingML images
+                blips = run._element.xpath('.//a:blip')
+                for blip in blips:
+                    rel_id = blip.get(
+                        '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed'
+                    )
+                    if rel_id:
+                        image_id = self.image_parser.get_image_id_by_rel_id(rel_id)
+                        if image_id:
+                            image_refs.append(image_id)
+
+                # VML images fallback
+                if not image_refs:
+                    v_images = run._element.xpath('.//v:imagedata')
+                    for v_img in v_images:
+                        rel_id = v_img.get(
+                            '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id'
+                        )
+                        if rel_id:
+                            image_id = self.image_parser.get_image_id_by_rel_id(rel_id)
+                            if image_id:
+                                image_refs.append(image_id)
             except Exception:
                 pass
 
@@ -141,7 +158,25 @@ class TokenGenerator:
         """
         html_parts = []
 
-        for token in tokens:
+        def is_inline_image(index: int) -> bool:
+            def has_visible_content(token: Dict[str, Any]) -> bool:
+                token_type = token.get("t")
+                if token_type == "text":
+                    return bool(token.get("v", "").strip())
+                if token_type in ("sub", "sup", "math"):
+                    return True
+                return False
+
+            prev_token = tokens[index - 1] if index > 0 else None
+            next_token = tokens[index + 1] if index + 1 < len(tokens) else None
+
+            if prev_token and has_visible_content(prev_token):
+                return True
+            if next_token and has_visible_content(next_token):
+                return True
+            return False
+
+        for i, token in enumerate(tokens):
             token_type = token.get("t")
 
             if token_type == "text":
@@ -168,9 +203,16 @@ class TokenGenerator:
 
             elif token_type == "img":
                 image_id = token.get("ref")
+                inline_class = " inline" if is_inline_image(i) else ""
                 if self.task_id:
-                    html_parts.append(f'<img src="/api/paper/images/{self.task_id}/{image_id}" />')
+                    html_parts.append(
+                        f'<img class="question-img{inline_class}" '
+                        f'src="/api/paper/images/{self.task_id}/{image_id}" />'
+                    )
                 else:
-                    html_parts.append(f'<img src="/api/images/{image_id}" />')
+                    html_parts.append(
+                        f'<img class="question-img{inline_class}" '
+                        f'src="/api/images/{image_id}" />'
+                    )
 
         return "".join(html_parts)

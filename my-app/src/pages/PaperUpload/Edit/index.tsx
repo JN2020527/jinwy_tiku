@@ -160,6 +160,39 @@ const PaperEdit: React.FC = () => {
             <style>{`
                 .ant-spin-nested-loading { height: 100%; }
                 .ant-spin-container { height: 100%; }
+                .question-stem img {
+                    max-width: 90%;
+                    max-height: 220px;
+                    height: auto;
+                    display: block;
+                    object-fit: contain;
+                    margin: 8px auto;
+                }
+                .question-stem img.question-img.inline {
+                    max-width: none;
+                    max-height: none;
+                    height: 3em;
+                    width: auto;
+                    display: inline-block;
+                    margin: 0 4px;
+                    vertical-align: middle;
+                }
+                .option-grid {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 6px 16px;
+                    margin: 8px 0 12px;
+                    font-size: 14px;
+                }
+                .option-item {
+                    padding: 4px 0;
+                    word-break: break-word;
+                }
+                @media (max-width: 1200px) {
+                    .option-grid {
+                        grid-template-columns: 1fr;
+                    }
+                }
                 
                 /* Custom Scrollbar */
                 .custom-scrollbar::-webkit-scrollbar {

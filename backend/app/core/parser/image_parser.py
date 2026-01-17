@@ -10,12 +10,21 @@ import io
 
 class ImageInfo:
     """Container for image information"""
-    def __init__(self, image_id: int, filename: str, file_path: str, content_type: str, size: int):
+    def __init__(
+        self,
+        image_id: int,
+        filename: str,
+        file_path: str,
+        content_type: str,
+        size: int,
+        rel_id: str,
+    ):
         self.image_id = image_id
         self.filename = filename
         self.file_path = file_path
         self.content_type = content_type
         self.size = size
+        self.rel_id = rel_id
 
 
 class ImageParser:
@@ -33,6 +42,7 @@ class ImageParser:
         self.output_dir = output_dir
         self.images: List[ImageInfo] = []
         self.image_counter = 0
+        self.rel_id_to_image_id: Dict[str, int] = {}
 
         # Ensure output directory exists
         os.makedirs(output_dir, exist_ok=True)
@@ -52,15 +62,18 @@ class ImageParser:
                     image_data = image_part.blob
 
                     # Generate image info
-                    image_info = self._save_image(image_data, rel.target_ref)
+                    image_info = self._save_image(image_data, rel.target_ref, rel_id)
                     if image_info:
                         self.images.append(image_info)
+                        self.rel_id_to_image_id[rel_id] = image_info.image_id
                 except Exception as e:
                     print(f"Error extracting image {rel_id}: {e}")
 
         return self.images
 
-    def _save_image(self, image_data: bytes, target_ref: str) -> Optional[ImageInfo]:
+    def _save_image(
+        self, image_data: bytes, target_ref: str, rel_id: str
+    ) -> Optional[ImageInfo]:
         """
         Save image to disk and return image info
 
@@ -94,7 +107,8 @@ class ImageParser:
                 filename=filename,
                 file_path=file_path,
                 content_type=content_type,
-                size=len(image_data)
+                size=len(image_data),
+                rel_id=rel_id,
             )
 
             return image_info
@@ -174,6 +188,10 @@ class ImageParser:
             if img.image_id == image_id:
                 return img
         return None
+
+    def get_image_id_by_rel_id(self, rel_id: str) -> Optional[int]:
+        """Resolve image ID by relationship ID from document."""
+        return self.rel_id_to_image_id.get(rel_id)
 
     def find_image_references_in_paragraph(self, paragraph) -> List[int]:
         """

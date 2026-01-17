@@ -35,9 +35,9 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, selected, onClick
 
                 {/* 子题选项 */}
                 {child.options && child.options.length > 0 && (
-                    <div style={{ marginBottom: 12 }}>
+                    <div className="option-grid">
                         {child.options.map((opt, idx) => (
-                            <div key={idx} style={{ padding: '4px 0', fontSize: '14px' }}>
+                            <div key={idx} className="option-item">
                                 {opt}
                             </div>
                         ))}
@@ -153,9 +153,9 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, selected, onClick
                     />
 
                     {question.options && (
-                        <div style={{ marginBottom: 12 }}>
+                        <div className="option-grid">
                             {question.options.map((opt, idx) => (
-                                <div key={idx} style={{ padding: '4px 0', fontSize: '14px' }}>
+                                <div key={idx} className="option-item">
                                     {opt}
                                 </div>
                             ))}

@@ -64,6 +64,16 @@ class StructureParser:
         self.paragraphs = paragraphs
         self.sections: List[QuestionSection] = []
 
+    def _paragraph_has_image(self, paragraph: Paragraph) -> bool:
+        """Check if paragraph contains embedded images."""
+        for run in paragraph.runs:
+            try:
+                if run._element.xpath('.//a:blip') or run._element.xpath('.//v:imagedata'):
+                    return True
+            except Exception:
+                continue
+        return False
+
     def parse(self) -> List[QuestionSection]:
         """Parse document structure to identify question sections and blocks
 
@@ -77,8 +87,9 @@ class StructureParser:
 
         for i, para in enumerate(self.paragraphs):
             text = para.text.strip()
+            has_image = self._paragraph_has_image(para)
 
-            if not text:
+            if not text and not has_image:
                 continue
 
             # Check for question type section
