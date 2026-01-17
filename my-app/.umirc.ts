@@ -14,5 +14,14 @@ export default defineConfig({
   },
   routes,
   npmClient: 'npm',
+  // 配置代理，将API请求转发到后端服务器
+  proxy: {
+    '/api': {
+      target: 'http://localhost:8000',
+      changeOrigin: true,
+    },
+  },
+  // 禁用mock，使用真实后端API
+  mock: false,
 });
 

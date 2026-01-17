@@ -4,231 +4,286 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Question Bank & Test Paper Management System (晋文源试卷管理系统)** built with Umi Max 4.6.9, React 18, TypeScript, and Ant Design v5. It's an enterprise admin dashboard for managing educational content, test papers, and question taxonomies.
+This is a **晋文源试卷管理系统** (Jinwenyuan Paper Management System) - a full-stack application for managing educational content, question banks, papers, and tags.
 
-## Commands
+**Monorepo Structure:**
+- `my-app/` - Frontend: Umi Max 4 (React) + Ant Design Pro Components
+- `backend/` - Backend: FastAPI + PostgreSQL + SQLAlchemy
 
-### Development
+The system's core feature is Word document parsing: users upload Word exam papers, the backend parses them into structured questions using python-docx, and users proofread/annotate the results before submitting to the question bank.
+
+## Development Commands
+
+### Frontend (my-app/)
 ```bash
-npm run dev        # Start development server
-npm start          # Alias for npm run dev
+cd my-app
+npm run dev          # Start development server (http://localhost:8000)
+npm run build        # Build for production
+npm run format       # Format code with Prettier
+npm start            # Alias for npm run dev
 ```
 
-### Build
+### Backend (backend/)
 ```bash
-npm run build      # Production build using max build
+cd backend
+source venv/bin/activate    # Activate virtual environment
+pip install -r requirements.txt
+
+# Start PostgreSQL
+docker-compose up -d
+
+# Run database migrations
+alembic upgrade head
+
+# Start development server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Create new migration
+alembic revision --autogenerate -m "description"
+
+# Rollback migration
+alembic downgrade -1
 ```
 
-### Code Quality
-```bash
-npm run format     # Format code with Prettier
-```
-
-### Setup
-```bash
-npm run setup      # Run Umi Max setup (also runs automatically on postinstall)
-```
+**API Documentation:** http://localhost:8000/docs (FastAPI auto-generated)
 
 ## Architecture
 
-### Framework & Plugins
+### High-Level Architecture
 
-This project uses Umi Max with the following plugins enabled (configured in `.umirc.ts`):
-- **antd**: Ant Design v5 integration
-- **access**: RBAC framework (configured but not yet implemented)
-- **model**: Lightweight hook-based state management
-- **initialState**: Initial state handling via `getInitialState()` in `app.tsx`
-- **request**: Unified request handler for all API calls
-- **layout**: Ant Design Pro Layout with dark sidebar theme
+**Frontend → Backend Communication:**
+- Frontend proxies `/api` requests to `http://localhost:8000` (configured in `my-app/.umirc.ts`)
+- Mock data disabled in favor of real backend
+- All API responses follow: `{ success: boolean, message: string, data: T }`
 
-### Routing System
+**Core Data Flow (Word Paper Parsing):**
+1. User uploads Word file + metadata → `POST /api/paper/upload`
+2. Backend creates task, parses document in background → Returns `taskId`
+3. Frontend polls `GET /api/paper/result/{taskId}` until status is "success"
+4. User proofreads questions in full-screen editor → Submits via `POST /api/paper/submit`
+5. Backend saves to database via SQLAlchemy ORM
 
-Routes are **file-based** and configured in `config/routes.ts`. Key patterns:
-- Nested routes use the `routes` array property
-- Hidden menu items use `hideInMenu: true` (for detail/edit pages)
-- Parent routes redirect to first child using `redirect`
-- All page components are in `src/pages/` and auto-routed
+### Frontend Architecture (my-app/)
 
-Main route hierarchy:
+**Framework: Umi Max 4**
+- **Convention-based routing**: Routes defined in `config/routes.ts`
+- **Runtime configuration**: `src/app.tsx` for layout, initial state, and breadcrumbs
+- **Build configuration**: `.umirc.ts` imports routes and settings from `config/`
+- **Plugins enabled**: `antd`, `access`, `model`, `initialState`, `request`, `layout`
+
+**Project Structure:**
+
 ```
-/welcome                    - Landing page
-/content                    - Content Center (parent)
-  ├─ /content/product-list           - Product list (main page)
-  ├─ /content/product-list/subject-manage    - Subject management (hidden)
-  └─ /content/product-list/answer-manage     - Answer management (hidden)
-/question-bank              - Question Bank (parent)
-  ├─ /question-bank/tag-system       - Tag/knowledge system
-  └─ /question-bank/task             - Task management
+src/
+├── pages/              # Page components (route-based)
+│   ├── ContentCenter/  # Product list, subject/answer management
+│   ├── PaperUpload/    # Word paper upload and editing workflow
+│   │   ├── index.tsx   # Upload page with multi-step form
+│   │   └── Edit/       # Proofreading page (layout: false)
+│   └── [other pages]   # System, Order, Customer, Statistics, etc.
+├── services/           # API service layer (using @umijs/max request)
+│   ├── tagSystem.ts    # Tag categories and knowledge tree APIs
+│   ├── paperUpload.ts  # Paper upload, parsing, and submission
+│   └── questionBankTask.ts
+├── components/         # Shared components
+│   ├── RichTextEditor/ # wangEditor integration
+│   └── Guide/
+├── models/             # Global state (Umi data flow)
+├── utils/              # Utility functions
+│   └── parseStem.ts    # HTML content parsing utilities
+├── constants/          # Constants and enums
+└── app.tsx            # Runtime config (layout, initial state)
+
+config/
+├── routes.ts           # Route definitions
+└── defaultSettings.ts  # ProLayout settings (theme, layout)
 ```
 
-### Service Layer & Mock APIs
+### Backend Architecture (backend/)
 
-**Service Pattern:**
-- All services in `src/services/` export async functions that wrap `request()` calls
-- TypeScript interfaces define request/response types
-- Services are consumed directly in page components (no Redux/RTK)
+**Project Structure:**
+```
+backend/
+├── app/
+│   ├── api/v1/          # API endpoints
+│   │   └── paper.py     # Paper upload, result, submit endpoints
+│   ├── core/            # Core functionality
+│   │   ├── parser/      # Word document parsing modules
+│   │   │   ├── docx_parser.py      # Main document parser
+│   │   │   ├── structure_parser.py # Question structure detection
+│   │   │   ├── content_parser.py   # Content extraction
+│   │   │   ├── formula_parser.py   # Math formula handling
+│   │   │   └── image_parser.py     # Image extraction
+│   │   └── task_manager.py         # In-memory task tracking
+│   ├── models/          # Database and Pydantic models
+│   │   ├── database/    # SQLAlchemy ORM models
+│   │   │   ├── paper.py
+│   │   │   ├── question.py
+│   │   │   ├── question_group.py
+│   │   │   ├── question_content.py
+│   │   │   └── image.py
+│   │   └── schemas/     # Pydantic schemas for API
+│   │       └── question.py
+│   ├── services/        # Business logic layer
+│   │   ├── paper_service.py    # Paper CRUD operations
+│   │   ├── parse_service.py    # Document parsing orchestration
+│   │   └── question_service.py # Question CRUD operations
+│   ├── config.py        # Environment configuration (pydantic-settings)
+│   ├── database.py      # Database connection and session
+│   └── main.py          # FastAPI entry point
+├── migrations/          # Alembic database migrations
+├── storage/             # File storage (uploads, images)
+├── docker-compose.yml   # PostgreSQL container
+└── requirements.txt     # Python dependencies
+```
 
-**Mock API Development:**
-- Mock handlers in `mock/` directory intercept requests during development
-- Pattern: `'METHOD /api/path': handler` in mock files
-- Mock data persists in memory during dev session (CRUD operations work)
-- Three mock files:
-  - `mock/questionBankTask.ts` - Task CRUD with pagination/filtering
-  - `mock/tagSystem.ts` - Complex hierarchical data (knowledge tree, question types, tag categories, textbooks)
-  - `mock/userAPI.ts` - User authentication (basic)
+**Key Backend Patterns:**
 
-**Current Services:**
-- `src/services/questionBankTask.ts` - Task management API
-- `src/services/tagSystem.ts` - Knowledge points, question types, tag attributes, textbook chapters
+1. **Task Manager Pattern**: In-memory task tracking for async Word parsing
+   - `TaskManager` in `core/task_manager.py` manages task lifecycle
+   - States: `pending` → `processing` → `success`/`failed`
+   - Frontend polls `/api/paper/result/{taskId}` to check status
 
-### State Management
+2. **Service Layer Pattern**: Business logic separated from API endpoints
+   - Services receive `Session` via dependency injection
+   - Handle transactions, error handling, and DB operations
+   - Example: `PaperService` in `services/paper_service.py`
 
-Uses Umi's **model plugin** for lightweight state management:
-- Models are in `src/models/` and export React hooks
-- `src/models/global.ts` contains global shared state (e.g., `useUser()`)
-- Initial state configured in `app.tsx` via `getInitialState()`
-- **No Redux** - keeps state management minimal with hooks
+3. **Parser Module System**: Modular Word document parsing
+   - `DocxParser` orchestrates specialized parsers
+   - `StructureParser` detects question boundaries and types
+   - `ContentParser` extracts stem/options/answer/analysis
+   - `FormulaParser` handles math formulas (OMML → HTML)
+   - `ImageParser` extracts and saves embedded images
 
-### Data Patterns
+### Key Patterns and Workflows
 
-**Hierarchical Tree Data:**
-- Knowledge points, question types, and textbook chapters use tree structures
-- CRUD operations support recursive add/update/delete on tree nodes
-- Use Ant Design Tree component for display
-
-**Three-Level Content Hierarchy:**
-- Product → Subject → Answer (in Content Center)
-- Navigation flows from ProductList to SubjectManage to AnswerManage
-
-**ProTable Pattern:**
-- Most list pages use `@ant-design/pro-components` ProTable
-- Supports built-in search, filtering, pagination, and actions
-- Use `actionRef` to trigger table refresh after mutations
-- Request prop fetches data, columns define display and actions
-
-### Component Architecture
-
-**Key Component Types:**
-- **Page Components** (`src/pages/`): Auto-routed, use PageContainer wrapper
-- **Shared Components** (`src/components/`): Reusable across pages
-- **Pro Components**: ProTable, ProForm, ModalForm heavily used for CRUD operations
-
-**Common Patterns:**
-- **Tabs**: Multi-section pages (e.g., TagManage has 4 tabs)
-- **Modals**: Forms for create/edit actions (use ModalForm from Pro Components)
-- **Popconfirm**: Deletion confirmations
-- **Message/Notification**: User feedback for actions
-
-### TypeScript & Type Safety
-
-- TypeScript 5.0.3 with strict mode
-- All API responses typed with interfaces
-- Auto-generated types in `src/.umi/` (don't edit directly)
-- Type definitions for services follow pattern:
-  ```typescript
-  interface TaskItem {
-    id: string;
-    name: string;
-    // ...
-  }
-
-  export async function getTasks(params: {...}): Promise<{ data: TaskItem[]; total: number; success: boolean }> {
-    return request('/api/question-bank/tasks', { method: 'GET', params });
-  }
-  ```
-
-## Key Feature Areas
-
-### Content Center (`/content`)
-Manages products, subjects, and answers in a hierarchical structure:
-- **ProductList**: Browse products with activation codes, time ranges, statuses
-- **SubjectManage**: Manage subjects (math, language, sciences) within products
-- **AnswerManage**: Manage answer sheets linked to subjects
-
-### Question Bank (`/question-bank`)
-Manages question taxonomy and knowledge structure:
-- **TagManage** (4-tab interface):
-  1. Knowledge System: Textbook catalog + knowledge tree (side-by-side)
-  2. Question Types: Hierarchical question type tree (MCQ, fill-in, essay, etc.)
-  3. Tag Attributes: Category-based attributes (difficulty, ability, source, region, scenario)
-  4. Textbook Chapters: Multi-version textbook management (人教版, 北师大版, 苏科版)
-- **QuestionBankTask**: Task management with status tracking (Published/Pending/Draft)
-
-## Configuration Files
-
-- **`.umirc.ts`**: Main Umi configuration (plugins, routes, layout)
-- **`config/routes.ts`**: Route definitions (file-based routing configuration)
-- **`config/defaultSettings.ts`**: Layout theme and settings (dark sidebar, blue primary color)
-- **`src/app.tsx`**: Runtime configuration (initial state, layout customization)
-- **`tsconfig.json`**: TypeScript config (extends `.umi/tsconfig.json`)
-
-## Development Notes
-
-### Adding New Pages
-1. Create component in `src/pages/` following existing patterns
-2. Add route to `config/routes.ts`
-3. Use PageContainer wrapper for consistent layout
-4. For CRUD pages, use ProTable + ModalForm pattern
-
-### Adding New APIs
-1. Define TypeScript interfaces for request/response
-2. Create service functions in `src/services/`
-3. Create mock handlers in `mock/` during development
-4. Use `request()` from `@umijs/max` for all API calls
-
-### Mock API Pattern
+#### 1. Frontend API Service Layer (my-app/src/services/)
+All API calls use `@umijs/max` request utility:
 ```typescript
-// mock/example.ts
-export default {
-  'GET /api/example': (req: any, res: any) => {
-    res.json({ data: [], success: true });
-  },
-  'POST /api/example': (req: any, res: any) => {
-    const body = req.body;
-    // Handle request
-    res.json({ success: true });
-  },
-};
+import { request } from '@umijs/max';
+
+export async function getKnowledgeTree() {
+    return request('/api/tags/knowledge-tree', { method: 'GET' });
+}
 ```
 
-### ProTable Usage
+#### 2. Word Paper Parsing Workflow
+Multi-step process for Word document processing:
+
+**Step 1: Upload Page** (`/question-bank/word-upload`)
+- User uploads Word file with metadata (`PaperMetadata`)
+- API: `POST /api/paper/upload` → Returns `{ taskId }`
+
+**Step 2: Backend Processing**
+- `parse_service.py` orchestrates document parsing
+- `DocxParser` extracts questions, formulas, images
+- Results stored in `TaskManager` (in-memory)
+
+**Step 3: Polling & Navigation**
+- Frontend polls `GET /api/paper/result/{taskId}`
+- When status becomes "success", navigates to edit page
+
+**Step 4: Proofreading Page** (`/question-bank/word-upload/edit`)
+- Full-screen interface (layout: false)
+- Question cards with rich text editors (wangEditor)
+- Users annotate: type, difficulty, knowledge points
+- Edit stem/options/answer/analysis HTML content
+
+**Step 5: Submit**
+- API: `POST /api/paper/submit` with corrected questions
+- Backend saves to PostgreSQL via `PaperService` and `QuestionService`
+
+**Key Interfaces** (shared between frontend/backend):
 ```typescript
-<ProTable<DataType>
-  actionRef={actionRef}
-  request={async (params) => {
-    const result = await serviceFunction(params);
-    return { data: result.data, total: result.total, success: true };
-  }}
-  columns={columns}
-  rowKey="id"
-/>
+// PaperMetadata
+{ name, subject, year?, region?, paperType?, mode: 'paper'|'question' }
+
+// QuestionItem
+{
+  id, number, type, stem, options?, answer, analysis?,
+  knowledgePoints?, difficulty?, parentId?, children?
+}
 ```
 
-### Tree Data CRUD
-When working with tree structures (knowledge points, question types, textbooks):
-- Use recursive functions for add/update/delete operations
-- Preserve tree structure in mock data between requests
-- Tree nodes have `id`, `name`, `children` properties
-- Support both flat and nested data representations
+#### 3. Route Configuration
+Routes in `config/routes.ts` support:
+- Nested routes with `routes` array
+- `hideInMenu: true` for hidden pages
+- `layout: false` for full-screen pages (e.g., paper editing at `/question-bank/word-upload/edit`)
+- Icons from `@ant-design/icons`
 
-## Build & Deployment
+#### 4. Database Models
+SQLAlchemy models follow this pattern:
+- Inherit from `Base`
+- Include `created_at`/`updated_at` timestamps
+- Use relationships for foreign keys
+- JSON columns for flexible metadata (e.g., `paper.paper_metadata`)
 
-- Build output goes to `dist/` directory
-- Production build uses `max build` command
-- No special environment variables required (all configured in `.umirc.ts`)
-- Static assets in `src/assets/` are automatically processed
+#### 5. Layout System
+- **ProLayout** from `@ant-design/pro-components` provides the admin shell
+- Settings in `config/defaultSettings.ts`: dark sidebar, light header, fixed sider
+- Custom breadcrumb rendering in `src/app.tsx`
+- Menu locale disabled (`locale: false`)
 
-## Code Quality Tools
+## Important Notes
 
-- **Prettier**: Auto-formatting (includes organize imports plugin)
-- **ESLint**: Linting (extends `@umijs/max` config)
-- **Stylelint**: CSS/LESS linting
-- **Husky**: Git hooks (pre-commit runs lint-staged)
-- **lint-staged**: Runs linters only on staged files
+### Frontend (my-app/)
 
-## Language & Localization
+**TypeScript Configuration:**
+- `tsconfig.json` extends from `.umi/tsconfig.json` (auto-generated)
+- Do not manually edit the generated tsconfig
 
-- **Primary Language**: Chinese (Simplified)
-- All UI labels, menu names, and messages are in Chinese
-- Layout locale disabled (`locale: false` in layout config)
-- No i18n framework - hardcoded Chinese strings throughout
+**Code Quality Tools:**
+- **Prettier**: Auto-formatting on save
+- **Husky + lint-staged**: Pre-commit hooks
+
+**Rich Text Editor:**
+- Uses `@wangeditor/editor-for-react` for question content editing
+- Component wrapper in `src/components/RichTextEditor/`
+
+**Mock Data:**
+- Mock data currently disabled (`.umirc.ts`: `mock: false`)
+- Use real backend API during development
+
+### Backend (backend/)
+
+**Configuration:**
+- Environment variables in `.env` (copy from `.env.example`)
+- `app/config.py` uses `pydantic-settings` for type-safe config
+- Access via `get_settings()` singleton (cached)
+
+**Database:**
+- PostgreSQL runs in Docker container (port 5432)
+- Connection managed by SQLAlchemy
+- Always use `get_db()` dependency injection in API endpoints
+
+**Error Handling:**
+- Use `HTTPException` with appropriate status codes (400, 404, 500)
+- Services should rollback DB transactions on error
+- Log errors for debugging
+
+**Pydantic Schemas:**
+- Use `Field()` with descriptions for API documentation
+- `Config: populate_by_name = True` for camelCase compatibility with frontend
+- Schemas in `models/schemas/` separate from database models
+
+## Development Workflows
+
+### Adding a New Frontend Page
+1. Create component in `src/pages/[PageName]/index.tsx`
+2. Add route in `config/routes.ts` with path, name, icon, component
+3. Create corresponding service file in `src/services/` if API calls needed
+
+### Adding Backend API Endpoints
+1. Define Pydantic schemas in `models/schemas/`
+2. Create service class in `services/` for business logic
+3. Add router function in `api/v1/` directory
+4. Include router in `main.py` if new module
+
+### Database Schema Changes
+1. Modify SQLAlchemy models in `models/database/`
+2. Create migration: `alembic revision --autogenerate -m "description"`
+3. Review generated migration file in `migrations/versions/`
+4. Apply migration: `alembic upgrade head`
+5. Test rollback: `alembic downgrade -1`
