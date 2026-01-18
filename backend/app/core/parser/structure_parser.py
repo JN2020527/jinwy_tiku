@@ -89,6 +89,9 @@ class StructureParser:
             text = para.text.strip()
             has_image = self._paragraph_has_image(para)
             is_fill_section = current_section and "填空" in current_section.type_name
+            is_inline_sub_section = current_section and any(
+                key in current_section.type_name for key in ["填空", "简答"]
+            )
 
             if not text and not has_image:
                 continue
@@ -184,7 +187,7 @@ class StructureParser:
             # Check for sub-question number (material question)
             sub_match = self.SUB_QUESTION_PATTERN.match(text)
             if sub_match and current_question:
-                if is_fill_section:
+                if is_inline_sub_section:
                     current_question.paragraphs.append(para)
                     continue
 
