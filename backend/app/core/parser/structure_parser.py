@@ -90,7 +90,8 @@ class StructureParser:
             has_image = self._paragraph_has_image(para)
             is_fill_section = current_section and "填空" in current_section.type_name
             is_inline_sub_section = current_section and any(
-                key in current_section.type_name for key in ["填空", "简答"]
+                key in current_section.type_name
+                for key in ["填空", "简答", "实验", "解答", "综合应用"]
             )
 
             if not text and not has_image:
@@ -250,8 +251,15 @@ class StructureParser:
         questions = []
         for section in self.sections:
             question_type = self.get_question_type(section)
+            inline_sub_types = {"填空题", "简答题", "实验题", "解答题", "综合应用题"}
 
             for question in section.questions:
+                if question_type in inline_sub_types and question.sub_questions:
+                    for sub_q in question.sub_questions:
+                        question.paragraphs.extend(sub_q.paragraphs)
+                    question.sub_questions = []
+                    question.is_material_question = False
+
                 # Check if this is a fill-in question with sub-questions
                 if question_type == "填空题" and question.sub_questions:
                     question_data = {
