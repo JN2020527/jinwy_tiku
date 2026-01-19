@@ -53,7 +53,14 @@
       "Bash(python test_connection.py:*)",
       "Bash(python verify_setup.py:*)",
       "Bash(python verify_local_config.py:*)",
-      "Bash(python test_image_storage.py:*)"
+      "Bash(python test_image_storage.py:*)",
+      "Bash(python:*)",
+      "Bash(winpty docker ps)",
+      "Bash(docker.exe ps:*)",
+      "Bash(winpty docker-compose up -d)",
+      "Bash(docker-compose.exe up:*)",
+      "Bash(docker.exe start:*)",
+      "Bash(git add:*)"
     ]
   }
 }

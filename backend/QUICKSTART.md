@@ -94,6 +94,36 @@ http://localhost:8001/api/paper/images/675b8fe1-ac49-4e90-bccf-a2240ad60858/1
 
 ---
 
+## 管理工具
+
+### 一键管理工具
+```bash
+cd backend
+python manage.py
+```
+
+**功能菜单:**
+1. 检查当前配置
+2. 测试数据库连接
+3. 查看数据库统计
+4. 清理数据库测试数据
+5. 清理本地存储文件
+6. 测试图片存储
+7. 验证数据库设置
+
+### 快速命令
+
+```bash
+# 检查配置
+python check_db_location.py
+
+# 清理测试数据
+python cleanup_test_data.py
+
+# 清理本地文件
+python cleanup_local_files.py
+```
+
 ## 常用命令
 
 ### 数据库迁移
@@ -110,7 +140,7 @@ alembic revision --autogenerate -m "description"  # 创建新迁移
 # 前端日志在浏览器控制台
 ```
 
-### 清理存储
+### 清理存储（手动方式）
 ```bash
 cd backend
 rm -rf storage/uploads/* storage/images/*
