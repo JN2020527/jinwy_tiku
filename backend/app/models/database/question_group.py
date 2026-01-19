@@ -7,6 +7,7 @@ from app.database import Base
 class QuestionGroup(Base):
     """Question group table - for material questions with sub-questions"""
     __tablename__ = "question_groups"
+    __table_args__ = {'schema': 'tiku'}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(String(36), ForeignKey("papers.task_id", ondelete="CASCADE"), nullable=False, index=True)

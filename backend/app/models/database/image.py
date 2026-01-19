@@ -6,6 +6,7 @@ from app.database import Base
 class Image(Base):
     """Image table - stores extracted images from Word documents"""
     __tablename__ = "images"
+    __table_args__ = {'schema': 'tiku'}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(String(36), ForeignKey("papers.task_id", ondelete="CASCADE"), nullable=False, index=True)

@@ -15,6 +15,7 @@ class PaperStatus(str, enum.Enum):
 class Paper(Base):
     """Paper document table"""
     __tablename__ = "papers"
+    __table_args__ = {'schema': 'tiku'}
 
     task_id = Column(String(36), primary_key=True, index=True)
     file_hash = Column(String(64), nullable=False, index=True)

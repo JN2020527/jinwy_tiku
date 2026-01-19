@@ -7,6 +7,7 @@ from app.database import Base
 class Question(Base):
     """Question table - structured question data"""
     __tablename__ = "questions"
+    __table_args__ = {'schema': 'tiku'}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(String(36), ForeignKey("papers.task_id", ondelete="CASCADE"), nullable=False, index=True)

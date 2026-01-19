@@ -15,6 +15,7 @@ class ContentType(str, enum.Enum):
 class QuestionContent(Base):
     """Question content table - stores rich text token streams"""
     __tablename__ = "question_contents"
+    __table_args__ = {'schema': 'tiku'}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False, index=True)

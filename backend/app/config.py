@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
+    # Environment
+    environment: str = "production"
+
     class Config:
-        env_file = ".env"
+        # Priority: .env.local (development) > .env (production)
+        env_file = ".env.local" if os.path.exists(".env.local") else ".env"
         case_sensitive = False
 
 

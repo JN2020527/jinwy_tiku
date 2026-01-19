@@ -2,6 +2,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy import text
 
 from alembic import context
 
@@ -53,6 +54,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table_schema="tiku",
     )
 
     with context.begin_transaction():
@@ -73,8 +75,14 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Ensure tiku schema exists before running migrations
+        connection.execute(text("CREATE SCHEMA IF NOT EXISTS tiku"))
+        connection.commit()
+
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            version_table_schema="tiku",
         )
 
         with context.begin_transaction():

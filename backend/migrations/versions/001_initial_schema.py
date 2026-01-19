@@ -17,6 +17,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Ensure tiku schema exists
+    op.execute('CREATE SCHEMA IF NOT EXISTS tiku')
+
     # Create papers table
     op.create_table(
         'papers',
