@@ -33,7 +33,7 @@ const PaperUpload: React.FC = () => {
     };
 
     return (
-        <PageContainer title="Word试卷上传">
+        <PageContainer title="试题上传">
             <Card>
                 <div style={{ marginBottom: 24, textAlign: 'center' }}>
                     <Segmented
