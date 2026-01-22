@@ -80,8 +80,14 @@ export default [
             },
             {
                 path: '/question-bank/word-upload',
-                name: 'Word试卷上传',
+                name: '试题上传',
                 component: './PaperUpload',
+            },
+            {
+                path: '/question-bank/tagging',
+                name: '试题打标',
+                icon: 'tags',
+                component: './QuestionTagging',
             },
 
 
