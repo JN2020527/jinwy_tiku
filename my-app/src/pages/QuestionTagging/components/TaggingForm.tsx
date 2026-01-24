@@ -4,37 +4,36 @@ import {
   ProFormTreeSelect,
 } from '@ant-design/pro-components';
 import { Button, Empty, message, Switch } from 'antd';
-import React, { useEffect, useState } from 'react';
-import {
-  mockAbilities,
-  mockChapters,
-  mockExamMethods,
-  mockFeatures,
-  mockKnowledgeTree,
-  mockQuestionTypes,
-} from '../mockData';
+import React, { useEffect, useState, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { getSubjectTagData } from '../mockData';
 import { Question } from '../types';
 import styles from './TaggingForm.less';
+
+export interface TaggingFormRef {
+  saveAndNext: () => void;
+}
 
 interface TaggingFormProps {
   question: Question | null;
   selectedQuestions: Question[];
   isBatchMode: boolean;
+  subject: string; // 当前选中的学科
   onUpdate: (id: string, values: Partial<Question>) => void;
   onBatchUpdate: (ids: string[], values: Partial<Question>) => void;
   onSaveAndNext: () => void;
   onSkip: () => void;
 }
 
-const TaggingForm: React.FC<TaggingFormProps> = ({
+const TaggingForm = forwardRef<TaggingFormRef, TaggingFormProps>(({
   question,
   selectedQuestions,
   isBatchMode,
+  subject,
   onUpdate,
   onBatchUpdate,
   onSaveAndNext,
   onSkip,
-}) => {
+}, ref) => {
   const [form] = ProForm.useForm();
   const [batchSwitches, setBatchSwitches] = useState({
     knowledgePoints: false,
@@ -45,6 +44,14 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
     examMethod: false,
     ability: false,
   });
+
+  // 根据学科获取标签数据
+  const tagData = useMemo(() => getSubjectTagData(subject), [subject]);
+
+  // 学科切换时重置表单
+  useEffect(() => {
+    form.resetFields();
+  }, [subject, form]);
 
   // 单选模式：回显当前试题的标签
   useEffect(() => {
@@ -88,6 +95,11 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
       onSaveAndNext();
     }
   };
+
+  // 暴露方法给父组件
+  useImperativeHandle(ref, () => ({
+    saveAndNext: handleSaveAndNext,
+  }));
 
   // 批量模式：应用到所有选中试题
   const handleBatchApply = () => {
@@ -200,7 +212,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             <ProFormTreeSelect
               name="questionType"
               fieldProps={{
-                treeData: mockQuestionTypes,
+                treeData: tagData.questionTypes,
                 placeholder: '请选择题型',
                 disabled: !batchSwitches.questionType,
                 showSearch: true,
@@ -234,7 +246,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             <ProFormTreeSelect
               name="knowledgePoints"
               fieldProps={{
-                treeData: mockKnowledgeTree,
+                treeData: tagData.knowledgeTree,
                 multiple: true,
                 treeCheckable: true,
                 placeholder: '请选择知识点',
@@ -267,7 +279,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             <ProFormTreeSelect
               name="chapters"
               fieldProps={{
-                treeData: mockChapters,
+                treeData: tagData.chapters,
                 placeholder: '请选择专题',
                 disabled: !batchSwitches.chapters,
                 showSearch: true,
@@ -332,7 +344,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             <ProFormRadio.Group
               name="features"
               radioType="button"
-              options={mockFeatures}
+              options={tagData.features}
               fieldProps={{
                 buttonStyle: 'solid',
                 disabled: !batchSwitches.features,
@@ -362,7 +374,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             <ProFormRadio.Group
               name="examMethod"
               radioType="button"
-              options={mockExamMethods}
+              options={tagData.examMethods}
               fieldProps={{
                 buttonStyle: 'solid',
                 disabled: !batchSwitches.examMethod,
@@ -392,7 +404,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             <ProFormRadio.Group
               name="ability"
               radioType="button"
-              options={mockAbilities}
+              options={tagData.abilities}
               fieldProps={{
                 buttonStyle: 'solid',
                 disabled: !batchSwitches.ability,
@@ -432,7 +444,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             label={<span>题型<span style={{ color: '#ff4d4f', fontSize: 12, marginLeft: 4 }}>(必填)</span></span>}
             rules={[{ required: true, message: '请选择题型' }]}
             fieldProps={{
-              treeData: mockQuestionTypes,
+              treeData: tagData.questionTypes,
               placeholder: '请选择题型',
               showSearch: true,
               treeNodeFilterProp: 'title',
@@ -444,7 +456,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             label={<span>知识点<span style={{ color: '#ff4d4f', fontSize: 12, marginLeft: 4 }}>(必填)</span></span>}
             rules={[{ required: true, message: '请选择知识点' }]}
             fieldProps={{
-              treeData: mockKnowledgeTree,
+              treeData: tagData.knowledgeTree,
               multiple: true,
               treeCheckable: true,
               placeholder: '请选择知识点',
@@ -457,7 +469,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             name="chapters"
             label="专题"
             fieldProps={{
-              treeData: mockChapters,
+              treeData: tagData.chapters,
               placeholder: '请选择专题',
               showSearch: true,
               treeNodeFilterProp: 'title',
@@ -486,7 +498,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             fieldProps={{
               buttonStyle: 'solid',
             }}
-            options={mockFeatures}
+            options={tagData.features}
           />
 
           <ProFormRadio.Group
@@ -496,7 +508,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             fieldProps={{
               buttonStyle: 'solid',
             }}
-            options={mockExamMethods}
+            options={tagData.examMethods}
           />
 
           <ProFormRadio.Group
@@ -506,7 +518,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
             fieldProps={{
               buttonStyle: 'solid',
             }}
-            options={mockAbilities}
+            options={tagData.abilities}
           />
         </ProForm>
       </div>
@@ -522,11 +534,11 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
         }}
       >
         <Button type="primary" block onClick={handleSaveAndNext}>
-          保存并下一题 (⌘+Enter)
+          保存并下一题 (Ctrl+Enter)
         </Button>
       </div>
     </div>
   );
-};
+});
 
 export default TaggingForm;

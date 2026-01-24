@@ -1,26 +1,31 @@
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Button, Col, Row } from 'antd';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { history } from 'umi';
 import FilterPanel from './components/FilterPanel';
 import QuestionDetail from './components/QuestionDetail';
 import QuestionList from './components/QuestionList';
-import TaggingForm from './components/TaggingForm';
-import { mockQuestions } from './mockData';
+import TaggingForm, { TaggingFormRef } from './components/TaggingForm';
+import { mockQuestions, mockSubjects } from './mockData';
 import { FilterParams, Question } from './types';
 import './index.less';
 
 const QuestionTagging: React.FC = () => {
+  const taggingFormRef = useRef<TaggingFormRef>(null);
   const [questions, setQuestions] = useState<Question[]>(mockQuestions);
   const [filteredQuestions, setFilteredQuestions] =
-    useState<Question[]>(mockQuestions);
+    useState<Question[]>([]);
   const [currentQuestionId, setCurrentQuestionId] = useState<string>('');
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [filters, setFilters] = useState<Partial<FilterParams>>({
+    subject: mockSubjects[0]?.value, // 默认选中第一个学科
     tagStatus: 'all',
     page: 1,
     pageSize: 15,
   });
+
+  // 当前选中的学科
+  const currentSubject = filters.subject || mockSubjects[0]?.value;
 
   // 判断是否为批量模式
   const isBatchMode = selectedQuestionIds.length > 1;
@@ -36,7 +41,7 @@ const QuestionTagging: React.FC = () => {
   useEffect(() => {
     let result = [...questions];
 
-    // 科目筛选
+    // 科目筛选（必选）
     if (filters.subject) {
       result = result.filter((q) => q.subject === filters.subject);
     }
@@ -62,6 +67,13 @@ const QuestionTagging: React.FC = () => {
     }
 
     setFilteredQuestions(result);
+
+    // 切换学科时重置当前选中的试题
+    if (result.length > 0) {
+      setCurrentQuestionId(result[0].id);
+    } else {
+      setCurrentQuestionId('');
+    }
   }, [filters, questions]);
 
   // 处理筛选条件变化
@@ -69,10 +81,6 @@ const QuestionTagging: React.FC = () => {
     setFilters({ ...filters, ...newFilters, page: 1 });
     // 清空选择
     setSelectedQuestionIds([]);
-    // 选中第一道试题
-    if (filteredQuestions.length > 0) {
-      setCurrentQuestionId(filteredQuestions[0].id);
-    }
   };
 
   // 处理试题点击
@@ -198,10 +206,10 @@ const QuestionTagging: React.FC = () => {
         e.preventDefault();
         handleNext();
       }
-      // Cmd+Enter 保存并下一题
+      // Ctrl+Enter 保存并下一题（通过 ref 调用表单验证）
       else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
-        handleSaveAndNext();
+        taggingFormRef.current?.saveAndNext();
       }
     };
 
@@ -390,9 +398,11 @@ const QuestionTagging: React.FC = () => {
             </div>
             <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
               <TaggingForm
+                ref={taggingFormRef}
                 question={currentQuestion}
                 selectedQuestions={selectedQuestions}
                 isBatchMode={isBatchMode}
+                subject={currentSubject}
                 onUpdate={handleUpdate}
                 onBatchUpdate={handleBatchUpdate}
                 onSaveAndNext={handleSaveAndNext}

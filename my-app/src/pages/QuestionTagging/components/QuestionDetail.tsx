@@ -182,7 +182,7 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
         </Button>
 
         <div style={{ fontSize: 12, color: '#999' }}>
-          快捷键：← 上一题 | → 下一题 | ⌘+Enter 保存并下一题
+          快捷键：← 上一题 | → 下一题 | Ctrl+Enter 保存并下一题
         </div>
 
         <Button
