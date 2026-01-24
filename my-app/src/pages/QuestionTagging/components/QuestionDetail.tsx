@@ -147,12 +147,13 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
 
             {/* 底部导航 */}
             <div style={{
+                height: 48,
                 marginTop: 'auto',
-                paddingTop: 16,
                 borderTop: '1px solid #f0f0f0',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                flexShrink: 0
             }}>
                 <Button
                     icon={<LeftOutlined />}

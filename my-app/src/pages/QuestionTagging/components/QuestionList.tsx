@@ -1,10 +1,12 @@
-import { CheckOutlined, CloseOutlined, MinusOutlined } from '@ant-design/icons';
+import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { Checkbox, List, Pagination, Tag } from 'antd';
 import React from 'react';
 import { Question } from '../types';
+import './QuestionList.less';
 
 interface QuestionListProps {
     questions: Question[];
+    allFilteredQuestions: Question[]; // 筛选后的全部试题（用于统计）
     currentQuestionId: string;
     selectedQuestionIds: string[];
     onQuestionClick: (id: string) => void;
@@ -19,12 +21,21 @@ interface QuestionListProps {
 
 const QuestionList: React.FC<QuestionListProps> = ({
     questions,
+    allFilteredQuestions,
     currentQuestionId,
     selectedQuestionIds,
     onQuestionClick,
     onSelectionChange,
     pagination
 }) => {
+    // 计算统计数据
+    const stats = React.useMemo(() => {
+        const total = allFilteredQuestions.length;
+        const complete = allFilteredQuestions.filter(q => q.tagStatus === 'complete').length;
+        const untagged = total - complete;
+        return { total, complete, untagged };
+    }, [allFilteredQuestions]);
+
     // 全选/取消全选
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
@@ -43,16 +54,42 @@ const QuestionList: React.FC<QuestionListProps> = ({
         }
     };
 
-    // 获取标签状态图标
-    const getTagStatusIcon = (status: Question['tagStatus']) => {
-        switch (status) {
-            case 'complete':
-                return <CheckOutlined style={{ color: '#52c41a' }} />;
-            case 'partial':
-                return <MinusOutlined style={{ color: '#faad14' }} />;
-            case 'untagged':
-                return <CloseOutlined style={{ color: '#d9d9d9' }} />;
+    // 获取标签状态标签
+    const getTagStatusTag = (status: Question['tagStatus']) => {
+        if (status === 'complete') {
+            return (
+                <Tag
+                    color="#f6ffed"
+                    style={{
+                        color: '#52c41a',
+                        border: '1px solid #b7eb8f',
+                        margin: 0,
+                        fontSize: 12,
+                        display: 'inline-flex',
+                        alignItems: 'center'
+                    }}
+                >
+                    <CheckOutlined style={{ marginRight: 4, fontSize: 10 }} />
+                    已打标
+                </Tag>
+            );
         }
+        return (
+            <Tag
+                color="#fafafa"
+                style={{
+                    color: '#999',
+                    border: '1px solid #d9d9d9',
+                    margin: 0,
+                    fontSize: 12,
+                    display: 'inline-flex',
+                    alignItems: 'center'
+                }}
+            >
+                <CloseOutlined style={{ marginRight: 4, fontSize: 10, color: '#666' }} />
+                未打标
+            </Tag>
+        );
     };
 
     // 截取题干前100字
@@ -65,128 +102,133 @@ const QuestionList: React.FC<QuestionListProps> = ({
     const someSelected = selectedQuestionIds.length > 0 && selectedQuestionIds.length < questions.length;
 
     return (
-        <div>
-            {/* 批量选择工具栏 */}
-            {selectedQuestionIds.length > 0 && (
-                <div style={{
-                    marginBottom: 12,
-                    padding: '8px 12px',
-                    background: '#e6f7ff',
-                    borderRadius: 4,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                }}>
-                    <span style={{ color: '#1890ff', fontSize: 14 }}>
-                        已选择 {selectedQuestionIds.length} 道试题
-                    </span>
-                    <a onClick={() => onSelectionChange([])} style={{ fontSize: 14 }}>
-                        取消选择
-                    </a>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* 全选复选框 + 数据汇总统计 */}
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '8px 0',
+                borderBottom: '1px solid #f0f0f0',
+                flexShrink: 0
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Checkbox
+                        checked={allSelected}
+                        indeterminate={someSelected}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                    >
+                        全选
+                    </Checkbox>
+                    {selectedQuestionIds.length > 0 && (
+                        <a onClick={() => onSelectionChange([])} style={{ fontSize: 13 }}>
+                            取消 ({selectedQuestionIds.length})
+                        </a>
+                    )}
                 </div>
-            )}
-
-            {/* 全选复选框 */}
-            <div style={{ marginBottom: 12, paddingLeft: 4 }}>
-                <Checkbox
-                    checked={allSelected}
-                    indeterminate={someSelected}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                >
-                    全选
-                </Checkbox>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#666' }}>
+                    <span>共 <b style={{ color: '#333' }}>{stats.total}</b> 题</span>
+                    <span><CheckOutlined style={{ color: '#52c41a', marginRight: 4 }} />{stats.complete}</span>
+                    <span><CloseOutlined style={{ color: '#d9d9d9', marginRight: 4 }} />{stats.untagged}</span>
+                </div>
             </div>
 
-            {/* 试题列表 */}
-            <List
-                dataSource={questions}
-                renderItem={(question) => {
-                    const isSelected = selectedQuestionIds.includes(question.id);
-                    const isCurrent = currentQuestionId === question.id;
+            {/* 试题列表 - 可滚动区域 */}
+            <div className="questionListScroll" style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
+                <List
+                    dataSource={questions}
+                    renderItem={(question) => {
+                        const isSelected = selectedQuestionIds.includes(question.id);
+                        const isCurrent = currentQuestionId === question.id;
 
-                    return (
-                        <List.Item
-                            key={question.id}
-                            style={{
-                                padding: '12px',
-                                marginBottom: 8,
-                                border: isCurrent ? '2px solid #1890ff' : '1px solid #f0f0f0',
-                                borderRadius: 4,
-                                background: isCurrent ? '#e6f7ff' : '#fff',
-                                cursor: 'pointer',
-                                transition: 'all 0.3s'
-                            }}
-                            onClick={() => onQuestionClick(question.id)}
-                        >
-                            <div style={{ width: '100%' }}>
-                                {/* 头部：复选框 + 题号 + 题型 + 状态 */}
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    marginBottom: 8
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <Checkbox
-                                            checked={isSelected}
-                                            onChange={(e) => {
-                                                e.stopPropagation();
-                                                handleSelectOne(question.id, e.target.checked);
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                        <span style={{ fontWeight: 600, fontSize: 14 }}>
-                                            第 {question.number} 题
-                                        </span>
-                                        <Tag color="blue" style={{ margin: 0 }}>
-                                            {question.type}
-                                        </Tag>
+                        return (
+                            <List.Item
+                                key={question.id}
+                                style={{
+                                    padding: '12px',
+                                    marginBottom: 8,
+                                    border: isCurrent ? '2px solid #1890ff' : '1px solid #f0f0f0',
+                                    borderRadius: 4,
+                                    background: isCurrent ? '#e6f7ff' : '#fff',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.3s'
+                                }}
+                                onClick={() => onQuestionClick(question.id)}
+                            >
+                                <div style={{ width: '100%' }}>
+                                    {/* 头部：复选框 + 题号 + 题型 + 状态 */}
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        marginBottom: 8
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <Checkbox
+                                                checked={isSelected}
+                                                onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    handleSelectOne(question.id, e.target.checked);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <span style={{ fontWeight: 600, fontSize: 14 }}>
+                                                第 {question.number} 题
+                                            </span>
+                                            {question.questionType && (
+                                                <Tag color="blue" style={{ margin: 0 }}>
+                                                    {question.questionType}
+                                                </Tag>
+                                            )}
+                                        </div>
+                                        {getTagStatusTag(question.tagStatus)}
                                     </div>
-                                    {getTagStatusIcon(question.tagStatus)}
-                                </div>
 
-                                {/* 题干缩略 */}
-                                <div style={{
-                                    fontSize: 13,
-                                    color: '#666',
-                                    lineHeight: '1.6',
-                                    marginBottom: 8
-                                }}>
-                                    {truncateStem(question.stem)}
-                                </div>
-
-                                {/* 已有标签预览 */}
-                                {(question.knowledgePoints || question.difficulty || question.chapters) && (
-                                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                        {question.difficulty && (
-                                            <Tag size="small" color={
-                                                question.difficulty === 'easy' ? 'green' :
-                                                    question.difficulty === 'medium' ? 'orange' : 'red'
-                                            }>
-                                                {question.difficulty === 'easy' ? '简单' :
-                                                    question.difficulty === 'medium' ? '中等' : '困难'}
-                                            </Tag>
-                                        )}
-                                        {question.knowledgePoints?.map(kp => (
-                                            <Tag key={kp} size="small">{kp}</Tag>
-                                        ))}
+                                    {/* 题干缩略 */}
+                                    <div style={{
+                                        fontSize: 13,
+                                        color: '#666',
+                                        lineHeight: '1.6',
+                                        marginBottom: question.paperName ? 6 : 0,
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                    }}>
+                                        {truncateStem(question.stem)}
                                     </div>
-                                )}
-                            </div>
-                        </List.Item>
-                    );
-                }}
-            />
 
-            {/* 分页 */}
-            <div style={{ marginTop: 16, textAlign: 'center' }}>
+                                    {/* 来源试卷 - 右下角 */}
+                                    {question.paperName && (
+                                        <div style={{ textAlign: 'right' }}>
+                                            <span style={{ fontSize: 12, color: '#999' }}>
+                                                {question.paperName}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </List.Item>
+                        );
+                    }}
+                />
+            </div>
+
+            {/* 分页 - 固定底部 */}
+            <div style={{
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderTop: '1px solid #f0f0f0',
+                flexShrink: 0
+            }}>
                 <Pagination
                     current={pagination.current}
                     pageSize={pagination.pageSize}
                     total={pagination.total}
                     onChange={pagination.onChange}
                     showSizeChanger
-                    showTotal={(total) => `共 ${total} 道试题`}
                     size="small"
                 />
             </div>

@@ -15,7 +15,9 @@ export interface Question {
     knowledgePoints?: string[];  // 知识点ID数组
     questionType?: string;       // 题型ID
     difficulty?: 'easy' | 'medium' | 'hard';
-    chapters?: string[];         // 教材章节ID数组
+    chapters?: string;           // 专题ID（单选）
+    features?: string;           // 中考特色标签（单选）
+    examMethod?: string;         // 学科考法（单选）
 
     // 标签状态
     tagStatus: 'untagged' | 'partial' | 'complete';

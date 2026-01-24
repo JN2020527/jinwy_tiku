@@ -52,7 +52,8 @@ alembic downgrade -1
 ### High-Level Architecture
 
 **Frontend → Backend Communication:**
-- Frontend proxies `/api` requests to `http://localhost:8000` (configured in `my-app/.umirc.ts`)
+- Frontend proxies `/api` requests to `http://localhost:8001` (configured in `my-app/.umirc.ts`)
+- **Note**: Backend actually runs on port 8000, but proxy is configured for 8001. Ensure backend runs on 8001 or update proxy config.
 - Mock data disabled in favor of real backend
 - All API responses follow: `{ success: boolean, message: string, data: T }`
 
@@ -80,6 +81,9 @@ src/
 │   ├── PaperUpload/    # Word paper upload and editing workflow
 │   │   ├── index.tsx   # Upload page with multi-step form
 │   │   └── Edit/       # Proofreading page (layout: false)
+│   ├── QuestionTagging/ # Question tagging feature (NEW)
+│   │   ├── index.tsx    # Main tagging page with 3-column layout
+│   │   └── components/  # FilterPanel, QuestionList, QuestionDetail, TaggingForm
 │   └── [other pages]   # System, Order, Customer, Statistics, etc.
 ├── services/           # API service layer (using @umijs/max request)
 │   ├── tagSystem.ts    # Tag categories and knowledge tree APIs
@@ -206,25 +210,67 @@ Multi-step process for Word document processing:
 }
 ```
 
-#### 3. Route Configuration
+#### 3. Question Tagging Workflow (NEW)
+Multi-step process for batch tagging questions with metadata:
+
+**Page Route:** `/question-bank/tagging`
+
+**Layout:** Three-column layout with fixed headers
+- **Left Column (25%)**: Filter panel + Question list with pagination
+- **Middle Column (50%)**: Question detail display (single or batch mode)
+- **Right Column (25%)**: Tagging form (single or batch mode)
+
+**Key Features:**
+- **Single Mode**: Click a question to view and tag individually
+- **Batch Mode**: Select multiple questions (checkbox) to tag in bulk
+- **Keyboard Navigation**:
+  - `↑/↓` or `←/→`: Navigate between questions
+  - `Ctrl/Cmd + Enter`: Save and move to next question
+- **Filter Options**: Subject, paper, tag status (untagged/partial/complete), keyword search
+- **Tag Status Auto-calculation**: Based on presence of knowledge points, question type, difficulty, chapters
+
+**State Management:**
+- Local state with `useState` for questions, filters, selections
+- Real-time filtering and pagination
+- Auto-select first question on filter change
+
+**Components:**
+- `FilterPanel`: Subject/paper/status filters with search
+- `QuestionList`: Paginated list with selection checkboxes
+- `QuestionDetail`: Display question content (supports batch preview)
+- `TaggingForm`: Form for tagging (adapts to single/batch mode)
+
+#### 4. Route Configuration
 Routes in `config/routes.ts` support:
 - Nested routes with `routes` array
 - `hideInMenu: true` for hidden pages
 - `layout: false` for full-screen pages (e.g., paper editing at `/question-bank/word-upload/edit`)
 - Icons from `@ant-design/icons`
 
-#### 4. Database Models
+**Question Bank Routes:**
+- `/question-bank/tag-system` - Tag system management
+- `/question-bank/task` - Question bank tasks
+- `/question-bank/word-upload` - Paper upload page
+- `/question-bank/word-upload/edit` - Full-screen proofreading (layout: false)
+- `/question-bank/tagging` - Question tagging page (NEW)
+
+#### 5. Database Models
 SQLAlchemy models follow this pattern:
 - Inherit from `Base`
 - Include `created_at`/`updated_at` timestamps
 - Use relationships for foreign keys
 - JSON columns for flexible metadata (e.g., `paper.paper_metadata`)
 
-#### 5. Layout System
+#### 6. Layout System
 - **ProLayout** from `@ant-design/pro-components` provides the admin shell
 - Settings in `config/defaultSettings.ts`: dark sidebar, light header, fixed sider
 - Custom breadcrumb rendering in `src/app.tsx`
 - Menu locale disabled (`locale: false`)
+
+**Special Layouts:**
+- Standard pages: Use `PageContainer` from `@ant-design/pro-components`
+- Full-screen pages: Set `layout: false` in route config (e.g., paper proofreading)
+- Three-column pages: Custom layout with `Row` and `Col` (e.g., question tagging)
 
 ## Important Notes
 
@@ -242,9 +288,22 @@ SQLAlchemy models follow this pattern:
 - Uses `@wangeditor/editor-for-react` for question content editing
 - Component wrapper in `src/components/RichTextEditor/`
 
+**Keyboard Shortcuts:**
+- **Question Tagging Page** (`/question-bank/tagging`):
+  - `↑/↓` or `←/→`: Navigate between questions
+  - `Ctrl/Cmd + Enter`: Save current question and move to next
+  - Shortcuts work globally on the page (not just in specific inputs)
+
+**API Proxy Configuration:**
+- `.umirc.ts` proxies `/api` to `http://localhost:8001`
+- **Important**: Backend runs on port 8000 by default. Either:
+  - Update backend to run on port 8001: `uvicorn app.main:app --reload --port 8001`
+  - Or update `.umirc.ts` proxy target to `http://localhost:8000`
+
 **Mock Data:**
 - Mock data currently disabled (`.umirc.ts`: `mock: false`)
 - Use real backend API during development
+- For new features without backend, create mock data in page directory (e.g., `QuestionTagging/mockData.ts`)
 
 ### Backend (backend/)
 
@@ -274,6 +333,20 @@ SQLAlchemy models follow this pattern:
 1. Create component in `src/pages/[PageName]/index.tsx`
 2. Add route in `config/routes.ts` with path, name, icon, component
 3. Create corresponding service file in `src/services/` if API calls needed
+4. For complex pages with multiple components, create a `components/` subdirectory
+
+**Example: QuestionTagging Page Structure**
+```
+src/pages/QuestionTagging/
+├── index.tsx              # Main page component with state management
+├── components/            # Page-specific components
+│   ├── FilterPanel.tsx    # Filter controls
+│   ├── QuestionList.tsx   # Question list with selection
+│   ├── QuestionDetail.tsx # Question display
+│   └── TaggingForm.tsx    # Tagging form
+├── types.ts               # TypeScript interfaces
+└── mockData.ts            # Mock data for development
+```
 
 ### Adding Backend API Endpoints
 1. Define Pydantic schemas in `models/schemas/`

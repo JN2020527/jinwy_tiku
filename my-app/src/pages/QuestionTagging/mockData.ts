@@ -135,51 +135,89 @@ export const mockKnowledgeTree: KnowledgeNode[] = [
     }
 ];
 
-// Mock 题型列表
-export const mockQuestionTypes = [
-    { label: '单选题', value: 'single-choice' },
-    { label: '多选题', value: 'multiple-choice' },
-    { label: '填空题', value: 'fill-blank' },
-    { label: '解答题', value: 'answer' },
-    { label: '判断题', value: 'true-false' }
+// Mock 题型树
+export const mockQuestionTypes: KnowledgeNode[] = [
+    {
+        value: 'choice',
+        title: '选择题',
+        children: [
+            { value: 'single-choice', title: '单选题' },
+            { value: 'multiple-choice', title: '多选题' }
+        ]
+    },
+    {
+        value: 'fill-blank',
+        title: '填空题'
+    },
+    {
+        value: 'answer',
+        title: '解答题',
+        children: [
+            { value: 'calculation', title: '计算题' },
+            { value: 'proof', title: '证明题' },
+            { value: 'comprehensive', title: '综合题' }
+        ]
+    },
+    {
+        value: 'true-false',
+        title: '判断题'
+    }
 ];
 
-// Mock 教材章节树
-export const mockChapters: ChapterNode[] = [
+// Mock 专题树
+export const mockChapters: KnowledgeNode[] = [
     {
         value: 'ch1',
-        label: '必修一',
+        title: '必修一',
         children: [
             {
                 value: 'ch1-1',
-                label: '第一章 集合与函数',
+                title: '第一章 集合与函数',
                 children: [
-                    { value: 'ch1-1-1', label: '1.1 集合' },
-                    { value: 'ch1-1-2', label: '1.2 函数的概念' }
+                    { value: 'ch1-1-1', title: '1.1 集合' },
+                    { value: 'ch1-1-2', title: '1.2 函数的概念' }
                 ]
             },
             {
                 value: 'ch1-2',
-                label: '第二章 基本初等函数',
+                title: '第二章 基本初等函数',
                 children: [
-                    { value: 'ch1-2-1', label: '2.1 指数函数' },
-                    { value: 'ch1-2-2', label: '2.2 对数函数' }
+                    { value: 'ch1-2-1', title: '2.1 指数函数' },
+                    { value: 'ch1-2-2', title: '2.2 对数函数' }
                 ]
             }
         ]
     },
     {
         value: 'ch2',
-        label: '必修二',
+        title: '必修二',
         children: [
             {
                 value: 'ch2-1',
-                label: '第一章 立体几何',
+                title: '第一章 立体几何',
                 children: [
-                    { value: 'ch2-1-1', label: '1.1 空间几何体' },
-                    { value: 'ch2-1-2', label: '1.2 点线面的位置关系' }
+                    { value: 'ch2-1-1', title: '1.1 空间几何体' },
+                    { value: 'ch2-1-2', title: '1.2 点线面的位置关系' }
                 ]
             }
         ]
     }
+];
+
+// Mock 中考特色标签
+export const mockFeatures = [
+    { label: '教材母题', value: 'textbook-origin' },
+    { label: '跨学科', value: 'cross-subject' },
+    { label: '项目化', value: 'project-based' },
+    { label: '新题型', value: 'new-type' },
+    { label: '大单元', value: 'big-unit' }
+];
+
+// Mock 学科考法标签
+export const mockExamMethods = [
+    { label: '求解化简', value: 'solve-simplify' },
+    { label: '方案判断', value: 'scheme-judge' },
+    { label: '实际应用', value: 'practical-apply' },
+    { label: '证明', value: 'proof' },
+    { label: '逻辑思维', value: 'logic-thinking' }
 ];

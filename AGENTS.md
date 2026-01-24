@@ -21,6 +21,8 @@ npm run build        # Production build
 npm run format       # Format code with Prettier
 ```
 
+**Linting**: ESLint configured via `@umijs/max/eslint`. Run via UmiJS: `npx eslint <file>` or use IDE integration.
+
 ### Code Style Guidelines
 
 **Import Order:** React → Third-party → Framework → Local services → CSS modules
@@ -80,17 +82,25 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ### Testing & Quality
 
 ```bash
-pytest                    # Run tests (no test files exist yet)
+pytest                    # Run all tests (tests/ directory, when created)
+pytest tests/test_file.py # Run specific test file
+pytest tests/test_file.py::test_function  # Run specific test
+pytest -v                 # Verbose output
+pytest -s                 # Print output (no capture)
 alembic revision --autogenerate -m "description"
 alembic upgrade head      # Apply migrations
 alembic downgrade -1      # Rollback
 ```
+
+**Note**: pytest and pytest-asyncio installed. No formal test suite yet.
 
 ### Code Style Guidelines
 
 **Import Order:** Standard library → Third-party → Local (absolute from app.*)
 
 **Naming Conventions:** Classes: PascalCase, Functions/variables: snake_case, Constants: UPPER_SNAKE_CASE
+
+**Linting**: No formal linting configured (no pylint/black). Follow PEP 8 manually.
 
 **Service Layer Pattern:**
 ```python
@@ -132,7 +142,7 @@ async def upload_paper(
 
 ## Cross-Cutting Concerns
 
-**API Integration:** Frontend proxies `/api` to `http://localhost:8000`, backend uses CORS, all responses in `{ success, message, data }` format
+**API Integration:** Frontend proxies `/api` to `http://localhost:8001` (see `.umirc.ts`), backend runs on port 8000 (see `backend/README.md`), backend uses CORS for both ports. All API responses in `{ success, message, data }` format
 
 **Authentication:** Backend: No auth, Frontend: Umi access control (check `src/access.ts`)
 

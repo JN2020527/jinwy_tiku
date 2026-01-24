@@ -1,7 +1,7 @@
-import { ProForm, ProFormCascader, ProFormRadio, ProFormSelect, ProFormTreeSelect } from '@ant-design/pro-components';
-import { Button, Empty, message, Space, Switch } from 'antd';
+import { ProForm, ProFormRadio, ProFormTreeSelect } from '@ant-design/pro-components';
+import { Button, Empty, message, Switch } from 'antd';
 import React, { useEffect, useState } from 'react';
-import { mockChapters, mockKnowledgeTree, mockQuestionTypes } from '../mockData';
+import { mockChapters, mockExamMethods, mockFeatures, mockKnowledgeTree, mockQuestionTypes } from '../mockData';
 import { Question } from '../types';
 
 interface TaggingFormProps {
@@ -28,7 +28,9 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
         knowledgePoints: false,
         questionType: false,
         difficulty: false,
-        chapters: false
+        chapters: false,
+        features: false,
+        examMethod: false
     });
 
     // 单选模式：回显当前试题的标签
@@ -38,7 +40,9 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
                 knowledgePoints: question.knowledgePoints || [],
                 questionType: question.questionType,
                 difficulty: question.difficulty,
-                chapters: question.chapters || []
+                chapters: question.chapters,
+                features: question.features,
+                examMethod: question.examMethod
             });
         } else if (isBatchMode) {
             // 批量模式：清空表单
@@ -47,7 +51,9 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
                 knowledgePoints: false,
                 questionType: false,
                 difficulty: false,
-                chapters: false
+                chapters: false,
+                features: false,
+                examMethod: false
             });
         }
     }, [question, isBatchMode, form]);
@@ -80,6 +86,12 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
         }
         if (batchSwitches.chapters) {
             updates.chapters = values.chapters;
+        }
+        if (batchSwitches.features) {
+            updates.features = values.features;
+        }
+        if (batchSwitches.examMethod) {
+            updates.examMethod = values.examMethod;
         }
 
         if (Object.keys(updates).length === 0) {
@@ -127,6 +139,28 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
                     submitter={false}
                     layout="vertical"
                 >
+                    {/* 题型 */}
+                    <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <span style={{ fontWeight: 600 }}>题型</span>
+                            <Switch
+                                checked={batchSwitches.questionType}
+                                onChange={(checked) => setBatchSwitches({ ...batchSwitches, questionType: checked })}
+                                size="small"
+                            />
+                        </div>
+                        <ProFormTreeSelect
+                            name="questionType"
+                            fieldProps={{
+                                treeData: mockQuestionTypes,
+                                placeholder: '请选择题型',
+                                disabled: !batchSwitches.questionType,
+                                showSearch: true,
+                                treeNodeFilterProp: 'title'
+                            }}
+                        />
+                    </div>
+
                     {/* 知识点 */}
                     <div style={{ marginBottom: 16 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -151,22 +185,24 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
                         />
                     </div>
 
-                    {/* 题型 */}
+                    {/* 专题 */}
                     <div style={{ marginBottom: 16 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span style={{ fontWeight: 600 }}>题型</span>
+                            <span style={{ fontWeight: 600 }}>专题</span>
                             <Switch
-                                checked={batchSwitches.questionType}
-                                onChange={(checked) => setBatchSwitches({ ...batchSwitches, questionType: checked })}
+                                checked={batchSwitches.chapters}
+                                onChange={(checked) => setBatchSwitches({ ...batchSwitches, chapters: checked })}
                                 size="small"
                             />
                         </div>
-                        <ProFormSelect
-                            name="questionType"
+                        <ProFormTreeSelect
+                            name="chapters"
                             fieldProps={{
-                                options: mockQuestionTypes,
-                                placeholder: '请选择题型',
-                                disabled: !batchSwitches.questionType
+                                treeData: mockChapters,
+                                placeholder: '请选择专题',
+                                disabled: !batchSwitches.chapters,
+                                showSearch: true,
+                                treeNodeFilterProp: 'title'
                             }}
                         />
                     </div>
@@ -194,24 +230,40 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
                         />
                     </div>
 
-                    {/* 教材章节 */}
+                    {/* 中考特色 */}
                     <div style={{ marginBottom: 16 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span style={{ fontWeight: 600 }}>教材章节</span>
+                            <span style={{ fontWeight: 600 }}>中考特色</span>
                             <Switch
-                                checked={batchSwitches.chapters}
-                                onChange={(checked) => setBatchSwitches({ ...batchSwitches, chapters: checked })}
+                                checked={batchSwitches.features}
+                                onChange={(checked) => setBatchSwitches({ ...batchSwitches, features: checked })}
                                 size="small"
                             />
                         </div>
-                        <ProFormCascader
-                            name="chapters"
+                        <ProFormRadio.Group
+                            name="features"
+                            options={mockFeatures}
                             fieldProps={{
-                                options: mockChapters,
-                                multiple: true,
-                                placeholder: '请选择教材章节',
-                                disabled: !batchSwitches.chapters,
-                                showSearch: true
+                                disabled: !batchSwitches.features
+                            }}
+                        />
+                    </div>
+
+                    {/* 学科考法 */}
+                    <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <span style={{ fontWeight: 600 }}>学科考法</span>
+                            <Switch
+                                checked={batchSwitches.examMethod}
+                                onChange={(checked) => setBatchSwitches({ ...batchSwitches, examMethod: checked })}
+                                size="small"
+                            />
+                        </div>
+                        <ProFormRadio.Group
+                            name="examMethod"
+                            options={mockExamMethods}
+                            fieldProps={{
+                                disabled: !batchSwitches.examMethod
                             }}
                         />
                     </div>
@@ -232,78 +284,85 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
 
     // 单选模式
     return (
-        <div>
-            <div style={{ marginBottom: 16, padding: '8px 12px', background: '#f0f0f0', borderRadius: 4 }}>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>
-                    第 {question?.number} 题 - {question?.type}
-                </span>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {/* 表单区域 - 可滚动 */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+                <ProForm
+                    form={form}
+                    submitter={false}
+                    onValuesChange={handleValuesChange}
+                    layout="vertical"
+                >
+                    <ProFormTreeSelect
+                        name="questionType"
+                        label="题型"
+                        fieldProps={{
+                            treeData: mockQuestionTypes,
+                            placeholder: '请选择题型',
+                            showSearch: true,
+                            treeNodeFilterProp: 'title'
+                        }}
+                    />
+
+                    <ProFormTreeSelect
+                        name="knowledgePoints"
+                        label="知识点"
+                        fieldProps={{
+                            treeData: mockKnowledgeTree,
+                            multiple: true,
+                            treeCheckable: true,
+                            placeholder: '请选择知识点',
+                            showSearch: true,
+                            treeNodeFilterProp: 'title'
+                        }}
+                    />
+
+                    <ProFormTreeSelect
+                        name="chapters"
+                        label="专题"
+                        fieldProps={{
+                            treeData: mockChapters,
+                            placeholder: '请选择专题',
+                            showSearch: true,
+                            treeNodeFilterProp: 'title'
+                        }}
+                    />
+
+                    <ProFormRadio.Group
+                        name="difficulty"
+                        label="难度"
+                        options={[
+                            { label: '简单', value: 'easy' },
+                            { label: '中等', value: 'medium' },
+                            { label: '困难', value: 'hard' }
+                        ]}
+                    />
+
+                    <ProFormRadio.Group
+                        name="features"
+                        label="中考特色"
+                        options={mockFeatures}
+                    />
+
+                    <ProFormRadio.Group
+                        name="examMethod"
+                        label="学科考法"
+                        options={mockExamMethods}
+                    />
+                </ProForm>
             </div>
 
-            <ProForm
-                form={form}
-                submitter={false}
-                onValuesChange={handleValuesChange}
-                layout="vertical"
-            >
-                <ProFormTreeSelect
-                    name="knowledgePoints"
-                    label="知识点"
-                    fieldProps={{
-                        treeData: mockKnowledgeTree,
-                        multiple: true,
-                        treeCheckable: true,
-                        placeholder: '请选择知识点',
-                        showSearch: true,
-                        treeNodeFilterProp: 'title'
-                    }}
-                />
-
-                <ProFormSelect
-                    name="questionType"
-                    label="题型"
-                    fieldProps={{
-                        options: mockQuestionTypes,
-                        placeholder: '请选择题型'
-                    }}
-                />
-
-                <ProFormRadio.Group
-                    name="difficulty"
-                    label="难度"
-                    options={[
-                        { label: '简单', value: 'easy' },
-                        { label: '中等', value: 'medium' },
-                        { label: '困难', value: 'hard' }
-                    ]}
-                />
-
-                <ProFormCascader
-                    name="chapters"
-                    label="教材章节"
-                    fieldProps={{
-                        options: mockChapters,
-                        multiple: true,
-                        placeholder: '请选择教材章节',
-                        showSearch: true
-                    }}
-                />
-            </ProForm>
-
-            {/* 快捷操作 */}
-            <div style={{ marginTop: 24 }}>
-                <Space direction="vertical" style={{ width: '100%' }}>
-                    <Button type="primary" block onClick={onSaveAndNext}>
-                        保存并下一题 (⌘+Enter)
-                    </Button>
-                    <Button block onClick={onSkip}>
-                        跳过
-                    </Button>
-                </Space>
-            </div>
-
-            {/* 快捷键提示 */}
-            <div style={{ marginTop: 16, fontSize: 12, color: '#999', textAlign: 'center' }}>
-                <div>快捷键：↑/↓ 切换 | ←/→ 导航 | ⌘+Enter 保存</div>
+            {/* 底部操作按钮 - 固定底部 */}
+            <div style={{
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                borderTop: '1px solid #f0f0f0',
+                flexShrink: 0
+            }}>
+                <Button type="primary" block onClick={onSaveAndNext}>
+                    保存并下一题 (⌘+Enter)
+                </Button>
             </div>
         </div>
     );

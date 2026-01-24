@@ -62,7 +62,12 @@
       "Bash(docker.exe start:*)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: 添加本地开发管理工具和Docker配置支持\n\n- 新增一键管理工具 manage.py 统一管理数据库操作\n- 添加数据库连接检查、测试数据清理等实用脚本\n- 新增 .env.local.example 配置示例，支持本地/远程/Docker三种数据库选项\n- 更新 QUICKSTART.md 文档，添加管理工具使用说明\n- 配置 Claude Code 的 Docker 相关命令权限\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nchore: 更新Claude Code git commit权限配置\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nchore: 更新Claude Code git commit权限配置\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push)",
+      "Bash(powershell:*)",
+      "Bash(tasklist:*)",
+      "Bash(PORT=8000 npm run dev:*)",
+      "Bash(start cmd /k \"npm run dev\")"
     ]
   }
 }

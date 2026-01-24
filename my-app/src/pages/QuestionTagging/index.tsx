@@ -1,6 +1,7 @@
-import { PageContainer } from '@ant-design/pro-components';
-import { Col, Row } from 'antd';
+import { ArrowLeftOutlined } from '@ant-design/icons';
+import { Button, Col, Row } from 'antd';
 import React, { useEffect, useState } from 'react';
+import { history } from 'umi';
 import FilterPanel from './components/FilterPanel';
 import QuestionDetail from './components/QuestionDetail';
 import QuestionList from './components/QuestionList';
@@ -198,6 +199,11 @@ const QuestionTagging: React.FC = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [currentQuestionId, filteredQuestions]);
 
+    // 返回上一页
+    const handleBack = () => {
+        history.back();
+    };
+
     // 分页
     const paginatedQuestions = filteredQuestions.slice(
         (filters.page! - 1) * filters.pageSize!,
@@ -209,8 +215,30 @@ const QuestionTagging: React.FC = () => {
     const currentIndex = filteredQuestions.findIndex(q => q.id === currentQuestionId);
 
     return (
-        <PageContainer title="试题打标">
-            <div style={{ height: 'calc(100vh - 200px)', background: '#fff' }}>
+        <div style={{ height: '100vh', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+            {/* 顶部标题栏 */}
+            <div style={{
+                height: 56,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 24px',
+                background: '#fff',
+                borderBottom: '1px solid #f0f0f0',
+                flexShrink: 0
+            }}>
+                <Button
+                    type="text"
+                    icon={<ArrowLeftOutlined />}
+                    onClick={handleBack}
+                    style={{ marginRight: 16 }}
+                >
+                    返回
+                </Button>
+                <span style={{ fontSize: 18, fontWeight: 600, color: '#333' }}>试题打标</span>
+            </div>
+
+            {/* 主内容区 */}
+            <div style={{ flex: 1, overflow: 'hidden' }}>
                 <Row style={{ height: '100%' }} gutter={0}>
                     {/* 左侧栏：筛选面板 + 试题列表 */}
                     <Col
@@ -235,23 +263,28 @@ const QuestionTagging: React.FC = () => {
                         }}>
                             试题列表
                         </div>
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-                            <FilterPanel onFilterChange={handleFilterChange} />
-                            <QuestionList
-                                questions={paginatedQuestions}
-                                currentQuestionId={currentQuestionId}
-                                selectedQuestionIds={selectedQuestionIds}
-                                onQuestionClick={handleQuestionClick}
-                                onSelectionChange={handleSelectionChange}
-                                pagination={{
-                                    current: filters.page!,
-                                    pageSize: filters.pageSize!,
-                                    total: filteredQuestions.length,
-                                    onChange: (page, pageSize) => {
-                                        setFilters({ ...filters, page, pageSize });
-                                    }
-                                }}
-                            />
+                        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '16px' }}>
+                            <div style={{ flexShrink: 0 }}>
+                                <FilterPanel onFilterChange={handleFilterChange} />
+                            </div>
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                                <QuestionList
+                                    questions={paginatedQuestions}
+                                    allFilteredQuestions={filteredQuestions}
+                                    currentQuestionId={currentQuestionId}
+                                    selectedQuestionIds={selectedQuestionIds}
+                                    onQuestionClick={handleQuestionClick}
+                                    onSelectionChange={handleSelectionChange}
+                                    pagination={{
+                                        current: filters.page!,
+                                        pageSize: filters.pageSize!,
+                                        total: filteredQuestions.length,
+                                        onChange: (page, pageSize) => {
+                                            setFilters({ ...filters, page, pageSize });
+                                        }
+                                    }}
+                                />
+                            </div>
                         </div>
                     </Col>
 
@@ -327,7 +360,7 @@ const QuestionTagging: React.FC = () => {
                     </Col>
                 </Row>
             </div>
-        </PageContainer>
+        </div>
     );
 };
 

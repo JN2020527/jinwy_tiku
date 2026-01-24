@@ -1,7 +1,7 @@
-import { ProForm, ProFormCascader, ProFormRadio, ProFormSelect } from '@ant-design/pro-components';
-import { Input } from 'antd';
+import { ProForm, ProFormSelect } from '@ant-design/pro-components';
+import { Col, Input, Row } from 'antd';
 import React from 'react';
-import { mockPapers, mockSubjects } from '../mockData';
+import { mockSubjects } from '../mockData';
 import { FilterParams } from '../types';
 
 interface FilterPanelProps {
@@ -26,54 +26,53 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ onFilterChange }) => {
                     tagStatus: 'all'
                 }}
             >
-                <ProFormSelect
-                    name="subject"
-                    label="科目"
-                    options={mockSubjects}
-                    placeholder="请选择科目"
-                    allowClear
-                    fieldProps={{
-                        size: 'small'
-                    }}
-                />
-
-                <ProFormCascader
-                    name="paperId"
-                    label="试卷"
-                    fieldProps={{
-                        options: mockPapers.map(p => ({ label: p.label, value: p.value })),
-                        placeholder: '请选择试卷',
-                        size: 'small',
-                        showSearch: true
-                    }}
-                    allowClear
-                />
-
-                <ProFormRadio.Group
-                    name="tagStatus"
-                    label="标签状态"
-                    options={[
-                        { label: '全部', value: 'all' },
-                        { label: '已完整打标', value: 'complete' },
-                        { label: '部分打标', value: 'partial' },
-                        { label: '未打标', value: 'untagged' }
-                    ]}
-                    fieldProps={{
-                        size: 'small'
-                    }}
-                />
-
-                <ProForm.Item label="关键词搜索" name="keyword">
+                {/* 关键字搜索框 */}
+                <ProForm.Item name="keyword" style={{ marginBottom: 12 }}>
                     <Input.Search
-                        placeholder="搜索题干内容"
+                        placeholder="搜索试卷/题干内容"
                         allowClear
-                        size="small"
                         onSearch={(value) => {
                             form.setFieldsValue({ keyword: value });
                             onFilterChange({ ...form.getFieldsValue(), keyword: value });
                         }}
                     />
                 </ProForm.Item>
+
+                {/* 学科和打标状态并列 */}
+                <Row gutter={12}>
+                    <Col span={12}>
+                        <ProFormSelect
+                            name="subject"
+                            placeholder="学科"
+                            options={mockSubjects}
+                            allowClear
+                            fieldProps={{
+                                style: { width: '100%' }
+                            }}
+                            formItemProps={{
+                                style: { marginBottom: 0 }
+                            }}
+                        />
+                    </Col>
+                    <Col span={12}>
+                        <ProFormSelect
+                            name="tagStatus"
+                            placeholder="打标状态"
+                            options={[
+                                { label: '全部', value: 'all' },
+                                { label: '已完整打标', value: 'complete' },
+                                { label: '部分打标', value: 'partial' },
+                                { label: '未打标', value: 'untagged' }
+                            ]}
+                            fieldProps={{
+                                style: { width: '100%' }
+                            }}
+                            formItemProps={{
+                                style: { marginBottom: 0 }
+                            }}
+                        />
+                    </Col>
+                </Row>
             </ProForm>
         </div>
     );

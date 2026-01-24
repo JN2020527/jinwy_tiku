@@ -87,7 +87,7 @@ export default [
                 path: '/question-bank/tagging',
                 name: '试题打标',
                 icon: 'tags',
-                component: './QuestionTagging',
+                redirect: '/question-bank/tagging-fullscreen',
             },
 
 
@@ -104,6 +104,13 @@ export default [
         path: '/question-bank/word-upload/edit',
         name: '在线校对',
         component: './PaperUpload/Edit',
+        hideInMenu: true,
+        layout: false,
+    },
+    {
+        path: '/question-bank/tagging-fullscreen',
+        name: '试题打标',
+        component: './QuestionTagging',
         hideInMenu: true,
         layout: false,
     },
