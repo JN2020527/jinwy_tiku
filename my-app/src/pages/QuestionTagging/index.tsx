@@ -8,6 +8,7 @@ import QuestionList from './components/QuestionList';
 import TaggingForm from './components/TaggingForm';
 import { mockQuestions } from './mockData';
 import { FilterParams, Question } from './types';
+import './index.less';
 
 const QuestionTagging: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>(mockQuestions);
@@ -350,7 +351,7 @@ const QuestionTagging: React.FC = () => {
                 ? `已选择 ${selectedQuestionIds.length} 道试题`
                 : '试题详情'}
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+            <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
               <QuestionDetail
                 question={currentQuestion}
                 selectedQuestions={selectedQuestions}
@@ -387,7 +388,7 @@ const QuestionTagging: React.FC = () => {
             >
               {isBatchMode ? '批量打标' : '标签标注'}
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+            <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
               <TaggingForm
                 question={currentQuestion}
                 selectedQuestions={selectedQuestions}

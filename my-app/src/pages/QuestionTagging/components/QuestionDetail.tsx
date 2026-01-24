@@ -104,10 +104,10 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
           <span style={{ fontSize: 18, fontWeight: 600 }}>
             第 {question.number} 题
           </span>
-          <Tag color="blue">{question.type}</Tag>
-          {question.paperName && (
-            <Tag color="default">{question.paperName}</Tag>
-          )}
+          {question.year && <Tag color="blue">{question.year}</Tag>}
+          {question.region && <Tag color="green">{question.region}</Tag>}
+          {question.source && <Tag color="orange">{question.source}</Tag>}
+          {question.paperName && <Tag color="default">{question.paperName}</Tag>}
         </div>
       </div>
 
@@ -126,24 +126,6 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
           dangerouslySetInnerHTML={{ __html: question.stem }}
         />
       </div>
-
-      {/* 选项 */}
-      {question.options && question.options.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8, color: '#333' }}>
-            选项：
-          </div>
-          <div
-            style={{ padding: '12px', background: '#fafafa', borderRadius: 4 }}
-          >
-            {question.options.map((option, index) => (
-              <div key={index} style={{ marginBottom: 8, lineHeight: '1.8' }}>
-                {option}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 答案和解析（可折叠） */}
       <Collapse

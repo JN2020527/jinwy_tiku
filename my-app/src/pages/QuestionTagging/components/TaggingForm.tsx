@@ -425,12 +425,12 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
         <ProForm
           form={form}
           submitter={false}
-          onValuesChange={handleValuesChange}
           layout="vertical"
         >
           <ProFormTreeSelect
             name="questionType"
-            label="题型"
+            label={<span>题型<span style={{ color: '#ff4d4f', fontSize: 12, marginLeft: 4 }}>(必填)</span></span>}
+            rules={[{ required: true, message: '请选择题型' }]}
             fieldProps={{
               treeData: mockQuestionTypes,
               placeholder: '请选择题型',
@@ -441,7 +441,8 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
 
           <ProFormTreeSelect
             name="knowledgePoints"
-            label="知识点"
+            label={<span>知识点<span style={{ color: '#ff4d4f', fontSize: 12, marginLeft: 4 }}>(必填)</span></span>}
+            rules={[{ required: true, message: '请选择知识点' }]}
             fieldProps={{
               treeData: mockKnowledgeTree,
               multiple: true,
@@ -465,7 +466,8 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
 
           <ProFormRadio.Group
             name="difficulty"
-            label="难度"
+            label={<span>难度<span style={{ color: '#ff4d4f', fontSize: 12, marginLeft: 4 }}>(必填)</span></span>}
+            rules={[{ required: true, message: '请选择难度' }]}
             radioType="button"
             fieldProps={{
               buttonStyle: 'solid',
@@ -519,7 +521,7 @@ const TaggingForm: React.FC<TaggingFormProps> = ({
           flexShrink: 0,
         }}
       >
-        <Button type="primary" block onClick={onSaveAndNext}>
+        <Button type="primary" block onClick={handleSaveAndNext}>
           保存并下一题 (⌘+Enter)
         </Button>
       </div>

@@ -10,6 +10,9 @@ export interface Question {
   paperId?: string; // 所属试卷ID
   paperName?: string; // 试卷名称
   subject: string; // 科目
+  year?: string; // 年份
+  region?: string; // 地区
+  source?: string; // 试题来源（中考模拟、仿真演练、名校试题、原创好题、月考、期中、期末）
 
   // 标签信息
   knowledgePoints?: string[]; // 知识点ID数组
