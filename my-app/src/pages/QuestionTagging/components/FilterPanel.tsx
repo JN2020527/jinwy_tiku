@@ -27,21 +27,43 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ onFilterChange }) => {
           tagStatus: 'all',
         }}
       >
-        {/* 学科选择（必选，单独一行） */}
-        <ProFormSelect
-          name="subject"
-          placeholder="请选择学科"
-          options={mockSubjects}
-          fieldProps={{
-            style: { width: '100%' },
-          }}
-          formItemProps={{
-            style: { marginBottom: 12 },
-          }}
-        />
+        {/* 学科和打标状态并列 */}
+        <Row gutter={12} style={{ marginBottom: 12 }}>
+          <Col span={12}>
+            <ProFormSelect
+              name="subject"
+              placeholder="请选择学科"
+              options={mockSubjects}
+              fieldProps={{
+                style: { width: '100%' },
+              }}
+              formItemProps={{
+                style: { marginBottom: 0 },
+              }}
+            />
+          </Col>
+          <Col span={12}>
+            <ProFormSelect
+              name="tagStatus"
+              placeholder="打标状态"
+              options={[
+                { label: '全部', value: 'all' },
+                { label: '已完整打标', value: 'complete' },
+                { label: '部分打标', value: 'partial' },
+                { label: '未打标', value: 'untagged' },
+              ]}
+              fieldProps={{
+                style: { width: '100%' },
+              }}
+              formItemProps={{
+                style: { marginBottom: 0 },
+              }}
+            />
+          </Col>
+        </Row>
 
         {/* 关键字搜索框 */}
-        <ProForm.Item name="keyword" style={{ marginBottom: 12 }}>
+        <ProForm.Item name="keyword" style={{ marginBottom: 0 }}>
           <Input.Search
             placeholder="搜索试卷/题干内容"
             allowClear
@@ -51,24 +73,6 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ onFilterChange }) => {
             }}
           />
         </ProForm.Item>
-
-        {/* 打标状态 */}
-        <ProFormSelect
-          name="tagStatus"
-          placeholder="打标状态"
-          options={[
-            { label: '全部', value: 'all' },
-            { label: '已完整打标', value: 'complete' },
-            { label: '部分打标', value: 'partial' },
-            { label: '未打标', value: 'untagged' },
-          ]}
-          fieldProps={{
-            style: { width: '100%' },
-          }}
-          formItemProps={{
-            style: { marginBottom: 0 },
-          }}
-        />
       </ProForm>
     </div>
   );
