@@ -5,6 +5,7 @@ This file guides agentic coding assistants working in this repository (晋文源
 ## Project Structure
 
 **Monorepo with two main applications:**
+
 - `my-app/` - Frontend: UmiJS Max 4 + React + Ant Design Pro Components
 - `backend/` - Backend: FastAPI + PostgreSQL + SQLAlchemy
 
@@ -30,9 +31,10 @@ npm run format       # Format code with Prettier
 **File Naming:** Page components: `pages/PageName/index.tsx`, Reusable: `components/ComponentName/index.tsx`, Services: `services/featureName.ts`, PascalCase for components, camelCase for functions
 
 **Component Structure:**
+
 ```typescript
-import React from 'react';
-import { PageContainer } from '@ant-design/pro-components';
+import React from "react";
+import { PageContainer } from "@ant-design/pro-components";
 
 const ComponentName: React.FC = () => {
   const [state, setState] = useState<T>(initialValue);
@@ -40,9 +42,9 @@ const ComponentName: React.FC = () => {
   const handler = async () => {
     try {
       const result = await apiCall();
-      message.success('操作成功');
+      message.success("操作成功");
     } catch (error) {
-      message.error('操作失败');
+      message.error("操作失败");
     }
   };
 
@@ -51,8 +53,10 @@ const ComponentName: React.FC = () => {
 ```
 
 **API Calls Pattern:**
+
 ```typescript
-// In services/feature.ts
+// In services/feature.ts - define interfaces alongside API functions
+export interface DataType { ... }
 export async function getData(params: ParamType) {
   return request<ResponseType>('/api/endpoint', { method: 'GET', params });
 }
@@ -82,27 +86,28 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ### Testing & Quality
 
 ```bash
-pytest                    # Run all tests (tests/ directory, when created)
-pytest tests/test_file.py # Run specific test file
-pytest tests/test_file.py::test_function  # Run specific test
-pytest -v                 # Verbose output
-pytest -s                 # Print output (no capture)
+pytest                          # Run all tests (test_*.py files)
+pytest test_file.py             # Run specific test file
+pytest test_file.py::test_func  # Run specific test function
+pytest -v                       # Verbose output
+pytest -s                       # Print output (no capture)
 alembic revision --autogenerate -m "description"
-alembic upgrade head      # Apply migrations
-alembic downgrade -1      # Rollback
+alembic upgrade head            # Apply migrations
+alembic downgrade -1            # Rollback
 ```
 
-**Note**: pytest and pytest-asyncio installed. No formal test suite yet.
+**Note**: pytest and pytest-asyncio installed. Test files are in backend/ root as test\_\*.py.
 
 ### Code Style Guidelines
 
-**Import Order:** Standard library → Third-party → Local (absolute from app.*)
+**Import Order:** Standard library → Third-party → Local (absolute from app.\*)
 
 **Naming Conventions:** Classes: PascalCase, Functions/variables: snake_case, Constants: UPPER_SNAKE_CASE
 
 **Linting**: No formal linting configured (no pylint/black). Follow PEP 8 manually.
 
 **Service Layer Pattern:**
+
 ```python
 class PaperService:
     def __init__(self, db: Session):
@@ -120,6 +125,7 @@ class PaperService:
 ```
 
 **API Endpoint Pattern:**
+
 ```python
 @router.post("/upload", response_model=ApiResponse[UploadResponse])
 async def upload_paper(
@@ -136,13 +142,15 @@ async def upload_paper(
 
 **Pydantic Schemas:** Use `Field()` with descriptions, `Config: populate_by_name = True` for camelCase
 
-**Configuration:** Use `get_settings()` singleton (cached), environment variables in `.env`
+**Configuration:** Use `get_settings()` singleton (cached), environment variables in `.env` (production) or `.env.local` (development)
 
 ---
 
 ## Cross-Cutting Concerns
 
-**API Integration:** Frontend proxies `/api` to `http://localhost:8001` (see `.umirc.ts`), backend runs on port 8000 (see `backend/README.md`), backend uses CORS for both ports. All API responses in `{ success, message, data }` format
+**API Integration:** Frontend dev server runs on port 8000 (npm run dev), proxies `/api` to `http://localhost:8001` (backend dev server). Backend runs on port 8000. CORS enabled for both ports. All API responses in `{ success, message, data }` format
+
+**Security:** Frontend uses `dangerouslySetInnerHTML` for rendering rich content (math formulas, images). Sanitize HTML before setting.
 
 **Authentication:** Backend: No auth, Frontend: Umi access control (check `src/access.ts`)
 

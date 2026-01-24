@@ -1,29 +1,35 @@
-
-import React, { useState, useMemo } from 'react';
-import Header from './components/Header';
-import QuestionSidebar from './components/QuestionSidebar';
-import QuestionDetailView from './components/QuestionDetailView';
-import KnowledgeSidebar from './components/KnowledgeSidebar';
+import React, { useMemo, useState } from 'react';
 import BatchDetailView from './components/BatchDetailView';
 import BatchOperationsSidebar from './components/BatchOperationsSidebar';
+import Header from './components/Header';
+import KnowledgeSidebar from './components/KnowledgeSidebar';
+import QuestionDetailView from './components/QuestionDetailView';
+import QuestionSidebar from './components/QuestionSidebar';
 import { MOCK_QUESTIONS } from './constants';
 import { ViewMode } from './types';
 
 const App: React.FC = () => {
-  const [activeQuestionId, setActiveQuestionId] = useState<string>(MOCK_QUESTIONS[2].id);
-  const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<string>>(new Set());
+  const [activeQuestionId, setActiveQuestionId] = useState<string>(
+    MOCK_QUESTIONS[2].id,
+  );
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [viewMode, setViewMode] = useState<ViewMode>('single');
 
-  const activeQuestion = useMemo(() => 
-    MOCK_QUESTIONS.find(q => q.id === activeQuestionId) || MOCK_QUESTIONS[0]
-  , [activeQuestionId]);
+  const activeQuestion = useMemo(
+    () =>
+      MOCK_QUESTIONS.find((q) => q.id === activeQuestionId) ||
+      MOCK_QUESTIONS[0],
+    [activeQuestionId],
+  );
 
   const toggleSelection = (id: string) => {
     const next = new Set(selectedQuestionIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelectedQuestionIds(next);
-    
+
     if (next.size > 0) {
       setViewMode('batch');
     } else {
@@ -36,7 +42,7 @@ const App: React.FC = () => {
       setSelectedQuestionIds(new Set());
       setViewMode('single');
     } else {
-      setSelectedQuestionIds(new Set(MOCK_QUESTIONS.map(q => q.id)));
+      setSelectedQuestionIds(new Set(MOCK_QUESTIONS.map((q) => q.id)));
       setViewMode('batch');
     }
   };
@@ -44,10 +50,10 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background-light">
       <Header progress={5} total={100} batchMode={viewMode === 'batch'} />
-      
+
       <main className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
-        <QuestionSidebar 
+        <QuestionSidebar
           questions={MOCK_QUESTIONS}
           activeId={activeQuestionId}
           selectedIds={selectedQuestionIds}
@@ -70,7 +76,10 @@ const App: React.FC = () => {
           {viewMode === 'single' ? (
             <KnowledgeSidebar question={activeQuestion} />
           ) : (
-            <BatchOperationsSidebar selectedCount={selectedQuestionIds.size} onSelectAll={handleSelectAll} />
+            <BatchOperationsSidebar
+              selectedCount={selectedQuestionIds.size}
+              onSelectAll={handleSelectAll}
+            />
           )}
         </div>
       </main>

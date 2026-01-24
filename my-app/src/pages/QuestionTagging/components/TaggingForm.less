@@ -1,0 +1,26 @@
+.taggingForm {
+  // 单选按钮组间隔样式
+  :global {
+    .ant-radio-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+
+      .ant-radio-button-wrapper {
+        border-radius: 4px !important;
+
+        &:not(:first-child)::before {
+          display: none;
+        }
+
+        &:first-child {
+          border-radius: 4px !important;
+        }
+
+        &:last-child {
+          border-radius: 4px !important;
+        }
+      }
+    }
+  }
+}

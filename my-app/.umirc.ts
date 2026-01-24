@@ -1,6 +1,6 @@
 import { defineConfig } from '@umijs/max';
-import routes from './config/routes';
 import defaultSettings from './config/defaultSettings';
+import routes from './config/routes';
 
 export default defineConfig({
   antd: {},
@@ -24,4 +24,3 @@ export default defineConfig({
   // 禁用mock，使用真实后端API
   mock: false,
 });
-

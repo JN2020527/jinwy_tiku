@@ -1,32 +1,32 @@
-import React from 'react';
-
 // 运行时配置
 
 // 全局初始化数据配置，用于 Layout 用户信息和权限初始化
 // 更多信息见文档：https://umijs.org/docs/api/runtime-config#getinitialstate
 export async function getInitialState(): Promise<{ name: string }> {
-    return { name: '@umijs/max' };
+  return { name: '@umijs/max' };
 }
 
 export const layout = () => {
-    return {
-        logo: 'https://img.alicdn.com/tfs/TB1YHEpwUT1gK0jSZFhXXaAtVXa-28-27.svg',
-        menu: {
-            locale: false,
-        },
-        breadcrumbProps: {
-            itemRender: (route: any, params: any, routes: any, paths: any) => {
-                const last = routes.indexOf(route) === routes.length - 1;
-                return (
-                    <span style={{
-                        color: last ? '#000' : '#999',
-                        fontSize: '14px',
-                        cursor: last ? 'default' : 'pointer'
-                    }}>
-                        {route.title || route.breadcrumbName}
-                    </span>
-                );
-            },
-        },
-    };
+  return {
+    logo: 'https://img.alicdn.com/tfs/TB1YHEpwUT1gK0jSZFhXXaAtVXa-28-27.svg',
+    menu: {
+      locale: false,
+    },
+    breadcrumbProps: {
+      itemRender: (route: any, params: any, routes: any, paths: any) => {
+        const last = routes.indexOf(route) === routes.length - 1;
+        return (
+          <span
+            style={{
+              color: last ? '#000' : '#999',
+              fontSize: '14px',
+              cursor: last ? 'default' : 'pointer',
+            }}
+          >
+            {route.title || route.breadcrumbName}
+          </span>
+        );
+      },
+    },
+  };
 };
