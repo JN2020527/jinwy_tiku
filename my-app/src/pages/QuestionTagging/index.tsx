@@ -1,5 +1,5 @@
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { Button, Col, Row, Tabs } from 'antd';
+import { Button, Col, Row, Select } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { history } from 'umi';
 import FilterPanel from './components/FilterPanel';
@@ -318,19 +318,30 @@ const QuestionTagging: React.FC = () => {
               flexDirection: 'column',
             }}
           >
-            <Tabs
-              activeKey={viewMode}
-              onChange={(key) => setViewMode(key as 'question' | 'paper')}
-              items={[
-                { key: 'question', label: '试题列表' },
-                { key: 'paper', label: '试卷列表' },
-              ]}
+            <div
               style={{
+                height: 50,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 padding: '0 16px',
                 background: '#fafafa',
                 borderBottom: '1px solid #f0f0f0',
               }}
-            />
+            >
+              <span style={{ fontWeight: 600, fontSize: '15px', color: '#333' }}>
+                列表模式
+              </span>
+              <Select
+                value={viewMode}
+                onChange={(value) => setViewMode(value)}
+                style={{ width: 120 }}
+                options={[
+                  { value: 'question', label: '试题列表' },
+                  { value: 'paper', label: '试卷列表' },
+                ]}
+              />
+            </div>
             <div
               style={{
                 flex: 1,
