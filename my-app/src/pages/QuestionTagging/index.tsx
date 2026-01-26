@@ -318,21 +318,19 @@ const QuestionTagging: React.FC = () => {
               flexDirection: 'column',
             }}
           >
-            <div
+            <Tabs
+              activeKey={viewMode}
+              onChange={(key) => setViewMode(key as 'question' | 'paper')}
+              items={[
+                { key: 'question', label: '试题列表' },
+                { key: 'paper', label: '试卷列表' },
+              ]}
               style={{
-                height: 50,
-                display: 'flex',
-                alignItems: 'center',
                 padding: '0 16px',
                 background: '#fafafa',
                 borderBottom: '1px solid #f0f0f0',
-                fontWeight: 600,
-                fontSize: '15px',
-                color: '#333',
               }}
-            >
-              试题列表
-            </div>
+            />
             <div
               style={{
                 flex: 1,
@@ -343,25 +341,47 @@ const QuestionTagging: React.FC = () => {
               }}
             >
               <div style={{ flexShrink: 0 }}>
-                <FilterPanel onFilterChange={handleFilterChange} />
+                <FilterPanel mode={viewMode} onFilterChange={handleFilterChange} />
               </div>
               <div style={{ flex: 1, overflow: 'hidden' }}>
-                <QuestionList
-                  questions={paginatedQuestions}
-                  allFilteredQuestions={filteredQuestions}
-                  currentQuestionId={currentQuestionId}
-                  selectedQuestionIds={selectedQuestionIds}
-                  onQuestionClick={handleQuestionClick}
-                  onSelectionChange={handleSelectionChange}
-                  pagination={{
-                    current: filters.page!,
-                    pageSize: filters.pageSize!,
-                    total: filteredQuestions.length,
-                    onChange: (page, pageSize) => {
-                      setFilters({ ...filters, page, pageSize });
-                    },
-                  }}
-                />
+                {viewMode === 'question' ? (
+                  <QuestionList
+                    questions={paginatedQuestions}
+                    allFilteredQuestions={filteredQuestions}
+                    currentQuestionId={currentQuestionId}
+                    selectedQuestionIds={selectedQuestionIds}
+                    onQuestionClick={handleQuestionClick}
+                    onSelectionChange={handleSelectionChange}
+                    pagination={{
+                      current: filters.page!,
+                      pageSize: filters.pageSize!,
+                      total: filteredQuestions.length,
+                      onChange: (page, pageSize) => {
+                        setFilters({ ...filters, page, pageSize });
+                      },
+                    }}
+                  />
+                ) : (
+                  <PaperList
+                    papers={papers}
+                    currentPaperId={currentPaperId}
+                    onPaperClick={(paperId) => {
+                      setCurrentPaperId(paperId);
+                      // 选中试卷后，自动选中第一道题
+                      const firstQuestion = questions.find((q) => q.paperId === paperId);
+                      if (firstQuestion) {
+                        setCurrentQuestionId(firstQuestion.id);
+                        setSelectedQuestionIds([]);
+                      }
+                    }}
+                    pagination={{
+                      current: 1,
+                      pageSize: 15,
+                      total: papers.length,
+                      onChange: () => {},
+                    }}
+                  />
+                )}
               </div>
             </div>
           </Col>
