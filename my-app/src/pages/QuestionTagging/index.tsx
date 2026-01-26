@@ -323,19 +323,21 @@ const QuestionTagging: React.FC = () => {
                 height: 50,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
                 padding: '0 16px',
                 background: '#fafafa',
                 borderBottom: '1px solid #f0f0f0',
               }}
             >
-              <span style={{ fontWeight: 600, fontSize: '15px', color: '#333' }}>
-                列表模式
-              </span>
               <Select
                 value={viewMode}
                 onChange={(value) => setViewMode(value)}
-                style={{ width: 120 }}
+                bordered={false}
+                style={{
+                  width: '100%',
+                  fontWeight: 600,
+                  fontSize: '15px',
+                  color: '#333',
+                }}
                 options={[
                   { value: 'question', label: '试题列表' },
                   { value: 'paper', label: '试卷列表' },
