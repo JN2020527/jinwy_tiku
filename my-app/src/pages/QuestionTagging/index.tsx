@@ -332,11 +332,9 @@ const QuestionTagging: React.FC = () => {
                 value={viewMode}
                 onChange={(value) => setViewMode(value)}
                 bordered={false}
+                className="titleSelect"
                 style={{
                   width: '100%',
-                  fontWeight: 600,
-                  fontSize: '15px',
-                  color: '#333',
                 }}
                 options={[
                   { value: 'question', label: '试题列表' },
