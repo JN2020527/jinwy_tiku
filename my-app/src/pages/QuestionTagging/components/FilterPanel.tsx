@@ -5,10 +5,11 @@ import { mockSubjects } from '../mockData';
 import { FilterParams } from '../types';
 
 interface FilterPanelProps {
+  mode?: 'question' | 'paper';
   onFilterChange: (filters: Partial<FilterParams>) => void;
 }
 
-const FilterPanel: React.FC<FilterPanelProps> = ({ onFilterChange }) => {
+const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterChange }) => {
   const [form] = ProForm.useForm();
 
   const handleValuesChange = (_: any, allValues: any) => {
@@ -63,16 +64,18 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ onFilterChange }) => {
         </Row>
 
         {/* 关键字搜索框 */}
-        <ProForm.Item name="keyword" style={{ marginBottom: 0 }}>
-          <Input.Search
-            placeholder="搜索试卷/题干内容"
-            allowClear
-            onSearch={(value) => {
-              form.setFieldsValue({ keyword: value });
-              onFilterChange({ ...form.getFieldsValue(), keyword: value });
-            }}
-          />
-        </ProForm.Item>
+        {mode !== 'paper' && (
+          <ProForm.Item name="keyword" style={{ marginBottom: 0 }}>
+            <Input.Search
+              placeholder="搜索试卷/题干内容"
+              allowClear
+              onSearch={(value) => {
+                form.setFieldsValue({ keyword: value });
+                onFilterChange({ ...form.getFieldsValue(), keyword: value });
+              }}
+            />
+          </ProForm.Item>
+        )}
       </ProForm>
     </div>
   );
