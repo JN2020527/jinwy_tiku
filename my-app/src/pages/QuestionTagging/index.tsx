@@ -1,12 +1,15 @@
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { Button, Col, Row } from 'antd';
-import React, { useEffect, useState, useRef } from 'react';
+import { Button, Col, Row, Tabs } from 'antd';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { history } from 'umi';
 import FilterPanel from './components/FilterPanel';
+import PaperList from './components/PaperList';
+import PaperQuestionNav from './components/PaperQuestionNav';
 import QuestionDetail from './components/QuestionDetail';
 import QuestionList from './components/QuestionList';
 import TaggingForm, { TaggingFormRef } from './components/TaggingForm';
 import { mockQuestions, mockSubjects } from './mockData';
+import type { Paper } from './types';
 import { FilterParams, Question } from './types';
 import './index.less';
 
@@ -24,8 +27,39 @@ const QuestionTagging: React.FC = () => {
     pageSize: 15,
   });
 
+  // 视图模式：试题列表 / 试卷列表
+  const [viewMode, setViewMode] = useState<'question' | 'paper'>('question');
+  const [currentPaperId, setCurrentPaperId] = useState<string>('');
+
   // 当前选中的学科
   const currentSubject = filters.subject || mockSubjects[0]?.value;
+
+  // 从试题数据聚合试卷列表
+  const papers = useMemo(() => {
+    const paperMap = new Map<string, Paper>();
+    questions.forEach((q) => {
+      if (!q.paperId) return;
+      if (!paperMap.has(q.paperId)) {
+        paperMap.set(q.paperId, {
+          id: q.paperId,
+          name: q.paperName || '',
+          subject: q.subject,
+          questionCount: 0,
+          taggedCount: 0,
+        });
+      }
+      const paper = paperMap.get(q.paperId)!;
+      paper.questionCount++;
+      if (q.tagStatus === 'complete') paper.taggedCount++;
+    });
+    return Array.from(paperMap.values());
+  }, [questions]);
+
+  // 当前试卷的试题列表
+  const paperQuestions = useMemo(() => {
+    if (!currentPaperId) return [];
+    return questions.filter((q) => q.paperId === currentPaperId);
+  }, [questions, currentPaperId]);
 
   // 判断是否为批量模式
   const isBatchMode = selectedQuestionIds.length > 1;
