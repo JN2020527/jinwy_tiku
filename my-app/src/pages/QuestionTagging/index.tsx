@@ -413,17 +413,43 @@ const QuestionTagging: React.FC = () => {
                 ? `已选择 ${selectedQuestionIds.length} 道试题`
                 : '试题详情'}
             </div>
-            <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-              <QuestionDetail
-                question={currentQuestion}
-                selectedQuestions={selectedQuestions}
-                isBatchMode={isBatchMode}
-                onPrevious={handlePrevious}
-                onNext={handleNext}
-                hasPrevious={currentIndex > 0}
-                hasNext={currentIndex < filteredQuestions.length - 1}
-              />
-            </div>
+            {viewMode === 'question' ? (
+              <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                <QuestionDetail
+                  question={currentQuestion}
+                  selectedQuestions={selectedQuestions}
+                  isBatchMode={isBatchMode}
+                  onPrevious={handlePrevious}
+                  onNext={handleNext}
+                  hasPrevious={currentIndex > 0}
+                  hasNext={currentIndex < filteredQuestions.length - 1}
+                />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                  <QuestionDetail
+                    question={currentQuestion}
+                    selectedQuestions={selectedQuestions}
+                    isBatchMode={isBatchMode}
+                    onPrevious={handlePrevious}
+                    onNext={handleNext}
+                    hasPrevious={paperQuestions.findIndex((q) => q.id === currentQuestionId) > 0}
+                    hasNext={paperQuestions.findIndex((q) => q.id === currentQuestionId) < paperQuestions.length - 1}
+                  />
+                </div>
+                <PaperQuestionNav
+                  questions={paperQuestions}
+                  currentQuestionId={currentQuestionId}
+                  selectedQuestionIds={selectedQuestionIds}
+                  onQuestionClick={(id) => {
+                    setCurrentQuestionId(id);
+                    setSelectedQuestionIds([]);
+                  }}
+                  onSelectionChange={setSelectedQuestionIds}
+                />
+              </div>
+            )}
           </Col>
 
           {/* 右侧栏：标签表单 */}
