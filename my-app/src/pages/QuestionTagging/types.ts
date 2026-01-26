@@ -50,3 +50,16 @@ export interface ChapterNode {
   label: string;
   children?: ChapterNode[];
 }
+
+/**
+ * 试卷数据结构
+ */
+export interface Paper {
+  id: string;
+  name: string;           // 试卷名称
+  subject: string;        // 学科
+  questionCount: number;  // 题目总数
+  taggedCount: number;    // 已打标数量
+  year?: string;
+  region?: string;
+}
