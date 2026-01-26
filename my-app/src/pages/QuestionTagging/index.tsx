@@ -470,6 +470,16 @@ const QuestionTagging: React.FC = () => {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <PaperQuestionNav
+                  questions={paperQuestions}
+                  currentQuestionId={currentQuestionId}
+                  selectedQuestionIds={selectedQuestionIds}
+                  onQuestionClick={(id) => {
+                    setCurrentQuestionId(id);
+                    setSelectedQuestionIds([]);
+                  }}
+                  onSelectionChange={setSelectedQuestionIds}
+                />
                 <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
                   <QuestionDetail
                     question={currentQuestion}
@@ -481,16 +491,6 @@ const QuestionTagging: React.FC = () => {
                     hasNext={paperQuestions.findIndex((q) => q.id === currentQuestionId) < paperQuestions.length - 1}
                   />
                 </div>
-                <PaperQuestionNav
-                  questions={paperQuestions}
-                  currentQuestionId={currentQuestionId}
-                  selectedQuestionIds={selectedQuestionIds}
-                  onQuestionClick={(id) => {
-                    setCurrentQuestionId(id);
-                    setSelectedQuestionIds([]);
-                  }}
-                  onSelectionChange={setSelectedQuestionIds}
-                />
               </div>
             )}
           </Col>
