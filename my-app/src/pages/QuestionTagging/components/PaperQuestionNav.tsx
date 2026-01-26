@@ -1,5 +1,4 @@
 import React from 'react';
-import { Checkbox } from 'antd';
 import type { Question } from '../types';
 import styles from './PaperQuestionNav.less';
 
@@ -18,20 +17,6 @@ const PaperQuestionNav: React.FC<PaperQuestionNavProps> = ({
   onQuestionClick,
   onSelectionChange,
 }) => {
-  const allSelected =
-    questions.length > 0 && selectedQuestionIds.length === questions.length;
-  const indeterminate =
-    selectedQuestionIds.length > 0 &&
-    selectedQuestionIds.length < questions.length;
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      onSelectionChange(questions.map((q) => q.id));
-    } else {
-      onSelectionChange([]);
-    }
-  };
-
   const handleBlockClick = (id: string, event: React.MouseEvent) => {
     if (event.ctrlKey || event.metaKey) {
       // Ctrl+click: toggle multi-select
@@ -50,13 +35,6 @@ const PaperQuestionNav: React.FC<PaperQuestionNavProps> = ({
     <div className={styles.paperQuestionNav}>
       <div className={styles.header}>
         <span className={styles.title}>试题导航</span>
-        <Checkbox
-          checked={allSelected}
-          indeterminate={indeterminate}
-          onChange={(e) => handleSelectAll(e.target.checked)}
-        >
-          全选
-        </Checkbox>
       </div>
       <div className={styles.questionGrid}>
         {questions.map((question, index) => {
