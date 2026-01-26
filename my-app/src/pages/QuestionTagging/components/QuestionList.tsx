@@ -38,6 +38,25 @@ const QuestionList: React.FC<QuestionListProps> = ({
     return { total, complete, untagged };
   }, [allFilteredQuestions]);
 
+  // 计算每个试卷的统计信息
+  const paperStats = React.useMemo(() => {
+    const statsMap = new Map<string, { total: number; tagged: number; untagged: number }>();
+    allFilteredQuestions.forEach((q) => {
+      if (!q.paperId) return;
+      if (!statsMap.has(q.paperId)) {
+        statsMap.set(q.paperId, { total: 0, tagged: 0, untagged: 0 });
+      }
+      const stat = statsMap.get(q.paperId)!;
+      stat.total++;
+      if (q.tagStatus === 'complete') {
+        stat.tagged++;
+      } else {
+        stat.untagged++;
+      }
+    });
+    return statsMap;
+  }, [allFilteredQuestions]);
+
   // 全选/取消全选
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -222,7 +241,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
                       fontSize: 13,
                       color: '#666',
                       lineHeight: '1.6',
-                      marginBottom: question.paperName ? 6 : 0,
+                      marginBottom: 6,
                       display: '-webkit-box',
                       WebkitLineClamp: 2,
                       WebkitBoxOrient: 'vertical',
@@ -233,12 +252,41 @@ const QuestionList: React.FC<QuestionListProps> = ({
                     {truncateStem(question.stem)}
                   </div>
 
-                  {/* 来源试卷 - 右下角 */}
-                  {question.paperName && (
-                    <div style={{ textAlign: 'right' }}>
+                  {/* 底部信息：试卷名称 + 统计 */}
+                  {question.paperName && question.paperId && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
                       <span style={{ fontSize: 12, color: '#999' }}>
                         {question.paperName}
                       </span>
+                      {paperStats.has(question.paperId) && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            fontSize: 12,
+                            color: '#999',
+                          }}
+                        >
+                          <span>
+                            共 {paperStats.get(question.paperId)!.total}
+                          </span>
+                          <span style={{ color: '#52c41a' }}>
+                            <CheckOutlined style={{ marginRight: 2 }} />
+                            {paperStats.get(question.paperId)!.tagged}
+                          </span>
+                          <span style={{ color: '#d9d9d9' }}>
+                            <CloseOutlined style={{ marginRight: 2 }} />
+                            {paperStats.get(question.paperId)!.untagged}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
