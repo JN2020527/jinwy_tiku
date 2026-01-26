@@ -1,0 +1,91 @@
+.paperQuestionNav {
+  border-top: 1px solid #f0f0f0;
+  padding: 16px;
+  background-color: #fafafa;
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+
+    .title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+    }
+  }
+
+  .questionGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .questionBlock {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+
+    &.untagged {
+      background-color: #f0f0f0;
+      color: #666;
+
+      &:hover {
+        background-color: #e0e0e0;
+      }
+    }
+
+    &.tagged {
+      background-color: #52c41a;
+      color: #fff;
+
+      &:hover {
+        background-color: #73d13d;
+      }
+    }
+
+    &.current {
+      border-color: #1890ff;
+    }
+
+    &.selected {
+      border-color: #722ed1;
+    }
+  }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: #999;
+
+    .legendItem {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+
+        &.tagged {
+          background-color: #52c41a;
+        }
+
+        &.untagged {
+          background-color: #f0f0f0;
+        }
+      }
+    }
+  }
+}
