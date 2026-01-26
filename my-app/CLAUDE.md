@@ -2,178 +2,96 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+> **注意**: 完整的项目架构、后端开发命令和 Word 解析流程请参阅根目录的 `../CLAUDE.md`。本文件仅包含前端特有的内容。
 
-This is a **晋文源试卷管理系统** (Jinwenyuan Paper Management System) - a full-stack application for managing educational content, question banks, papers, and tags.
-
-**Monorepo Structure:**
-
-- `my-app/` - Frontend: Umi Max 4 (React) + Ant Design Pro Components
-- `backend/` - Backend: FastAPI + PostgreSQL + SQLAlchemy
-
-The system's core feature is Word document parsing: users upload Word exam papers, the backend parses them into structured questions using python-docx, and users proofread/annotate the results before submitting to the question bank.
-
-## Development Commands
-
-### Frontend (my-app/)
+## 前端开发命令
 
 ```bash
-cd my-app
-npm run dev          # Start development server (http://localhost:8000)
-npm run build        # Build for production
-npm run format       # Format code with Prettier
-npm start            # Alias for npm run dev
+npm run dev          # 启动开发服务器 (http://localhost:8000)
+npm run build        # 生产环境构建
+npm run format       # 使用 Prettier 格式化代码
 ```
 
-### Backend (backend/)
+## 技术栈
 
-```bash
-cd backend
-source venv/bin/activate    # Activate virtual environment
-pip install -r requirements.txt
+- **框架**: Umi Max 4 (React 元框架)
+- **UI 库**: Ant Design 5 + Ant Design Pro Components
+- **富文本编辑器**: wangEditor 5 (`@wangeditor/editor-for-react`)
+- **状态管理**: Umi 内置 model 插件
+- **代码质量**: Prettier + ESLint + Husky + lint-staged
 
-# Start PostgreSQL
-docker-compose up -d
-
-# Run database migrations
-alembic upgrade head
-
-# Start development server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Create new migration
-alembic revision --autogenerate -m "description"
-
-# Rollback migration
-alembic downgrade -1
-```
-
-**API Documentation:** http://localhost:8000/docs (FastAPI auto-generated)
-
-## Architecture
-
-### High-Level Architecture
-
-**Frontend → Backend Communication:**
-
-- Frontend proxies `/api` requests to `http://localhost:8001` (configured in `my-app/.umirc.ts`)
-- **Note**: Backend actually runs on port 8000, but proxy is configured for 8001. Ensure backend runs on 8001 or update proxy config.
-- Mock data disabled in favor of real backend
-- All API responses follow: `{ success: boolean, message: string, data: T }`
-
-**Core Data Flow (Word Paper Parsing):**
-
-1. User uploads Word file + metadata → `POST /api/paper/upload`
-2. Backend creates task, parses document in background → Returns `taskId`
-3. Frontend polls `GET /api/paper/result/{taskId}` until status is "success"
-4. User proofreads questions in full-screen editor → Submits via `POST /api/paper/submit`
-5. Backend saves to database via SQLAlchemy ORM
-
-### Frontend Architecture (my-app/)
-
-**Framework: Umi Max 4**
-
-- **Convention-based routing**: Routes defined in `config/routes.ts`
-- **Runtime configuration**: `src/app.tsx` for layout, initial state, and breadcrumbs
-- **Build configuration**: `.umirc.ts` imports routes and settings from `config/`
-- **Plugins enabled**: `antd`, `access`, `model`, `initialState`, `request`, `layout`
-
-**Project Structure:**
+## 项目结构
 
 ```
 src/
-├── pages/              # Page components (route-based)
-│   ├── ContentCenter/  # Product list, subject/answer management
-│   ├── PaperUpload/    # Word paper upload and editing workflow
-│   │   ├── index.tsx   # Upload page with multi-step form
-│   │   └── Edit/       # Proofreading page (layout: false)
-│   ├── QuestionTagging/ # Question tagging feature (NEW)
-│   │   ├── index.tsx    # Main tagging page with 3-column layout
-│   │   └── components/  # FilterPanel, QuestionList, QuestionDetail, TaggingForm
-│   └── [other pages]   # System, Order, Customer, Statistics, etc.
-├── services/           # API service layer (using @umijs/max request)
-│   ├── tagSystem.ts    # Tag categories and knowledge tree APIs
-│   ├── paperUpload.ts  # Paper upload, parsing, and submission
+├── pages/                 # 页面组件（基于路由）
+│   ├── PaperUpload/       # Word 试卷上传工作流
+│   │   ├── index.tsx      # 上传页面
+│   │   └── Edit/          # 全屏校对页面 (layout: false)
+│   ├── QuestionTagging/   # 试题打标功能
+│   │   ├── index.tsx      # 主页面（三栏布局）
+│   │   └── components/    # FilterPanel, QuestionList, QuestionDetail, TaggingForm
+│   └── ContentCenter/     # 产品、学科、标签管理
+├── services/              # API 服务层
+│   ├── paperUpload.ts     # 试卷上传、解析、提交
+│   ├── tagSystem.ts       # 标签分类、知识树
 │   └── questionBankTask.ts
-├── components/         # Shared components
-│   ├── RichTextEditor/ # wangEditor integration
-│   └── Guide/
-├── models/             # Global state (Umi data flow)
-├── utils/              # Utility functions
-│   └── parseStem.ts    # HTML content parsing utilities
-├── constants/          # Constants and enums
-└── app.tsx            # Runtime config (layout, initial state)
+├── components/            # 共享组件
+│   └── RichTextEditor/    # wangEditor 封装
+├── models/                # 全局状态 (Umi data flow)
+├── utils/                 # 工具函数
+│   └── parseStem.ts       # HTML 内容解析
+└── app.tsx                # 运行时配置
 
 config/
-├── routes.ts           # Route definitions
-└── defaultSettings.ts  # ProLayout settings (theme, layout)
+├── routes.ts              # 路由定义
+└── defaultSettings.ts     # ProLayout 主题设置
 ```
 
-### Backend Architecture (backend/)
+## 路由配置
 
-**Project Structure:**
+路由定义在 `config/routes.ts`，支持：
+- 嵌套路由：使用 `routes` 数组
+- 隐藏菜单：`hideInMenu: true`
+- 全屏页面：`layout: false`（无侧边栏/头部）
+- 图标：来自 `@ant-design/icons`
 
-```
-backend/
-├── app/
-│   ├── api/v1/          # API endpoints
-│   │   └── paper.py     # Paper upload, result, submit endpoints
-│   ├── core/            # Core functionality
-│   │   ├── parser/      # Word document parsing modules
-│   │   │   ├── docx_parser.py      # Main document parser
-│   │   │   ├── structure_parser.py # Question structure detection
-│   │   │   ├── content_parser.py   # Content extraction
-│   │   │   ├── formula_parser.py   # Math formula handling
-│   │   │   └── image_parser.py     # Image extraction
-│   │   └── task_manager.py         # In-memory task tracking
-│   ├── models/          # Database and Pydantic models
-│   │   ├── database/    # SQLAlchemy ORM models
-│   │   │   ├── paper.py
-│   │   │   ├── question.py
-│   │   │   ├── question_group.py
-│   │   │   ├── question_content.py
-│   │   │   └── image.py
-│   │   └── schemas/     # Pydantic schemas for API
-│   │       └── question.py
-│   ├── services/        # Business logic layer
-│   │   ├── paper_service.py    # Paper CRUD operations
-│   │   ├── parse_service.py    # Document parsing orchestration
-│   │   └── question_service.py # Question CRUD operations
-│   ├── config.py        # Environment configuration (pydantic-settings)
-│   ├── database.py      # Database connection and session
-│   └── main.py          # FastAPI entry point
-├── migrations/          # Alembic database migrations
-├── storage/             # File storage (uploads, images)
-├── docker-compose.yml   # PostgreSQL container
-└── requirements.txt     # Python dependencies
-```
+**题库相关路由：**
+- `/question-bank/tag-system` - 标签体系管理
+- `/question-bank/task` - 题库任务
+- `/question-bank/word-upload` - 试卷上传页面
+- `/question-bank/word-upload/edit` - 全屏校对页面
+- `/question-bank/tagging` - 试题打标页面
 
-**Key Backend Patterns:**
+## 试题打标功能
 
-1. **Task Manager Pattern**: In-memory task tracking for async Word parsing
+### 页面布局
 
-   - `TaskManager` in `core/task_manager.py` manages task lifecycle
-   - States: `pending` → `processing` → `success`/`failed`
-   - Frontend polls `/api/paper/result/{taskId}` to check status
+三栏全屏布局 (`layout: false`)：
+- **左栏 (25%)**: 筛选面板 + 题目列表（分页）
+- **中栏 (50%)**: 题目详情展示（单题/批量模式）
+- **右栏 (25%)**: 打标表单（单题/批量模式）
 
-2. **Service Layer Pattern**: Business logic separated from API endpoints
+### 键盘快捷键
 
-   - Services receive `Session` via dependency injection
-   - Handle transactions, error handling, and DB operations
-   - Example: `PaperService` in `services/paper_service.py`
+- `↑/↓` 或 `←/→`: 在题目间导航
+- `Ctrl/Cmd + Enter`: 保存当前题目并跳转到下一题
 
-3. **Parser Module System**: Modular Word document parsing
-   - `DocxParser` orchestrates specialized parsers
-   - `StructureParser` detects question boundaries and types
-   - `ContentParser` extracts stem/options/answer/analysis
-   - `FormulaParser` handles math formulas (OMML → HTML)
-   - `ImageParser` extracts and saves embedded images
+### 工作模式
 
-### Key Patterns and Workflows
+- **单题模式**: 点击题目查看并单独打标
+- **批量模式**: 勾选多题后批量打标（使用 Switch 控制各字段）
 
-#### 1. Frontend API Service Layer (my-app/src/services/)
+### 标签状态
 
-All API calls use `@umijs/max` request utility:
+根据以下字段自动计算：知识点、题型、难度、章节
+- `untagged`: 未打标
+- `partial`: 部分打标
+- `complete`: 完成打标
+
+## API 服务层模式
+
+所有 API 调用使用 `@umijs/max` 的 request 工具：
 
 ```typescript
 import { request } from '@umijs/max';
@@ -183,224 +101,43 @@ export async function getKnowledgeTree() {
 }
 ```
 
-#### 2. Word Paper Parsing Workflow
+响应格式：`{ success: boolean, message: string, data: T }`
 
-Multi-step process for Word document processing:
+## 重要注意事项
 
-**Step 1: Upload Page** (`/question-bank/word-upload`)
+### TypeScript 配置
+- `tsconfig.json` 继承自 `.umi/tsconfig.json`（自动生成）
+- **不要手动编辑**生成的 tsconfig
 
-- User uploads Word file with metadata (`PaperMetadata`)
-- API: `POST /api/paper/upload` → Returns `{ taskId }`
+### API 代理配置
+- `.umirc.ts` 将 `/api` 代理到 `http://localhost:8001`
+- 后端默认运行在 8000 端口，需要调整其中之一
 
-**Step 2: Backend Processing**
+### Mock 数据
+- 当前已禁用 (`mock: false`)
+- 开发新功能时可在页面目录创建 mock 数据（如 `QuestionTagging/mockData.ts`）
 
-- `parse_service.py` orchestrates document parsing
-- `DocxParser` extracts questions, formulas, images
-- Results stored in `TaskManager` (in-memory)
+### 布局系统
+- **标准页面**: 使用 `PageContainer` 组件
+- **全屏页面**: 路由配置 `layout: false`
+- **三栏页面**: 使用 `Row` 和 `Col` 自定义布局
 
-**Step 3: Polling & Navigation**
+## 新增前端页面流程
 
-- Frontend polls `GET /api/paper/result/{taskId}`
-- When status becomes "success", navigates to edit page
+1. 在 `src/pages/[PageName]/index.tsx` 创建组件
+2. 在 `config/routes.ts` 添加路由（path, name, icon, component）
+3. 如需 API 调用，在 `src/services/` 创建服务文件
+4. 复杂页面可创建 `components/` 子目录
 
-**Step 4: Proofreading Page** (`/question-bank/word-upload/edit`)
-
-- Full-screen interface (layout: false)
-- Question cards with rich text editors (wangEditor)
-- Users annotate: type, difficulty, knowledge points
-- Edit stem/options/answer/analysis HTML content
-
-**Step 5: Submit**
-
-- API: `POST /api/paper/submit` with corrected questions
-- Backend saves to PostgreSQL via `PaperService` and `QuestionService`
-
-**Key Interfaces** (shared between frontend/backend):
-
-```typescript
-// PaperMetadata
-{ name, subject, year?, region?, paperType?, mode: 'paper'|'question' }
-
-// QuestionItem
-{
-  id, number, type, stem, options?, answer, analysis?,
-  knowledgePoints?, difficulty?, parentId?, children?
-}
-```
-
-#### 3. Question Tagging Workflow (NEW)
-
-Multi-step process for batch tagging questions with metadata:
-
-**Page Route:** `/question-bank/tagging`
-
-**Layout:** Three-column layout with fixed headers
-
-- **Left Column (25%)**: Filter panel + Question list with pagination
-- **Middle Column (50%)**: Question detail display (single or batch mode)
-- **Right Column (25%)**: Tagging form (single or batch mode)
-
-**Key Features:**
-
-- **Single Mode**: Click a question to view and tag individually
-- **Batch Mode**: Select multiple questions (checkbox) to tag in bulk
-- **Keyboard Navigation**:
-  - `↑/↓` or `←/→`: Navigate between questions
-  - `Ctrl/Cmd + Enter`: Save and move to next question
-- **Filter Options**: Subject, paper, tag status (untagged/partial/complete), keyword search
-- **Tag Status Auto-calculation**: Based on presence of knowledge points, question type, difficulty, chapters
-
-**State Management:**
-
-- Local state with `useState` for questions, filters, selections
-- Real-time filtering and pagination
-- Auto-select first question on filter change
-
-**Components:**
-
-- `FilterPanel`: Subject/paper/status filters with search
-- `QuestionList`: Paginated list with selection checkboxes
-- `QuestionDetail`: Display question content (supports batch preview)
-- `TaggingForm`: Form for tagging (adapts to single/batch mode)
-
-#### 4. Route Configuration
-
-Routes in `config/routes.ts` support:
-
-- Nested routes with `routes` array
-- `hideInMenu: true` for hidden pages
-- `layout: false` for full-screen pages (e.g., paper editing at `/question-bank/word-upload/edit`)
-- Icons from `@ant-design/icons`
-
-**Question Bank Routes:**
-
-- `/question-bank/tag-system` - Tag system management
-- `/question-bank/task` - Question bank tasks
-- `/question-bank/word-upload` - Paper upload page
-- `/question-bank/word-upload/edit` - Full-screen proofreading (layout: false)
-- `/question-bank/tagging` - Question tagging page (NEW)
-
-#### 5. Database Models
-
-SQLAlchemy models follow this pattern:
-
-- Inherit from `Base`
-- Include `created_at`/`updated_at` timestamps
-- Use relationships for foreign keys
-- JSON columns for flexible metadata (e.g., `paper.paper_metadata`)
-
-#### 6. Layout System
-
-- **ProLayout** from `@ant-design/pro-components` provides the admin shell
-- Settings in `config/defaultSettings.ts`: dark sidebar, light header, fixed sider
-- Custom breadcrumb rendering in `src/app.tsx`
-- Menu locale disabled (`locale: false`)
-
-**Special Layouts:**
-
-- Standard pages: Use `PageContainer` from `@ant-design/pro-components`
-- Full-screen pages: Set `layout: false` in route config (e.g., paper proofreading)
-- Three-column pages: Custom layout with `Row` and `Col` (e.g., question tagging)
-
-## Important Notes
-
-### Frontend (my-app/)
-
-**TypeScript Configuration:**
-
-- `tsconfig.json` extends from `.umi/tsconfig.json` (auto-generated)
-- Do not manually edit the generated tsconfig
-
-**Code Quality Tools:**
-
-- **Prettier**: Auto-formatting on save
-- **Husky + lint-staged**: Pre-commit hooks
-
-**Rich Text Editor:**
-
-- Uses `@wangeditor/editor-for-react` for question content editing
-- Component wrapper in `src/components/RichTextEditor/`
-
-**Keyboard Shortcuts:**
-
-- **Question Tagging Page** (`/question-bank/tagging`):
-  - `↑/↓` or `←/→`: Navigate between questions
-  - `Ctrl/Cmd + Enter`: Save current question and move to next
-  - Shortcuts work globally on the page (not just in specific inputs)
-
-**API Proxy Configuration:**
-
-- `.umirc.ts` proxies `/api` to `http://localhost:8001`
-- **Important**: Backend runs on port 8000 by default. Either:
-  - Update backend to run on port 8001: `uvicorn app.main:app --reload --port 8001`
-  - Or update `.umirc.ts` proxy target to `http://localhost:8000`
-
-**Mock Data:**
-
-- Mock data currently disabled (`.umirc.ts`: `mock: false`)
-- Use real backend API during development
-- For new features without backend, create mock data in page directory (e.g., `QuestionTagging/mockData.ts`)
-
-### Backend (backend/)
-
-**Configuration:**
-
-- Environment variables in `.env` (copy from `.env.example`)
-- `app/config.py` uses `pydantic-settings` for type-safe config
-- Access via `get_settings()` singleton (cached)
-
-**Database:**
-
-- PostgreSQL runs in Docker container (port 5432)
-- Connection managed by SQLAlchemy
-- Always use `get_db()` dependency injection in API endpoints
-
-**Error Handling:**
-
-- Use `HTTPException` with appropriate status codes (400, 404, 500)
-- Services should rollback DB transactions on error
-- Log errors for debugging
-
-**Pydantic Schemas:**
-
-- Use `Field()` with descriptions for API documentation
-- `Config: populate_by_name = True` for camelCase compatibility with frontend
-- Schemas in `models/schemas/` separate from database models
-
-## Development Workflows
-
-### Adding a New Frontend Page
-
-1. Create component in `src/pages/[PageName]/index.tsx`
-2. Add route in `config/routes.ts` with path, name, icon, component
-3. Create corresponding service file in `src/services/` if API calls needed
-4. For complex pages with multiple components, create a `components/` subdirectory
-
-**Example: QuestionTagging Page Structure**
-
+**示例结构：**
 ```
 src/pages/QuestionTagging/
-├── index.tsx              # Main page component with state management
-├── components/            # Page-specific components
-│   ├── FilterPanel.tsx    # Filter controls
-│   ├── QuestionList.tsx   # Question list with selection
-│   ├── QuestionDetail.tsx # Question display
-│   └── TaggingForm.tsx    # Tagging form
-├── types.ts               # TypeScript interfaces
-└── mockData.ts            # Mock data for development
+├── index.tsx              # 主页面组件
+├── components/            # 页面专用组件
+│   ├── FilterPanel.tsx
+│   ├── QuestionList.tsx
+│   ├── QuestionDetail.tsx
+│   └── TaggingForm.tsx
+├── types.ts               # TypeScript 接口
+└── mockData.ts            # 开发用 Mock 数据
 ```
-
-### Adding Backend API Endpoints
-
-1. Define Pydantic schemas in `models/schemas/`
-2. Create service class in `services/` for business logic
-3. Add router function in `api/v1/` directory
-4. Include router in `main.py` if new module
-
-### Database Schema Changes
-
-1. Modify SQLAlchemy models in `models/database/`
-2. Create migration: `alembic revision --autogenerate -m "description"`
-3. Review generated migration file in `migrations/versions/`
-4. Apply migration: `alembic upgrade head`
-5. Test rollback: `alembic downgrade -1`

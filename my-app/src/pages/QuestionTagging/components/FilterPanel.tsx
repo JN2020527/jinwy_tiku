@@ -64,18 +64,16 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
         </Row>
 
         {/* 关键字搜索框 */}
-        {mode !== 'paper' && (
-          <ProForm.Item name="keyword" style={{ marginBottom: 0 }}>
-            <Input.Search
-              placeholder="搜索试卷/题干内容"
-              allowClear
-              onSearch={(value) => {
-                form.setFieldsValue({ keyword: value });
-                onFilterChange({ ...form.getFieldsValue(), keyword: value });
-              }}
-            />
-          </ProForm.Item>
-        )}
+        <ProForm.Item name="keyword" style={{ marginBottom: 0 }}>
+          <Input.Search
+            placeholder={mode === 'paper' ? '搜索试卷名称' : '搜索试卷/题干内容'}
+            allowClear
+            onSearch={(value) => {
+              form.setFieldsValue({ keyword: value });
+              onFilterChange({ ...form.getFieldsValue(), keyword: value });
+            }}
+          />
+        </ProForm.Item>
       </ProForm>
     </div>
   );

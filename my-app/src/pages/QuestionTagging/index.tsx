@@ -55,6 +55,38 @@ const QuestionTagging: React.FC = () => {
     return Array.from(paperMap.values());
   }, [questions]);
 
+  // 筛选后的试卷列表
+  const filteredPapers = useMemo(() => {
+    let result = [...papers];
+
+    // 学科筛选
+    if (filters.subject) {
+      result = result.filter((p) => p.subject === filters.subject);
+    }
+
+    // 打标状态筛选
+    if (filters.tagStatus && filters.tagStatus !== 'all') {
+      result = result.filter((p) => {
+        if (filters.tagStatus === 'complete') {
+          return p.taggedCount === p.questionCount && p.questionCount > 0;
+        } else if (filters.tagStatus === 'untagged') {
+          return p.taggedCount === 0;
+        } else if (filters.tagStatus === 'partial') {
+          return p.taggedCount > 0 && p.taggedCount < p.questionCount;
+        }
+        return true;
+      });
+    }
+
+    // 关键词搜索
+    if (filters.keyword) {
+      const keyword = filters.keyword.toLowerCase();
+      result = result.filter((p) => p.name.toLowerCase().includes(keyword));
+    }
+
+    return result;
+  }, [papers, filters]);
+
   // 当前试卷的试题列表
   const paperQuestions = useMemo(() => {
     if (!currentPaperId) return [];
@@ -374,7 +406,7 @@ const QuestionTagging: React.FC = () => {
                   />
                 ) : (
                   <PaperList
-                    papers={papers}
+                    papers={filteredPapers}
                     currentPaperId={currentPaperId}
                     onPaperClick={(paperId) => {
                       setCurrentPaperId(paperId);
@@ -388,7 +420,7 @@ const QuestionTagging: React.FC = () => {
                     pagination={{
                       current: 1,
                       pageSize: 15,
-                      total: papers.length,
+                      total: filteredPapers.length,
                       onChange: () => {},
                     }}
                   />
