@@ -193,21 +193,21 @@ const QuestionTagging: React.FC = () => {
 
   // 上一题
   const handlePrevious = () => {
-    const currentIndex = filteredQuestions.findIndex(
-      (q) => q.id === currentQuestionId,
-    );
+    const questionList = viewMode === 'paper' ? paperQuestions : filteredQuestions;
+    const currentIndex = questionList.findIndex((q) => q.id === currentQuestionId);
     if (currentIndex > 0) {
-      setCurrentQuestionId(filteredQuestions[currentIndex - 1].id);
+      setCurrentQuestionId(questionList[currentIndex - 1].id);
+      setSelectedQuestionIds([]);
     }
   };
 
   // 下一题
   const handleNext = () => {
-    const currentIndex = filteredQuestions.findIndex(
-      (q) => q.id === currentQuestionId,
-    );
-    if (currentIndex < filteredQuestions.length - 1) {
-      setCurrentQuestionId(filteredQuestions[currentIndex + 1].id);
+    const questionList = viewMode === 'paper' ? paperQuestions : filteredQuestions;
+    const currentIndex = questionList.findIndex((q) => q.id === currentQuestionId);
+    if (currentIndex < questionList.length - 1) {
+      setCurrentQuestionId(questionList[currentIndex + 1].id);
+      setSelectedQuestionIds([]);
     }
   };
 
