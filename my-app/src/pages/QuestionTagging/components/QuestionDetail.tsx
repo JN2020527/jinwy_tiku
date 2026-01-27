@@ -106,7 +106,7 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
           </span>
           {question.year && <Tag color="blue">{question.year}</Tag>}
           {question.region && <Tag color="green">{question.region}</Tag>}
-          {question.source && <Tag color="orange">{question.source}</Tag>}
+          {question.source && <Tag color="purple">{question.source}</Tag>}
           {question.paperName && <Tag color="default">{question.paperName}</Tag>}
         </div>
       </div>
@@ -182,7 +182,7 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
         </Button>
 
         <div style={{ fontSize: 12, color: '#999' }}>
-          快捷键：← 上一题 | → 下一题 | Ctrl+Enter 保存并下一题
+          快捷键：↑ 上一题 | ↓ 下一题 | Ctrl+Enter 保存并下一题
         </div>
 
         <Button

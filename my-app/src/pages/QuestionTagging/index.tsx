@@ -18,16 +18,13 @@ const QuestionTagging: React.FC = () => {
   const [currentQuestionId, setCurrentQuestionId] = useState<string>('');
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [filters, setFilters] = useState<Partial<FilterParams>>({
-    subject: mockSubjects[0]?.value, // 默认选中第一个学科
-    tagStatus: 'all',
+    subject: '', // 默认选中"全部"
+    tagStatus: '全部',
     page: 1,
     pageSize: 15,
   });
 
   const [currentPaperId, setCurrentPaperId] = useState<string>('');
-
-  // 当前选中的学科
-  const currentSubject = filters.subject || mockSubjects[0]?.value;
 
   // 从试题数据聚合试卷列表
   const papers = useMemo(() => {
@@ -41,32 +38,44 @@ const QuestionTagging: React.FC = () => {
           subject: q.subject,
           questionCount: 0,
           taggedCount: 0,
+          year: q.year,
+          region: q.region,
+          source: q.source,
         });
       }
       const paper = paperMap.get(q.paperId)!;
       paper.questionCount++;
-      if (q.tagStatus === 'complete') paper.taggedCount++;
+      if (q.tagStatus === '已打标') paper.taggedCount++;
     });
     return Array.from(paperMap.values());
   }, [questions]);
+
+  // 当前选中的学科（用于标签表单）
+  const currentSubject = useMemo(() => {
+    if (currentPaperId && papers.length > 0) {
+      const currentPaper = papers.find((p) => p.id === currentPaperId);
+      return currentPaper?.subject || mockSubjects[0]?.value;
+    }
+    return mockSubjects[0]?.value;
+  }, [currentPaperId, papers]);
 
   // 筛选后的试卷列表
   const filteredPapers = useMemo(() => {
     let result = [...papers];
 
-    // 学科筛选
-    if (filters.subject) {
+    // 学科筛选（空字符串或undefined表示"全部"）
+    if (filters.subject && filters.subject !== '') {
       result = result.filter((p) => p.subject === filters.subject);
     }
 
     // 打标状态筛选
-    if (filters.tagStatus && filters.tagStatus !== 'all') {
+    if (filters.tagStatus && filters.tagStatus !== '全部') {
       result = result.filter((p) => {
-        if (filters.tagStatus === 'complete') {
+        if (filters.tagStatus === '已完成') {
           return p.taggedCount === p.questionCount && p.questionCount > 0;
-        } else if (filters.tagStatus === 'untagged') {
+        } else if (filters.tagStatus === '未完成') {
           return p.taggedCount === 0;
-        } else if (filters.tagStatus === 'partial') {
+        } else if (filters.tagStatus === '部分完成') {
           return p.taggedCount > 0 && p.taggedCount < p.questionCount;
         }
         return true;
@@ -166,9 +175,9 @@ const QuestionTagging: React.FC = () => {
       Boolean,
     ).length;
 
-    if (tagCount === 0) return 'untagged';
-    if (tagCount === 4) return 'complete';
-    return 'partial';
+    if (tagCount === 0) return '未打标';
+    if (tagCount === 4) return '已打标';
+    return '部分打标';
   };
 
   // 上一题
@@ -207,14 +216,6 @@ const QuestionTagging: React.FC = () => {
         e.preventDefault();
         handlePrevious();
       } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        handleNext();
-      }
-      // 左右键导航
-      else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        handlePrevious();
-      } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         handleNext();
       }

@@ -16,6 +16,12 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
     onFilterChange(allValues);
   };
 
+  // 学科选项（添加"全部"选项）
+  const subjectOptions = [
+    { label: '全部', value: '' },
+    ...mockSubjects,
+  ];
+
   return (
     <div style={{ marginBottom: 16 }}>
       <ProForm
@@ -24,8 +30,8 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
         onValuesChange={handleValuesChange}
         layout="vertical"
         initialValues={{
-          subject: mockSubjects[0]?.value, // 默认选中第一个学科
-          tagStatus: 'all',
+          subject: '', // 默认选中"全部"
+          tagStatus: '全部',
         }}
       >
         {/* 关键字搜索框 */}
@@ -46,7 +52,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
             <ProFormSelect
               name="subject"
               placeholder="请选择学科"
-              options={mockSubjects}
+              options={subjectOptions}
               fieldProps={{
                 style: { width: '100%' },
               }}
@@ -58,12 +64,12 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
           <Col span={12}>
             <ProFormSelect
               name="tagStatus"
-              placeholder="打标状态"
+              placeholder="完成状态"
               options={[
-                { label: '全部', value: 'all' },
-                { label: '已完整打标', value: 'complete' },
-                { label: '部分打标', value: 'partial' },
-                { label: '未打标', value: 'untagged' },
+                { label: '全部', value: '全部' },
+                { label: '已完成', value: '已完成' },
+                { label: '部分完成', value: '部分完成' },
+                { label: '未完成', value: '未完成' },
               ]}
               fieldProps={{
                 style: { width: '100%' },

@@ -38,7 +38,7 @@ const PaperQuestionNav: React.FC<PaperQuestionNavProps> = ({
       </div>
       <div className={styles.questionGrid}>
         {questions.map((question, index) => {
-          const isTagged = question.tagStatus === 'complete';
+          const isTagged = question.tagStatus === '已打标';
           const isCurrent = question.id === currentQuestionId;
           const isSelected = selectedQuestionIds.includes(question.id);
 

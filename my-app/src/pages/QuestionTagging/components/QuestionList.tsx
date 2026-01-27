@@ -32,7 +32,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
   const stats = React.useMemo(() => {
     const total = allFilteredQuestions.length;
     const complete = allFilteredQuestions.filter(
-      (q) => q.tagStatus === 'complete',
+      (q) => q.tagStatus === '已打标',
     ).length;
     const untagged = total - complete;
     return { total, complete, untagged };
@@ -48,7 +48,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
       }
       const stat = statsMap.get(q.paperId)!;
       stat.total++;
-      if (q.tagStatus === 'complete') {
+      if (q.tagStatus === '已打标') {
         stat.tagged++;
       } else {
         stat.untagged++;
@@ -77,7 +77,7 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
   // 获取标签状态标签
   const getTagStatusTag = (status: Question['tagStatus']) => {
-    if (status === 'complete') {
+    if (status === '已打标') {
       return (
         <Tag
           color="#f6ffed"

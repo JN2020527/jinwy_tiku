@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import { List, Pagination, Tag } from 'antd';
+import { List, Pagination, Space, Tag } from 'antd';
 import type { Paper } from '../types';
 import styles from './PaperList.less';
 
@@ -22,7 +22,6 @@ const PaperList: React.FC<PaperListProps> = ({
   onPaperClick,
   pagination,
 }) => {
-
   // 获取打标状态标签
   const getTagStatusTag = (paper: Paper) => {
     if (paper.taggedCount === paper.questionCount && paper.questionCount > 0) {
@@ -59,7 +58,7 @@ const PaperList: React.FC<PaperListProps> = ({
           <CloseOutlined
             style={{ marginRight: 4, fontSize: 10, color: '#666' }}
           />
-          未打标
+          未完成
         </Tag>
       );
     }
@@ -73,7 +72,7 @@ const PaperList: React.FC<PaperListProps> = ({
           fontSize: 12,
         }}
       >
-        进行中
+        部分完成
       </Tag>
     );
   };
@@ -135,6 +134,45 @@ const PaperList: React.FC<PaperListProps> = ({
                     {getTagStatusTag(paper)}
                   </div>
 
+                  {/* 元数据标签 */}
+                  <div style={{ marginBottom: 8 }}>
+                    <Space size={6} wrap>
+                      {paper.year && (
+                        <Tag
+                          color="blue"
+                          style={{
+                            fontSize: 12,
+                            margin: 0,
+                          }}
+                        >
+                          {paper.year}
+                        </Tag>
+                      )}
+                      {paper.region && (
+                        <Tag
+                          color="green"
+                          style={{
+                            fontSize: 12,
+                            margin: 0,
+                          }}
+                        >
+                          {paper.region}
+                        </Tag>
+                      )}
+                      {paper.source && (
+                        <Tag
+                          color="purple"
+                          style={{
+                            fontSize: 12,
+                            margin: 0,
+                          }}
+                        >
+                          {paper.source}
+                        </Tag>
+                      )}
+                    </Space>
+                  </div>
+
                   {/* 进度条 */}
                   <div
                     style={{
@@ -155,14 +193,21 @@ const PaperList: React.FC<PaperListProps> = ({
                       <div
                         style={{
                           height: '100%',
-                          backgroundColor: '#52c41a',
+                          backgroundColor: '#1890ff',
                           borderRadius: 3,
                           width: `${progress}%`,
                           transition: 'width 0.3s',
                         }}
                       />
                     </div>
-                    <span style={{ fontSize: 12, color: '#999', whiteSpace: 'nowrap' }}>
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: '#000',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {paper.taggedCount}/{paper.questionCount}
                     </span>
                   </div>

@@ -24,14 +24,14 @@ export interface Question {
   ability?: string[]; // 学科能力（多选）
 
   // 标签状态
-  tagStatus: 'untagged' | 'partial' | 'complete';
+  tagStatus: '未打标' | '部分打标' | '已打标';
 }
 
 // 筛选条件
 export interface FilterParams {
   subject?: string;
   paperId?: string;
-  tagStatus?: 'all' | 'complete' | 'partial' | 'untagged';
+  tagStatus?: '全部' | '已完成' | '部分完成' | '未完成';
   keyword?: string;
   page: number;
   pageSize: number;
@@ -60,6 +60,7 @@ export interface Paper {
   subject: string;        // 学科
   questionCount: number;  // 题目总数
   taggedCount: number;    // 已打标数量
-  year?: string;
-  region?: string;
+  year?: string;          // 年份
+  region?: string;        // 地区
+  source?: string;        // 试题来源（中考模拟、名校试题等）
 }
