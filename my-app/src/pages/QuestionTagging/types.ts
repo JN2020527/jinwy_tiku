@@ -21,7 +21,7 @@ export interface Question {
   chapters?: string; // 专题ID（单选）
   features?: string; // 中考特色标签（单选）
   examMethod?: string; // 学科考法（单选）
-  ability?: string; // 学科能力（单选）
+  ability?: string[]; // 学科能力（多选）
 
   // 标签状态
   tagStatus: 'untagged' | 'partial' | 'complete';

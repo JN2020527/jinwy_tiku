@@ -1,5 +1,6 @@
 import {
   ProForm,
+  ProFormCheckbox,
   ProFormRadio,
   ProFormTreeSelect,
 } from '@ant-design/pro-components';
@@ -63,7 +64,7 @@ const TaggingForm = forwardRef<TaggingFormRef, TaggingFormProps>(({
         chapters: question.chapters,
         features: question.features,
         examMethod: question.examMethod,
-        ability: question.ability,
+        ability: question.ability || [],
       });
     } else if (isBatchMode) {
       // 批量模式：清空表单
@@ -401,12 +402,10 @@ const TaggingForm = forwardRef<TaggingFormRef, TaggingFormProps>(({
                 size="small"
               />
             </div>
-            <ProFormRadio.Group
+            <ProFormCheckbox.Group
               name="ability"
-              radioType="button"
               options={tagData.abilities}
               fieldProps={{
-                buttonStyle: 'solid',
                 disabled: !batchSwitches.ability,
               }}
             />
@@ -511,13 +510,9 @@ const TaggingForm = forwardRef<TaggingFormRef, TaggingFormProps>(({
             options={tagData.examMethods}
           />
 
-          <ProFormRadio.Group
+          <ProFormCheckbox.Group
             name="ability"
             label="学科能力"
-            radioType="button"
-            fieldProps={{
-              buttonStyle: 'solid',
-            }}
             options={tagData.abilities}
           />
         </ProForm>

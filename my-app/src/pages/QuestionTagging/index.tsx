@@ -1,12 +1,11 @@
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { Button, Col, Row, Select } from 'antd';
+import { Button, Col, Row } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { history } from 'umi';
 import FilterPanel from './components/FilterPanel';
 import PaperList from './components/PaperList';
 import PaperQuestionNav from './components/PaperQuestionNav';
 import QuestionDetail from './components/QuestionDetail';
-import QuestionList from './components/QuestionList';
 import TaggingForm, { TaggingFormRef } from './components/TaggingForm';
 import { mockQuestions, mockSubjects } from './mockData';
 import type { Paper } from './types';
@@ -16,8 +15,6 @@ import './index.less';
 const QuestionTagging: React.FC = () => {
   const taggingFormRef = useRef<TaggingFormRef>(null);
   const [questions, setQuestions] = useState<Question[]>(mockQuestions);
-  const [filteredQuestions, setFilteredQuestions] =
-    useState<Question[]>([]);
   const [currentQuestionId, setCurrentQuestionId] = useState<string>('');
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [filters, setFilters] = useState<Partial<FilterParams>>({
@@ -27,8 +24,6 @@ const QuestionTagging: React.FC = () => {
     pageSize: 15,
   });
 
-  // 视图模式：试题列表 / 试卷列表
-  const [viewMode, setViewMode] = useState<'question' | 'paper'>('question');
   const [currentPaperId, setCurrentPaperId] = useState<string>('');
 
   // 当前选中的学科
@@ -96,75 +91,28 @@ const QuestionTagging: React.FC = () => {
   // 判断是否为批量模式
   const isBatchMode = selectedQuestionIds.length > 1;
 
-  // 初始化：选中第一道试题
+  // 初始化：默认选中第一个试卷和第一道题
   useEffect(() => {
-    if (filteredQuestions.length > 0 && !currentQuestionId) {
-      setCurrentQuestionId(filteredQuestions[0].id);
+    if (filteredPapers.length > 0 && !currentPaperId) {
+      const firstPaper = filteredPapers[0];
+      setCurrentPaperId(firstPaper.id);
+
+      // 自动选中该试卷的第一道题
+      const firstQuestion = questions.find((q) => q.paperId === firstPaper.id);
+      if (firstQuestion) {
+        setCurrentQuestionId(firstQuestion.id);
+      }
     }
-  }, [filteredQuestions, currentQuestionId]);
-
-  // 筛选逻辑
-  useEffect(() => {
-    let result = [...questions];
-
-    // 科目筛选（必选）
-    if (filters.subject) {
-      result = result.filter((q) => q.subject === filters.subject);
-    }
-
-    // 试卷筛选
-    if (filters.paperId) {
-      result = result.filter((q) => q.paperId === filters.paperId);
-    }
-
-    // 标签状态筛选
-    if (filters.tagStatus && filters.tagStatus !== 'all') {
-      result = result.filter((q) => q.tagStatus === filters.tagStatus);
-    }
-
-    // 关键词搜索
-    if (filters.keyword) {
-      const keyword = filters.keyword.toLowerCase();
-      result = result.filter(
-        (q) =>
-          q.stem.toLowerCase().includes(keyword) ||
-          q.answer?.toLowerCase().includes(keyword),
-      );
-    }
-
-    setFilteredQuestions(result);
-
-    // 切换学科时重置当前选中的试题
-    if (result.length > 0) {
-      setCurrentQuestionId(result[0].id);
-    } else {
-      setCurrentQuestionId('');
-    }
-  }, [filters, questions]);
+  }, [filteredPapers, currentPaperId, questions]);
 
   // 处理筛选条件变化
   const handleFilterChange = (newFilters: Partial<FilterParams>) => {
     setFilters({ ...filters, ...newFilters, page: 1 });
     // 清空选择
     setSelectedQuestionIds([]);
-  };
-
-  // 处理试题点击
-  const handleQuestionClick = (id: string) => {
-    setCurrentQuestionId(id);
-    // 单选模式：清空批量选择
-    if (selectedQuestionIds.length <= 1) {
-      setSelectedQuestionIds([]);
-    }
-  };
-
-  // 处理批量选择
-  const handleSelectionChange = (ids: string[]) => {
-    setSelectedQuestionIds(ids);
-    // 如果只选中一个，设置为当前试题
-    if (ids.length === 1) {
-      setCurrentQuestionId(ids[0]);
-    }
+    // 重置当前试卷，触发重新选择第一个
+    setCurrentPaperId('');
+    setCurrentQuestionId('');
   };
 
   // 更新单个试题
@@ -225,20 +173,18 @@ const QuestionTagging: React.FC = () => {
 
   // 上一题
   const handlePrevious = () => {
-    const questionList = viewMode === 'paper' ? paperQuestions : filteredQuestions;
-    const currentIndex = questionList.findIndex((q) => q.id === currentQuestionId);
+    const currentIndex = paperQuestions.findIndex((q) => q.id === currentQuestionId);
     if (currentIndex > 0) {
-      setCurrentQuestionId(questionList[currentIndex - 1].id);
+      setCurrentQuestionId(paperQuestions[currentIndex - 1].id);
       setSelectedQuestionIds([]);
     }
   };
 
   // 下一题
   const handleNext = () => {
-    const questionList = viewMode === 'paper' ? paperQuestions : filteredQuestions;
-    const currentIndex = questionList.findIndex((q) => q.id === currentQuestionId);
-    if (currentIndex < questionList.length - 1) {
-      setCurrentQuestionId(questionList[currentIndex + 1].id);
+    const currentIndex = paperQuestions.findIndex((q) => q.id === currentQuestionId);
+    if (currentIndex < paperQuestions.length - 1) {
+      setCurrentQuestionId(paperQuestions[currentIndex + 1].id);
       setSelectedQuestionIds([]);
     }
   };
@@ -281,26 +227,17 @@ const QuestionTagging: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentQuestionId, filteredQuestions]);
+  }, [currentQuestionId, paperQuestions]);
 
   // 返回上一页
   const handleBack = () => {
     history.back();
   };
 
-  // 分页
-  const paginatedQuestions = filteredQuestions.slice(
-    (filters.page! - 1) * filters.pageSize!,
-    filters.page! * filters.pageSize!,
-  );
-
   const currentQuestion =
     questions.find((q) => q.id === currentQuestionId) || null;
   const selectedQuestions = questions.filter((q) =>
     selectedQuestionIds.includes(q.id),
-  );
-  const currentIndex = filteredQuestions.findIndex(
-    (q) => q.id === currentQuestionId,
   );
 
   return (
@@ -340,7 +277,7 @@ const QuestionTagging: React.FC = () => {
       {/* 主内容区 */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <Row style={{ height: '100%' }} gutter={0}>
-          {/* 左侧栏：筛选面板 + 试题列表 */}
+          {/* 左侧栏：筛选面板 + 试卷列表 */}
           <Col
             span={6}
             style={{
@@ -358,21 +295,12 @@ const QuestionTagging: React.FC = () => {
                 padding: '0 16px',
                 background: '#fafafa',
                 borderBottom: '1px solid #f0f0f0',
+                fontWeight: 600,
+                fontSize: '15px',
+                color: '#333',
               }}
             >
-              <Select
-                value={viewMode}
-                onChange={(value) => setViewMode(value)}
-                bordered={false}
-                className="titleSelect"
-                style={{
-                  width: '100%',
-                }}
-                options={[
-                  { value: 'question', label: '试题列表' },
-                  { value: 'paper', label: '试卷列表' },
-                ]}
-              />
+              试卷列表
             </div>
             <div
               style={{
@@ -384,47 +312,28 @@ const QuestionTagging: React.FC = () => {
               }}
             >
               <div style={{ flexShrink: 0 }}>
-                <FilterPanel mode={viewMode} onFilterChange={handleFilterChange} />
+                <FilterPanel mode="paper" onFilterChange={handleFilterChange} />
               </div>
               <div style={{ flex: 1, overflow: 'hidden' }}>
-                {viewMode === 'question' ? (
-                  <QuestionList
-                    questions={paginatedQuestions}
-                    allFilteredQuestions={filteredQuestions}
-                    currentQuestionId={currentQuestionId}
-                    selectedQuestionIds={selectedQuestionIds}
-                    onQuestionClick={handleQuestionClick}
-                    onSelectionChange={handleSelectionChange}
-                    pagination={{
-                      current: filters.page!,
-                      pageSize: filters.pageSize!,
-                      total: filteredQuestions.length,
-                      onChange: (page, pageSize) => {
-                        setFilters({ ...filters, page, pageSize });
-                      },
-                    }}
-                  />
-                ) : (
-                  <PaperList
-                    papers={filteredPapers}
-                    currentPaperId={currentPaperId}
-                    onPaperClick={(paperId) => {
-                      setCurrentPaperId(paperId);
-                      // 选中试卷后，自动选中第一道题
-                      const firstQuestion = questions.find((q) => q.paperId === paperId);
-                      if (firstQuestion) {
-                        setCurrentQuestionId(firstQuestion.id);
-                        setSelectedQuestionIds([]);
-                      }
-                    }}
-                    pagination={{
-                      current: 1,
-                      pageSize: 15,
-                      total: filteredPapers.length,
-                      onChange: () => {},
-                    }}
-                  />
-                )}
+                <PaperList
+                  papers={filteredPapers}
+                  currentPaperId={currentPaperId}
+                  onPaperClick={(paperId) => {
+                    setCurrentPaperId(paperId);
+                    // 选中试卷后，自动选中第一道题
+                    const firstQuestion = questions.find((q) => q.paperId === paperId);
+                    if (firstQuestion) {
+                      setCurrentQuestionId(firstQuestion.id);
+                      setSelectedQuestionIds([]);
+                    }
+                  }}
+                  pagination={{
+                    current: 1,
+                    pageSize: 15,
+                    total: filteredPapers.length,
+                    onChange: () => {},
+                  }}
+                />
               </div>
             </div>
           </Col>
@@ -456,7 +365,17 @@ const QuestionTagging: React.FC = () => {
                 ? `已选择 ${selectedQuestionIds.length} 道试题`
                 : '试题详情'}
             </div>
-            {viewMode === 'question' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <PaperQuestionNav
+                questions={paperQuestions}
+                currentQuestionId={currentQuestionId}
+                selectedQuestionIds={selectedQuestionIds}
+                onQuestionClick={(id) => {
+                  setCurrentQuestionId(id);
+                  setSelectedQuestionIds([]);
+                }}
+                onSelectionChange={setSelectedQuestionIds}
+              />
               <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
                 <QuestionDetail
                   question={currentQuestion}
@@ -464,35 +383,11 @@ const QuestionTagging: React.FC = () => {
                   isBatchMode={isBatchMode}
                   onPrevious={handlePrevious}
                   onNext={handleNext}
-                  hasPrevious={currentIndex > 0}
-                  hasNext={currentIndex < filteredQuestions.length - 1}
+                  hasPrevious={paperQuestions.findIndex((q) => q.id === currentQuestionId) > 0}
+                  hasNext={paperQuestions.findIndex((q) => q.id === currentQuestionId) < paperQuestions.length - 1}
                 />
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                <PaperQuestionNav
-                  questions={paperQuestions}
-                  currentQuestionId={currentQuestionId}
-                  selectedQuestionIds={selectedQuestionIds}
-                  onQuestionClick={(id) => {
-                    setCurrentQuestionId(id);
-                    setSelectedQuestionIds([]);
-                  }}
-                  onSelectionChange={setSelectedQuestionIds}
-                />
-                <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-                  <QuestionDetail
-                    question={currentQuestion}
-                    selectedQuestions={selectedQuestions}
-                    isBatchMode={isBatchMode}
-                    onPrevious={handlePrevious}
-                    onNext={handleNext}
-                    hasPrevious={paperQuestions.findIndex((q) => q.id === currentQuestionId) > 0}
-                    hasNext={paperQuestions.findIndex((q) => q.id === currentQuestionId) < paperQuestions.length - 1}
-                  />
-                </div>
-              </div>
-            )}
+            </div>
           </Col>
 
           {/* 右侧栏：标签表单 */}

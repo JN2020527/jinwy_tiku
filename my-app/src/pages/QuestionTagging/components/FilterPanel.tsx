@@ -28,8 +28,20 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
           tagStatus: 'all',
         }}
       >
+        {/* 关键字搜索框 */}
+        <ProForm.Item name="keyword" style={{ marginBottom: 12 }}>
+          <Input.Search
+            placeholder={mode === 'paper' ? '搜索试卷名称' : '搜索试卷/题干内容'}
+            allowClear
+            onSearch={(value) => {
+              form.setFieldsValue({ keyword: value });
+              onFilterChange({ ...form.getFieldsValue(), keyword: value });
+            }}
+          />
+        </ProForm.Item>
+
         {/* 学科和打标状态并列 */}
-        <Row gutter={12} style={{ marginBottom: 12 }}>
+        <Row gutter={12}>
           <Col span={12}>
             <ProFormSelect
               name="subject"
@@ -62,18 +74,6 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
             />
           </Col>
         </Row>
-
-        {/* 关键字搜索框 */}
-        <ProForm.Item name="keyword" style={{ marginBottom: 0 }}>
-          <Input.Search
-            placeholder={mode === 'paper' ? '搜索试卷名称' : '搜索试卷/题干内容'}
-            allowClear
-            onSearch={(value) => {
-              form.setFieldsValue({ keyword: value });
-              onFilterChange({ ...form.getFieldsValue(), keyword: value });
-            }}
-          />
-        </ProForm.Item>
       </ProForm>
     </div>
   );

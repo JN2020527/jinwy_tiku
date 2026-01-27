@@ -34,6 +34,7 @@
     cursor: pointer;
     transition: all 0.2s;
     border: 2px solid transparent;
+    position: relative;
 
     &.untagged {
       background-color: #f0f0f0;
@@ -53,12 +54,23 @@
       }
     }
 
+    // 当前查看的题目：加粗边框 + 阴影
     &.current {
-      border-color: #1890ff;
+      border: 3px solid #1890ff;
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+      transform: scale(1.05);
     }
 
+    // 批量选中：紫色边框 + 阴影
     &.selected {
-      border-color: #722ed1;
+      border: 3px solid #722ed1;
+      box-shadow: 0 0 0 2px rgba(114, 46, 209, 0.2);
+    }
+
+    // 同时是当前且被选中
+    &.current.selected {
+      border: 3px solid #1890ff;
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.3);
     }
   }
 

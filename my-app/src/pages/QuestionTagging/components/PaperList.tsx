@@ -22,15 +22,6 @@ const PaperList: React.FC<PaperListProps> = ({
   onPaperClick,
   pagination,
 }) => {
-  // 计算统计数据
-  const stats = React.useMemo(() => {
-    const total = papers.length;
-    const complete = papers.filter(
-      (p) => p.taggedCount === p.questionCount && p.questionCount > 0,
-    ).length;
-    const untagged = papers.filter((p) => p.taggedCount === 0).length;
-    return { total, complete, untagged };
-  }, [papers]);
 
   // 获取打标状态标签
   const getTagStatusTag = (paper: Paper) => {
@@ -89,44 +80,10 @@ const PaperList: React.FC<PaperListProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* 统计信息 */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-          padding: '8px 0',
-          borderBottom: '1px solid #f0f0f0',
-          flexShrink: 0,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            fontSize: 13,
-            color: '#666',
-          }}
-        >
-          <span>
-            共 <b style={{ color: '#333' }}>{stats.total}</b> 份
-          </span>
-          <span>
-            <CheckOutlined style={{ color: '#52c41a', marginRight: 4 }} />
-            {stats.complete}
-          </span>
-          <span>
-            <CloseOutlined style={{ color: '#d9d9d9', marginRight: 4 }} />
-            {stats.untagged}
-          </span>
-        </div>
-      </div>
-
       {/* 试卷列表 - 可滚动区域 */}
       <div
         className={styles.paperListScroll}
-        style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}
+        style={{ flex: 1, overflowY: 'auto' }}
       >
         <List
           dataSource={papers}
