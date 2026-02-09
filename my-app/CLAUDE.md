@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev          # 启动开发服务器 (http://localhost:8000)
+npm run start        # 同 dev
 npm run build        # 生产环境构建
 npm run format       # 使用 Prettier 格式化代码
 ```
@@ -30,7 +31,7 @@ src/
 │   │   └── Edit/          # 全屏校对页面 (layout: false)
 │   ├── QuestionTagging/   # 试题打标功能
 │   │   ├── index.tsx      # 主页面（三栏布局）
-│   │   └── components/    # FilterPanel, QuestionList, QuestionDetail, TaggingForm
+│   │   └── components/    # FilterPanel, PaperList, PaperQuestionNav, QuestionList, QuestionDetail, TaggingForm
 │   └── ContentCenter/     # 产品、学科、标签管理
 ├── services/              # API 服务层
 │   ├── paperUpload.ts     # 试卷上传、解析、提交
@@ -57,11 +58,14 @@ config/
 - 图标：来自 `@ant-design/icons`
 
 **题库相关路由：**
-- `/question-bank/tag-system` - 标签体系管理
-- `/question-bank/task` - 题库任务
-- `/question-bank/word-upload` - 试卷上传页面
-- `/question-bank/word-upload/edit` - 全屏校对页面
-- `/question-bank/tagging` - 试题打标页面
+- `/question-bank/tag-system` - 标签体系管理 → `ContentCenter/TagManage`
+- `/question-bank/task` - 题库任务 → `ContentCenter/QuestionBankTask`
+- `/question-bank/word-upload` - 试卷上传页面 → `PaperUpload`
+- `/question-bank/word-upload/edit` - 全屏校对页面 (layout: false) → `PaperUpload/Edit`
+- `/question-bank/tagging` - 重定向到 `/question-bank/tagging-fullscreen`
+- `/question-bank/tagging-fullscreen` - 试题打标页面 (layout: false) → `QuestionTagging`
+
+**注意：** 部分 `/question-bank` 路由实际映射到 `ContentCenter` 下的组件。
 
 ## 试题打标功能
 
@@ -81,6 +85,17 @@ config/
 
 - **单题模式**: 点击题目查看并单独打标
 - **批量模式**: 勾选多题后批量打标（使用 Switch 控制各字段）
+
+### 存疑标记
+
+打标人员对标签不确定时，可标记题目为"存疑"，方便后续复查。
+
+- **数据字段**: `Question.doubtful?: boolean`，`Paper.doubtfulCount: number`
+- **单题操作**: TaggingForm 底部"标记存疑"/"取消存疑"按钮（橙色），点击后自动跳转下一题
+- **批量操作**: 批量模式下"批量标记存疑"按钮
+- **视觉标识**: PaperQuestionNav 方块右上角橙色圆点角标；QuestionDetail 题号旁橙色 Tag
+- **统计显示**: PaperList 进度条旁显示存疑数量（如 `3/10 · 2存疑`）
+- **筛选支持**: FilterPanel tagStatus 下拉新增"存疑"选项，筛选含存疑题目的试卷
 
 ### 标签状态
 
@@ -129,15 +144,17 @@ export async function getKnowledgeTree() {
 3. 如需 API 调用，在 `src/services/` 创建服务文件
 4. 复杂页面可创建 `components/` 子目录
 
-**示例结构：**
+**示例结构（QuestionTagging）：**
 ```
 src/pages/QuestionTagging/
 ├── index.tsx              # 主页面组件
 ├── components/            # 页面专用组件
-│   ├── FilterPanel.tsx
-│   ├── QuestionList.tsx
-│   ├── QuestionDetail.tsx
-│   └── TaggingForm.tsx
+│   ├── FilterPanel.tsx    # 筛选面板
+│   ├── PaperList.tsx      # 试卷列表（含统计）
+│   ├── PaperQuestionNav.tsx # 试卷内题目导航
+│   ├── QuestionList.tsx   # 题目卡片列表
+│   ├── QuestionDetail.tsx # 题目详情展示
+│   └── TaggingForm.tsx    # 打标表单
 ├── types.ts               # TypeScript 接口
 └── mockData.ts            # 开发用 Mock 数据
 ```
