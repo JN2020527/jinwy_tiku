@@ -38,6 +38,7 @@ const QuestionTagging: React.FC = () => {
           subject: q.subject,
           questionCount: 0,
           taggedCount: 0,
+          doubtfulCount: 0,
           year: q.year,
           region: q.region,
           source: q.source,
@@ -46,6 +47,7 @@ const QuestionTagging: React.FC = () => {
       const paper = paperMap.get(q.paperId)!;
       paper.questionCount++;
       if (q.tagStatus === '已打标') paper.taggedCount++;
+      if (q.doubtful) paper.doubtfulCount++;
     });
     return Array.from(paperMap.values());
   }, [questions]);
@@ -77,6 +79,8 @@ const QuestionTagging: React.FC = () => {
           return p.taggedCount === 0;
         } else if (filters.tagStatus === '部分完成') {
           return p.taggedCount > 0 && p.taggedCount < p.questionCount;
+        } else if (filters.tagStatus === '存疑') {
+          return p.doubtfulCount > 0;
         }
         return true;
       });

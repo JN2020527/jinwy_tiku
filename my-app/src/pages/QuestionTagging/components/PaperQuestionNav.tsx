@@ -41,6 +41,7 @@ const PaperQuestionNav: React.FC<PaperQuestionNavProps> = ({
           const isTagged = question.tagStatus === '已打标';
           const isCurrent = question.id === currentQuestionId;
           const isSelected = selectedQuestionIds.includes(question.id);
+          const isDoubtful = !!question.doubtful;
 
           const classNames = [
             styles.questionBlock,
@@ -56,9 +57,10 @@ const PaperQuestionNav: React.FC<PaperQuestionNavProps> = ({
               key={question.id}
               className={classNames}
               onClick={(e) => handleBlockClick(question.id, e)}
-              title={`第${index + 1}题 - ${isTagged ? '已打标' : '未打标'}`}
+              title={`第${index + 1}题 - ${isTagged ? '已打标' : '未打标'}${isDoubtful ? ' (存疑)' : ''}`}
             >
               {index + 1}
+              {isDoubtful && <span className={styles.doubtfulDot} />}
             </div>
           );
         })}
@@ -71,6 +73,10 @@ const PaperQuestionNav: React.FC<PaperQuestionNavProps> = ({
         <span className={styles.legendItem}>
           <span className={`${styles.dot} ${styles.untagged}`} />
           未打标
+        </span>
+        <span className={styles.legendItem}>
+          <span className={`${styles.dot} ${styles.doubtful}`} />
+          存疑
         </span>
       </div>
     </div>

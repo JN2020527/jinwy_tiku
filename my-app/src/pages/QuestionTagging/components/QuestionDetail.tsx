@@ -104,6 +104,7 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
           <span style={{ fontSize: 18, fontWeight: 600 }}>
             第 {question.number} 题
           </span>
+          {question.doubtful && <Tag color="orange">存疑</Tag>}
           {question.year && <Tag color="blue">{question.year}</Tag>}
           {question.region && <Tag color="green">{question.region}</Tag>}
           {question.source && <Tag color="purple">{question.source}</Tag>}

@@ -70,6 +70,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
                 { label: '已完成', value: '已完成' },
                 { label: '部分完成', value: '部分完成' },
                 { label: '未完成', value: '未完成' },
+                { label: '存疑', value: '存疑' },
               ]}
               fieldProps={{
                 style: { width: '100%' },

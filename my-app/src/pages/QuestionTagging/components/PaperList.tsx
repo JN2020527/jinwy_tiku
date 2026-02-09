@@ -209,6 +209,11 @@ const PaperList: React.FC<PaperListProps> = ({
                       }}
                     >
                       {paper.taggedCount}/{paper.questionCount}
+                      {paper.doubtfulCount > 0 && (
+                        <span style={{ color: '#fa8c16', fontWeight: 400, fontSize: 12 }}>
+                          {' '}· {paper.doubtfulCount}存疑
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>

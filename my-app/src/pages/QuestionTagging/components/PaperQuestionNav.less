@@ -74,6 +74,17 @@
     }
   }
 
+  .doubtfulDot {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #fa8c16;
+    border: 1px solid #fff;
+  }
+
   .legend {
     display: flex;
     gap: 16px;
@@ -96,6 +107,11 @@
 
         &.untagged {
           background-color: #f0f0f0;
+        }
+
+        &.doubtful {
+          background-color: #fa8c16;
+          border-radius: 50%;
         }
       }
     }

@@ -4,6 +4,7 @@ import {
   ProFormRadio,
   ProFormTreeSelect,
 } from '@ant-design/pro-components';
+import { QuestionOutlined } from '@ant-design/icons';
 import { Button, Empty, message, Switch } from 'antd';
 import React, { useEffect, useState, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { getSubjectTagData } from '../mockData';
@@ -140,6 +141,24 @@ const TaggingForm = forwardRef<TaggingFormRef, TaggingFormProps>(({
       updates,
     );
     message.success(`已为 ${selectedQuestions.length} 道试题批量打标`);
+  };
+
+  // 标记/取消存疑
+  const handleToggleDoubtful = () => {
+    if (!isBatchMode && question) {
+      onUpdate(question.id, { doubtful: !question.doubtful });
+      message.success(question.doubtful ? '已取消存疑' : '已标记存疑', 1);
+      onSaveAndNext();
+    }
+  };
+
+  // 批量标记存疑
+  const handleBatchDoubtful = () => {
+    onBatchUpdate(
+      selectedQuestions.map((q) => q.id),
+      { doubtful: true },
+    );
+    message.success(`已为 ${selectedQuestions.length} 道试题标记存疑`);
   };
 
   // 未选中状态
@@ -417,6 +436,14 @@ const TaggingForm = forwardRef<TaggingFormRef, TaggingFormProps>(({
           <Button block onClick={() => onBatchUpdate([], {})}>
             取消
           </Button>
+          <Button
+            block
+            icon={<QuestionOutlined />}
+            style={{ color: '#fa8c16', borderColor: '#fa8c16' }}
+            onClick={handleBatchDoubtful}
+          >
+            批量标记存疑
+          </Button>
           <Button type="primary" block onClick={handleBatchApply}>
             应用到所有选中试题
           </Button>
@@ -526,10 +553,22 @@ const TaggingForm = forwardRef<TaggingFormRef, TaggingFormProps>(({
           alignItems: 'center',
           borderTop: '1px solid #f0f0f0',
           flexShrink: 0,
+          gap: 8,
         }}
       >
-        <Button type="primary" block onClick={handleSaveAndNext}>
+        <Button type="primary" style={{ flex: 1 }} onClick={handleSaveAndNext}>
           保存并下一题 (Ctrl+Enter)
+        </Button>
+        <Button
+          icon={<QuestionOutlined />}
+          style={
+            question?.doubtful
+              ? { color: '#fff', borderColor: '#fa8c16', backgroundColor: '#fa8c16' }
+              : { color: '#fa8c16', borderColor: '#fa8c16' }
+          }
+          onClick={handleToggleDoubtful}
+        >
+          {question?.doubtful ? '取消存疑' : '标记存疑'}
         </Button>
       </div>
     </div>

@@ -27,6 +27,7 @@ export const mockQuestions: Question[] = [
     difficulty: 'easy',
     chapters: 'math-ch1-1',
     tagStatus: '已打标',
+    doubtful: true,
   },
   {
     id: 'q2',
@@ -45,6 +46,7 @@ export const mockQuestions: Question[] = [
     questionType: 'math-fill-blank',
     difficulty: 'easy',
     tagStatus: '部分打标',
+    doubtful: true,
   },
   {
     id: 'q3',
@@ -339,6 +341,7 @@ export const mockQuestions: Question[] = [
     questionType: 'physics-fill-blank',
     difficulty: 'medium',
     tagStatus: '部分打标',
+    doubtful: true,
   },
   {
     id: 'q18',

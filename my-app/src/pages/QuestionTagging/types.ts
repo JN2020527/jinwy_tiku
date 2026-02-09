@@ -23,6 +23,9 @@ export interface Question {
   examMethod?: string; // 学科考法（单选）
   ability?: string[]; // 学科能力（多选）
 
+  // 存疑标记
+  doubtful?: boolean;
+
   // 标签状态
   tagStatus: '未打标' | '部分打标' | '已打标';
 }
@@ -31,7 +34,7 @@ export interface Question {
 export interface FilterParams {
   subject?: string;
   paperId?: string;
-  tagStatus?: '全部' | '已完成' | '部分完成' | '未完成';
+  tagStatus?: '全部' | '已完成' | '部分完成' | '未完成' | '存疑';
   keyword?: string;
   page: number;
   pageSize: number;
@@ -60,6 +63,7 @@ export interface Paper {
   subject: string;        // 学科
   questionCount: number;  // 题目总数
   taggedCount: number;    // 已打标数量
+  doubtfulCount: number;  // 存疑数量
   year?: string;          // 年份
   region?: string;        // 地区
   source?: string;        // 试题来源（中考模拟、名校试题等）
