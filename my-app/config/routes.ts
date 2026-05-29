@@ -1,11 +1,5 @@
 export default [
   {
-    path: '/welcome',
-    name: 'welcome',
-    icon: 'smile',
-    component: './Welcome',
-  },
-  {
     path: '/system',
     name: '系统管理',
     icon: 'setting',
@@ -91,7 +85,7 @@ export default [
   },
   {
     path: '/',
-    redirect: '/welcome',
+    redirect: '/content/product-list',
   },
   {
     component: './404',

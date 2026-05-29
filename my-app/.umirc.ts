@@ -14,13 +14,12 @@ export default defineConfig({
   },
   routes,
   npmClient: 'npm',
-  // 配置代理，将API请求转发到后端服务器
+  // API proxy configuration (used when backend is running)
+  // When mock files exist in mock/, mock takes priority over proxy
   proxy: {
     '/api': {
       target: 'http://localhost:8001',
       changeOrigin: true,
     },
   },
-  // 禁用mock，使用真实后端API
-  mock: false,
 });

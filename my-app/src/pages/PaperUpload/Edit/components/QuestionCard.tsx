@@ -1,5 +1,6 @@
 import { QuestionItem } from '@/services/paperUpload';
 import { parseStem } from '@/utils/parseStem';
+import { sanitizeHtml } from '@/utils/sanitize';
 import { Card, Tag } from 'antd';
 import React from 'react';
 
@@ -9,6 +10,20 @@ interface QuestionCardProps {
   onClick: () => void;
 }
 
+const infoBoxStyle: React.CSSProperties = {
+  background: 'rgb(246, 247, 249)',
+  padding: '12px',
+  borderRadius: '4px',
+  marginTop: '12px',
+};
+
+const subQuestionInfoBoxStyle: React.CSSProperties = {
+  background: 'rgb(246, 247, 249)',
+  padding: '12px',
+  borderRadius: '4px',
+  marginTop: 12,
+};
+
 const QuestionCard: React.FC<QuestionCardProps> = ({
   question,
   selected,
@@ -16,19 +31,12 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
 }) => {
   const parsed = parseStem(question.stem);
 
-  const infoBoxStyle = {
-    background: 'rgb(246, 247, 249)',
-    padding: '12px',
-    borderRadius: '4px',
-    marginTop: '12px',
-  };
-
   const renderInfoItem = (label: string, content: string | undefined) => {
     if (!content) return null;
     return (
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 600 }}>{label}</div>
-        <div dangerouslySetInnerHTML={{ __html: content }} />
+        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }} />
       </div>
     );
   };
@@ -88,7 +96,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
           <div
             style={{ marginBottom: 8, fontSize: '14px', fontWeight: 500 }}
             dangerouslySetInnerHTML={{
-              __html: `${subNumber}. ${childParsed.cleanStem}`,
+              __html: sanitizeHtml(`${subNumber}. ${childParsed.cleanStem}`),
             }}
           />
         )}
@@ -100,25 +108,18 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
               <div
                 key={idx}
                 className="option-item"
-                dangerouslySetInnerHTML={{ __html: opt }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(opt) }}
               />
             ))}
           </div>
         )}
 
         {/* 子题信息框 */}
-        <div
-          style={{
-            background: 'rgb(246, 247, 249)',
-            padding: '12px',
-            borderRadius: '4px',
-            marginTop: 12,
-          }}
-        >
+        <div style={subQuestionInfoBoxStyle}>
           {/* 答案 */}
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>【答案】</div>
-            <div dangerouslySetInnerHTML={{ __html: child.answer || '' }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(child.answer) }} />
           </div>
 
           {/* 难度 */}
@@ -141,7 +142,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
           {child.analysis && (
             <div>
               <div style={{ fontWeight: 600, marginBottom: 4 }}>【解析】</div>
-              <div dangerouslySetInnerHTML={{ __html: child.analysis }} />
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(child.analysis) }} />
             </div>
           )}
         </div>
@@ -185,7 +186,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
           <div style={{ marginBottom: 16 }}>
             <div
               className="question-stem"
-              dangerouslySetInnerHTML={{ __html: parsed.cleanStem }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsed.cleanStem) }}
               style={{ marginBottom: 16, fontSize: '14px', lineHeight: '1.6' }}
             />
           </div>
@@ -203,7 +204,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
         <>
           <div
             className="question-stem"
-            dangerouslySetInnerHTML={{ __html: parsed.cleanStem }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsed.cleanStem) }}
             style={{ marginBottom: 12, fontSize: '14px', lineHeight: '1.6' }}
           />
 
@@ -213,7 +214,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                 <div
                   key={idx}
                   className="option-item"
-                  dangerouslySetInnerHTML={{ __html: opt }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(opt) }}
                 />
               ))}
             </div>
