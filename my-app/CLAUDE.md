@@ -26,26 +26,24 @@ npm run setup      # max setup —— 重新生成 src/.umi 类型 (装包后自
 
 ### 路由与布局
 - 路由定义在 `config/routes.ts`（**不是** `src/`）。`component: './X'` 相对 `src/pages/` 解析。
-- 全屏页面（无侧边栏/头部）设 `layout: false`——打标页和在线校对页都用此模式做沉浸式工作区。
+- 全屏页面（无侧边栏/头部）设 `layout: false`——打标页用此模式做沉浸式工作区。
 - 顶层布局/主题在 `.umirc.ts` 的 `layout` 字段 + `config/defaultSettings.ts`；运行时布局逻辑在 `src/app.tsx`（`getInitialState` + `layout` 导出）。
 - 注意路由命名与实现的错位：`/question-bank/*` 下的多个菜单项实际映射到 `src/pages/ContentCenter/` 组件（如标签体系 → `ContentCenter/TagManage`）。改路由时以 `routes.ts` 的 `component` 路径为准。
 
 ### 数据流：两套 Mock 机制（关键）
 本项目无后端，数据有**两种**来源，改某个页面前先确认它用哪一种：
-- **服务端 mock**（`mock/*.ts`，经 `src/services/` 走 `/api` 请求）：用于 `TagManage`、`QuestionBankTask`、`PaperUpload`。新增/改 service 接口时**必须同步**改对应 mock 文件，否则页面拿不到数据。
+- **服务端 mock**（`mock/*.ts`，经 `src/services/` 走 `/api` 请求）：用于 `TagManage`、`QuestionBankTask`。新增/改 service 接口时**必须同步**改对应 mock 文件，否则页面拿不到数据。
 - **组件内本地 mock**（页面里 `import { ... } from './mockData'`）：用于 **`QuestionTagging`**（最复杂的页面）、`ContentCenter/ProductList`、`SubjectManage`。这些页面**不经过 `mock/` 目录**，数据直接在组件旁的 `mockData.ts` 里改。
-- 服务端 mock 文件按 service 对应：`mock/paperUpload.ts`、`mock/tagSystem.ts`、`mock/questionBankTask.ts`，用 Umi 路由键写法（如 `'GET /api/tags/knowledge-tree'`）。
+- 服务端 mock 文件按 service 对应：`mock/tagSystem.ts`、`mock/questionBankTask.ts`，用 Umi 路由键写法（如 `'GET /api/tags/knowledge-tree'`）。
 - API 统一走 `@umijs/max` 的 `request`，响应封装为 `{ success: boolean, message: string, data: T }`，mock 返回值需遵循同一封装。
 - `.umirc.ts` 中 `proxy['/api'] → http://localhost:8001` 为历史遗留配置，当前无对应后端，可忽略。
 
 ### Service 层
 `src/services/` 是唯一的 API 边界，按业务域拆分：
-- `paperUpload.ts` —— 上传/解析轮询/入库；定义 `PaperMetadata`、`QuestionItem`（含 `parentId`/`children` 表达材料题父子结构）、`ParseResult`。
 - `tagSystem.ts` —— 知识点树、题型树、属性标签分类、教材版本与章节的完整 CRUD。
 - `questionBankTask.ts` —— 题库任务列表 CRUD。
 
-### 三大业务页面
-- `PaperUpload/` —— 上传页 + `Edit/` 全屏在线校对页（解析结果人工修正后入库）。
+### 业务页面
 - `QuestionTagging/` —— 三栏全屏打标工作区，是本仓库最复杂的页面，详见下节。
 - `ContentCenter/` —— TagManage（标签体系，含知识树/题型树/属性面板）、AnswerManage、ProductList、SubjectManage、QuestionBankTask。
 
@@ -58,9 +56,8 @@ npm run setup      # max setup —— 重新生成 src/.umi 类型 (装包后自
 
 ### HTML 内容处理（安全敏感）
 试题题干/答案/解析都是 HTML，且常含数学公式（MathML）和图片：
-- 渲染前**必须**经 `src/utils/sanitize.ts` 的 `sanitizeHtml()` 过滤——它白名单放行了 MathML 标签与表格/图片，禁用 data 属性。任何 `dangerouslySetInnerHTML` 都应先 sanitize。
-- `src/utils/parseStem.ts` 用正则从题干 HTML 中抽取 `【答案】【难度】【知识点】【详解】【解析】` 等结构化字段。
-- 富文本编辑统一用 `src/components/RichTextEditor/`（wangEditor 封装，受控 `value`/`onChange`）。
+- 渲染前**必须**经 `src/utils/sanitize.ts` 的 `sanitizeHtml()` 过滤——它白名单放行了 MathML 标签与表格/图片，禁用 data 属性。任何 `dangerouslySetInnerHTML` 都应先 sanitize（`QuestionTagging/components/QuestionDetail.tsx` 在用）。
+- ⚠️ `src/utils/parseStem.ts` 与 `src/components/RichTextEditor/` 原仅服务于已删除的 PaperUpload，现为**孤儿代码**（全仓库无引用），新功能需要时可复用，否则可清理。
 
 ## 约定
 

@@ -71,11 +71,6 @@ export default [
         component: './ContentCenter/QuestionBankTask',
       },
       {
-        path: '/question-bank/word-upload',
-        name: '试题上传',
-        component: './PaperUpload',
-      },
-      {
         path: '/question-bank/tagging',
         name: '试题打标',
         icon: 'tags',
@@ -89,13 +84,6 @@ export default [
   },
   {
     component: './404',
-  },
-  {
-    path: '/question-bank/word-upload/edit',
-    name: '在线校对',
-    component: './PaperUpload/Edit',
-    hideInMenu: true,
-    layout: false,
   },
   {
     path: '/question-bank/tagging-fullscreen',
