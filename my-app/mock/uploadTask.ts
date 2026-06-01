@@ -580,6 +580,121 @@ function seedInitialTasks(): void {
 
 seedInitialTasks();
 
-// ===== 路由（Task 6/7/8 在下方填充） =====
+// ===== Umi mock 路由：列表 / 详情 / 创建 / 阶段题目 =====
 
-export default {};
+export default {
+  'GET /api/upload-task/list': (req: Request, res: Response) => {
+    const statusParam = (req.query.status as string | undefined) ?? 'all';
+    const current = Number(req.query.current ?? 1);
+    const pageSize = Number(req.query.pageSize ?? 10);
+
+    // 1) 全集惰性推进 + 重算 status
+    const advanced = tasks.map((t) => {
+      const after = lazyAdvance(t);
+      return { ...after, status: deriveStatus(after) };
+    });
+    tasks = advanced; // 持久化推进结果
+
+    // 2) 计算全集分桶（基于过滤前）
+    const bucketCounts: Record<BucketKey, number> = {
+      all: advanced.length,
+      'pending-human': 0,
+      processing: 0,
+      published: 0,
+      rejected: 0,
+    };
+    for (const t of advanced) {
+      const b = bucketOf(t.status);
+      bucketCounts[b] = (bucketCounts[b] ?? 0) + 1;
+    }
+
+    // 3) 按 status 过滤（all 不过滤）
+    const filtered =
+      statusParam === 'all'
+        ? advanced
+        : advanced.filter((t) => bucketOf(t.status) === statusParam);
+
+    // 4) 分页
+    const start = (current - 1) * pageSize;
+    const pageData = filtered.slice(start, start + pageSize);
+
+    ok(res, {
+      data: pageData,
+      total: filtered.length,
+      bucketCounts,
+    });
+  },
+
+  'GET /api/upload-task/:id': (req: Request, res: Response) => {
+    const { id } = req.params;
+    const found = tasks.find((t) => t.id === id);
+    if (!found) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    const after = lazyAdvance(found);
+    const refreshed = { ...after, status: deriveStatus(after) };
+    tasks = tasks.map((t) => (t.id === id ? refreshed : t));
+    ok(res, refreshed);
+  },
+
+  'POST /api/upload-task/create': (req: Request, res: Response) => {
+    const body = req.body ?? {};
+    const required: (keyof typeof body)[] = [
+      'name',
+      'fileName',
+      'subject',
+      'grade',
+      'source',
+      'batch',
+    ];
+    for (const k of required) {
+      if (!body[k] || String(body[k]).trim() === '') {
+        fail(res, `字段 ${String(k)} 不能为空`);
+        return;
+      }
+    }
+    const id = genId('task');
+    const nowStr = now();
+    const progress = initialStageProgress();
+    progress.quality = { state: 'processing', startedAt: nowStr };
+    const newTask: UploadTask = {
+      id,
+      name: body.name,
+      fileName: body.fileName,
+      subject: body.subject,
+      grade: body.grade,
+      source: body.source,
+      sourceNote: body.sourceNote,
+      batch: body.batch,
+      totalQuestions: 8,
+      currentStage: 'quality',
+      status: 'pending-human',
+      stageProgress: progress,
+      createdAt: nowStr,
+      updatedAt: nowStr,
+    };
+    const withStatus = { ...newTask, status: deriveStatus(newTask) };
+
+    tasks = [withStatus, ...tasks];
+    genQuestionsForTasks([withStatus]);
+    ok(res, withStatus);
+  },
+
+  'GET /api/upload-task/:id/stage/:stage/questions': (
+    req: Request,
+    res: Response,
+  ) => {
+    const { id, stage } = req.params;
+    if (!isValidStage(stage)) {
+      fail(res, '无效阶段');
+      return;
+    }
+    const task = tasks.find((t) => t.id === id);
+    if (!task) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    ok(res, questions[id] ?? []);
+  },
+};
