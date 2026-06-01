@@ -580,22 +580,22 @@ function seedInitialTasks(): void {
 
 seedInitialTasks();
 
-// ===== Umi mock 路由：列表 / 详情 / 创建 / 阶段题目 =====
+// ===== Umi mock 路由：列表 / 详情 / 创建 / 阶段题目 + 8 阶段写操作 =====
 
 export default {
+  // ----- 列表 / 详情 / 创建（Task 7） -----
+
   'GET /api/upload-task/list': (req: Request, res: Response) => {
     const statusParam = (req.query.status as string | undefined) ?? 'all';
     const current = Number(req.query.current ?? 1);
     const pageSize = Number(req.query.pageSize ?? 10);
 
-    // 1) 全集惰性推进 + 重算 status
     const advanced = tasks.map((t) => {
       const after = lazyAdvance(t);
       return { ...after, status: deriveStatus(after) };
     });
-    tasks = advanced; // 持久化推进结果
+    tasks = advanced;
 
-    // 2) 计算全集分桶（基于过滤前）
     const bucketCounts: Record<BucketKey, number> = {
       all: advanced.length,
       'pending-human': 0,
@@ -608,21 +608,15 @@ export default {
       bucketCounts[b] = (bucketCounts[b] ?? 0) + 1;
     }
 
-    // 3) 按 status 过滤（all 不过滤）
     const filtered =
       statusParam === 'all'
         ? advanced
         : advanced.filter((t) => bucketOf(t.status) === statusParam);
 
-    // 4) 分页
     const start = (current - 1) * pageSize;
     const pageData = filtered.slice(start, start + pageSize);
 
-    ok(res, {
-      data: pageData,
-      total: filtered.length,
-      bucketCounts,
-    });
+    ok(res, { data: pageData, total: filtered.length, bucketCounts });
   },
 
   'GET /api/upload-task/:id': (req: Request, res: Response) => {
@@ -640,17 +634,10 @@ export default {
 
   'POST /api/upload-task/create': (req: Request, res: Response) => {
     const body = req.body ?? {};
-    const required: (keyof typeof body)[] = [
-      'name',
-      'fileName',
-      'subject',
-      'grade',
-      'source',
-      'batch',
-    ];
+    const required = ['name', 'fileName', 'subject', 'grade', 'source', 'batch'];
     for (const k of required) {
       if (!body[k] || String(body[k]).trim() === '') {
-        fail(res, `字段 ${String(k)} 不能为空`);
+        fail(res, `字段 ${k} 不能为空`);
         return;
       }
     }
@@ -696,5 +683,304 @@ export default {
       return;
     }
     ok(res, questions[id] ?? []);
+  },
+
+  // ----- 质量检测 -----
+
+  'POST /api/upload-task/quality/keep': (req: Request, res: Response) => {
+    const { taskId, questionIds } = req.body ?? {};
+    if (!taskId || !Array.isArray(questionIds) || questionIds.length === 0) {
+      fail(res, 'taskId 与 questionIds 必填且非空');
+      return;
+    }
+    const list = questions[taskId];
+    if (!list) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    const idSet = new Set<string>(questionIds);
+    questions[taskId] = list.map((q) =>
+      idSet.has(q.id) ? { ...q, qualityKept: true } : q,
+    );
+    maybeAdvance(taskId, 'quality');
+    ok(res, undefined);
+  },
+
+  'POST /api/upload-task/quality/reject': (req: Request, res: Response) => {
+    const { taskId, questionIds, reason } = req.body ?? {};
+    if (!taskId || !Array.isArray(questionIds) || questionIds.length === 0) {
+      fail(res, 'taskId 与 questionIds 必填且非空');
+      return;
+    }
+    if (!reason || String(reason).trim() === '') {
+      fail(res, '删除原因必填');
+      return;
+    }
+    const list = questions[taskId];
+    if (!list) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    const idSet = new Set<string>(questionIds);
+    questions[taskId] = list.map((q) =>
+      idSet.has(q.id) ? { ...q, qualityKept: false } : q,
+    );
+    maybeAdvance(taskId, 'quality');
+    ok(res, undefined);
+  },
+
+  // ----- 解析审核 -----
+
+  'POST /api/upload-task/parse-review/update': (req: Request, res: Response) => {
+    const { taskId, questionId, patch } = req.body ?? {};
+    if (!taskId || !questionId) {
+      fail(res, 'taskId 与 questionId 必填');
+      return;
+    }
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      fail(res, 'patch 必须为对象');
+      return;
+    }
+    const list = questions[taskId];
+    if (!list) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    let updated: TaskQuestion | undefined;
+    questions[taskId] = list.map((q) => {
+      if (q.id !== questionId) return q;
+      const merged = { ...q, ...patch };
+      updated = merged;
+      return merged;
+    });
+    if (!updated) {
+      fail(res, '题目不存在', 404);
+      return;
+    }
+    ok(res, updated);
+  },
+
+  'POST /api/upload-task/parse-review/regenerate': (
+    req: Request,
+    res: Response,
+  ) => {
+    const { taskId, questionId } = req.body ?? {};
+    if (!taskId || !questionId) {
+      fail(res, 'taskId 与 questionId 必填');
+      return;
+    }
+    const list = questions[taskId];
+    if (!list) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    let updated: TaskQuestion | undefined;
+    questions[taskId] = list.map((q) => {
+      if (q.id !== questionId) return q;
+      const merged: TaskQuestion = {
+        ...q,
+        stem: `${q.stem}<p>（重新生成 v2）</p>`,
+        parseConfidence: {
+          stem: 0.9,
+          options: 0.9,
+          answer: 0.9,
+          analysis: 0.9,
+        },
+      };
+      updated = merged;
+      return merged;
+    });
+    if (!updated) {
+      fail(res, '题目不存在', 404);
+      return;
+    }
+    ok(res, updated);
+  },
+
+  'POST /api/upload-task/parse-review/confirm': (
+    req: Request,
+    res: Response,
+  ) => {
+    const { taskId, questionIds } = req.body ?? {};
+    if (!taskId || !Array.isArray(questionIds) || questionIds.length === 0) {
+      fail(res, 'taskId 与 questionIds 必填且非空');
+      return;
+    }
+    const list = questions[taskId];
+    if (!list) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    const idSet = new Set<string>(questionIds);
+    questions[taskId] = list.map((q) =>
+      idSet.has(q.id) ? { ...q, parseReviewed: true } : q,
+    );
+    maybeAdvance(taskId, 'parse-review');
+    ok(res, undefined);
+  },
+
+  // ----- 打标审核 -----
+
+  'POST /api/upload-task/tag-review/update': (req: Request, res: Response) => {
+    const { taskId, questionId, tags } = req.body ?? {};
+    if (!taskId || !questionId) {
+      fail(res, 'taskId 与 questionId 必填');
+      return;
+    }
+    if (!tags || typeof tags !== 'object') {
+      fail(res, 'tags 必须为对象');
+      return;
+    }
+    const list = questions[taskId];
+    if (!list) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    let updated: TaskQuestion | undefined;
+    questions[taskId] = list.map((q) => {
+      if (q.id !== questionId) return q;
+      const merged: TaskQuestion = { ...q, tags };
+      updated = merged;
+      return merged;
+    });
+    if (!updated) {
+      fail(res, '题目不存在', 404);
+      return;
+    }
+    ok(res, updated);
+  },
+
+  'POST /api/upload-task/tag-review/regenerate': (
+    req: Request,
+    res: Response,
+  ) => {
+    const { taskId, questionId } = req.body ?? {};
+    if (!taskId || !questionId) {
+      fail(res, 'taskId 与 questionId 必填');
+      return;
+    }
+    const list = questions[taskId];
+    if (!list) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    let updated: TaskQuestion | undefined;
+    questions[taskId] = list.map((q) => {
+      if (q.id !== questionId) return q;
+      const merged: TaskQuestion = {
+        ...q,
+        tags: {
+          knowledgePoints: ['kp-1-1-1', 'kp-2-1'],
+          questionType: q.tags?.questionType,
+          difficulty: q.tags?.difficulty ?? 3,
+          cognitionLevel: '分析',
+        },
+      };
+      updated = merged;
+      return merged;
+    });
+    if (!updated) {
+      fail(res, '题目不存在', 404);
+      return;
+    }
+    ok(res, updated);
+  },
+
+  'POST /api/upload-task/tag-review/confirm': (req: Request, res: Response) => {
+    const { taskId, questionIds } = req.body ?? {};
+    if (!taskId || !Array.isArray(questionIds) || questionIds.length === 0) {
+      fail(res, 'taskId 与 questionIds 必填且非空');
+      return;
+    }
+    const list = questions[taskId];
+    if (!list) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    const idSet = new Set<string>(questionIds);
+    questions[taskId] = list.map((q) =>
+      idSet.has(q.id) ? { ...q, tagReviewed: true } : q,
+    );
+    maybeAdvance(taskId, 'tag-review');
+    ok(res, undefined);
+  },
+
+  // ----- 系统态阶段强制推进 -----
+
+  'POST /api/upload-task/advance': (req: Request, res: Response) => {
+    const { taskId, stage } = req.body ?? {};
+    if (!taskId || !isValidStage(stage)) {
+      fail(res, '入参不合法');
+      return;
+    }
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    if (task.currentStage !== stage) {
+      fail(res, '阶段不匹配');
+      return;
+    }
+    if (HUMAN_STAGES.has(stage as StageKey)) {
+      fail(res, '人工阶段不可自动推进');
+      return;
+    }
+    const advanced = advanceToNext(
+      task,
+      stage as StageKey,
+      genStageSummary(stage as StageKey, questions[taskId]),
+    );
+    const withStatus = { ...advanced, status: deriveStatus(advanced) };
+    tasks = tasks.map((t) => (t.id === taskId ? withStatus : t));
+    ok(res, withStatus);
+  },
+
+  // ----- 渠道分发 -----
+
+  'GET /api/upload-task/:id/distribute': (req: Request, res: Response) => {
+    const { id } = req.params;
+    ok(res, distConfigs[id] ?? null);
+  },
+
+  'POST /api/upload-task/distribute/save': (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as DistributeConfig;
+    if (!body.taskId) {
+      fail(res, 'taskId 必填');
+      return;
+    }
+    if (!body.scope || !body.scope.institutions) {
+      fail(res, 'scope.institutions 必填');
+      return;
+    }
+    if (!Array.isArray(body.channels) || body.channels.length === 0) {
+      fail(res, '至少选择一个分发渠道');
+      return;
+    }
+    const task = tasks.find((t) => t.id === body.taskId);
+    if (!task) {
+      fail(res, '任务不存在', 404);
+      return;
+    }
+    distConfigs[body.taskId] = { ...body, configuredAt: now() };
+
+    const nowStr = now();
+    const updatedTask: UploadTask = {
+      ...task,
+      currentStage: 'distribute',
+      stageProgress: {
+        ...task.stageProgress,
+        distribute: {
+          state: 'done',
+          startedAt: task.stageProgress.distribute.startedAt ?? nowStr,
+          finishedAt: nowStr,
+          summary: `已分发至 ${body.channels.length} 渠道`,
+        },
+      },
+      updatedAt: nowStr,
+    };
+    const withStatus = { ...updatedTask, status: deriveStatus(updatedTask) };
+    tasks = tasks.map((t) => (t.id === body.taskId ? withStatus : t));
+    ok(res, withStatus);
   },
 };
