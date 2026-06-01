@@ -10,7 +10,18 @@
       "Bash(git reset:*)",
       "Bash(git restore:*)",
       "Bash(npm run build:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "mcp__exa__web_search_exa",
+      "mcp__exa__web_fetch_exa",
+      "Bash(npm i *)",
+      "Bash(codegraph install *)",
+      "Bash(codegraph init *)",
+      "Bash(codegraph impact *)",
+      "Bash(codegraph callers *)",
+      "mcp__codegraph__codegraph_explore",
+      "Bash(codegraph files *)",
+      "Bash(codegraph context *)",
+      "Bash(/Users/jinwenyuan/.claude/skills/brainstorming/scripts/start-server.sh *)"
     ]
   }
 }

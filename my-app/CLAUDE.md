@@ -4,7 +4,7 @@
 
 ## 项目概览
 
-晋文源试卷管理系统 —— 一个面向 K12 教育内容的**纯前端原型项目**。核心业务是 Word 试卷上传解析、试题打标（标注知识点/题型/难度等）与题库标签体系管理。
+晋文源题库管理系统 —— 一个面向 K12 教育内容的**纯前端原型项目**。核心业务是试题打标（标注知识点/题型/难度等）与题库标签体系管理。
 
 **本项目不需要后端**：这是一个用于演示与交互验证的前端原型，所有数据由 `mock/` 目录提供，无需也不应依赖真实后端服务。新增功能时请继续走"前端组件 + mock 数据"的方式，不要假设有可用的后端 API。
 
@@ -21,6 +21,40 @@ npm run setup      # max setup —— 重新生成 src/.umi 类型 (装包后自
 
 - 无测试框架配置（package.json 无 test 脚本）。
 - Lint 通过 husky `pre-commit` → `lint-staged` 自动执行，使用 `max lint`（ESLint + Stylelint）+ Prettier。无独立 `npm run lint` 脚本；如需手动校验单文件用 `npx max lint <file>`。
+
+## CodeGraph 知识图谱（必须使用）
+
+本项目已配置 CodeGraph 知识图谱。**回答代码架构相关问题、查找符号关系、分析改动影响时，必须优先使用 CodeGraph，不要自行 grep/读文件。**
+
+### MCP 工具（直接调用）
+
+以下工具直接出现在工具列表中，优先使用：
+
+- `codegraph_search` —— 按名称搜索符号（函数、类、组件等）
+- `codegraph_context` —— 为任务构建代码上下文（入口 + 关联符号 + 源码）
+- `codegraph_trace` —— 追踪两个符号之间的调用路径（"X 怎么到达 Y"）
+- `codegraph_explore` —— 批量查看多个符号的源码和关系，按文件分组
+- `codegraph_node` —— 查看单个符号的详情（含源码）
+
+### CLI 命令（通过 Bash 调用）
+
+MCP 未暴露的工具，通过 `codegraph <command>` CLI 调用（效果与 MCP 相同，读同一个数据库）：
+
+- `codegraph impact <symbol>` —— 分析改动爆炸半径（影响哪些文件和符号）
+- `codegraph callers <symbol>` —— 查谁调用了这个符号
+- `codegraph callees <symbol>` —— 查这个符号调用了谁
+- `codegraph files [path]` —— 查项目文件结构（比 ls 更快，只看已索引文件）
+- `codegraph status [path]` —— 查索引健康状态和统计
+- `codegraph sync [path]` —— 手动增量同步（通常不需要，自动同步已开启）
+- `codegraph query <search>` —— 搜索符号（CLI 版 search）
+
+CLI 命令示例：`codegraph impact sanitizeHtml --depth 2 --json`、`codegraph callers TagManage --json`。
+
+### 使用规则
+
+1. CodeGraph 返回的结果应视为已读，不需要再用 grep/Read 验证
+2. MCP 工具优先，CLI 命令补充（impact/callers/callees 只有 CLI 版）
+3. 只有当 CodeGraph 不可用或返回不足时，才回退到手动搜索
 
 ## 架构要点
 

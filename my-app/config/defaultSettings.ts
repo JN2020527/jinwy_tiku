@@ -30,6 +30,7 @@ const Settings: ProLayoutProps & {
   // This is the classic admin style.
   primaryColor: '#1890ff', // Ant Design Default Blue
   layout: 'side',
+  siderWidth: 180, // 收窄左侧菜单宽度（ProLayout 默认 208）
   contentWidth: 'Fluid',
   fixedHeader: false,
   fixSiderbar: true,
