@@ -13,3 +13,5 @@
 .swc
 /.worktrees
 .DS_Store
+/.superpowers
+/.codegraph
