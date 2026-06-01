@@ -47,7 +47,14 @@ OCR 路径独有的内容审核），并按下列简化后的 8 个阶段实现�
   component: './UploadTask/List',
 },
 
-// 2) 二级路由全屏页（参考 /question-bank/tagging-fullscreen 的 layout: false 写法）：
+// 2) 旧 URL 兼容：保留路径但 redirect 到新地址，防止书签/外部链接 404：
+{
+  path: '/question-bank/task',
+  redirect: '/question-bank/upload',
+  hideInMenu: true,
+},
+
+// 3) 二级路由全屏页（参考 /question-bank/tagging-fullscreen 的 layout: false 写法）：
 {
   path: '/question-bank/upload/:taskId/:stage',
   component: './UploadTask/Stage',
@@ -57,7 +64,8 @@ OCR 路径独有的内容审核），并按下列简化后的 8 个阶段实现�
 ```
 
 `:stage` 取值枚举：`quality | dedupe | parse | parse-review | tag | tag-review |
-publish | distribute`。
+publish | distribute`。React Router v6 / Umi Max 4 对带连字符的参数值无任何特殊处理，
+但 TS 类型断言不能防御手改 URL；运行时校验见 §7。
 
 **文件删除清单**（老逻辑作废）：
 
@@ -117,7 +125,8 @@ export type StageKey =
 export type TaskStatus =
   | 'pending-human'     // 待人工 → 卡在质量 / 解析审核 / 打标审核
   | 'processing'        // 系统处理中 → 卡在重复检测 / AI 解析 / AI 打标
-  | 'published'         // 已发布（含已分发）
+  | 'published'         // 已发布但未配置分发
+  | 'distributed'       // 已发布且已配置分发渠道（distribute 阶段完成）
   | 'rejected';         // 已拒绝 / 退回
 
 export type Subject = '语文' | '数学' | '英语' | '物理' | '化学' | '生物' | '历史' | '地理' | '政治';
@@ -170,8 +179,8 @@ export interface TaskQuestion {
   // 重复检测产物
   duplicateOf?: string;
 
-  // 解析审核产物
-  parseConfidence?: number;                        // 0–1
+  // 解析审核产物（字段级置信度，方便 §9 给具体字段加红框）
+  parseConfidence?: Partial<Record<'stem' | 'options' | 'answer' | 'analysis', number>>;
   parseReviewed?: boolean;
 
   // 打标产物
@@ -208,6 +217,76 @@ export interface DistributeConfig {
   逻辑"的同款思路。
 - `stageProgress` 用 `Record<StageKey, ...>` 方便任意阶段直接索引。
 - 所有写操作均返回新对象（service 与 mock 都遵守），符合 coding-style 的"NEVER mutate"。
+
+#### 完整派生规则（`constants.ts` 导出）
+
+`StageProgress.state` 保持 4 态（pending / processing / done / rejected），不引入
+"awaiting-human" 是为了让"系统态"与"人工态"通过 `humanStages` 集合判断而非塞进 state，
+state 仍然描述"系统侧该阶段是否进行中"：
+
+```typescript
+// constants.ts
+export const STAGE_KEYS = [
+  'quality', 'dedupe', 'parse', 'parse-review',
+  'tag', 'tag-review', 'publish', 'distribute',
+] as const;
+
+// 这 3 个阶段在 state==='processing' 时需要人工操作，其余阶段 processing 是系统在跑算法
+export const HUMAN_STAGES: ReadonlySet<StageKey> = new Set([
+  'quality', 'parse-review', 'tag-review',
+]);
+
+export function deriveStatus(task: UploadTask): TaskStatus {
+  const cur = task.currentStage;
+  const state = task.stageProgress[cur].state;
+
+  if (state === 'rejected') return 'rejected';
+  if (cur === 'distribute' && state === 'done') return 'distributed';
+  if (cur === 'publish' && state === 'done') return 'published';
+  // publish 完成后 currentStage 立即推进到 distribute，所以走不到 publish.done 的分支；
+  // 上一行只是兜底，正常情况下 published 由 currentStage==='distribute' && state==='pending' 派生：
+  if (cur === 'distribute' && state === 'pending') return 'published';
+
+  if (state === 'processing' && HUMAN_STAGES.has(cur)) return 'pending-human';
+  if (state === 'processing') return 'processing';
+  if (state === 'pending') {
+    // 该阶段尚未开始，但 currentStage 已指向它，说明上一阶段刚结束；视该阶段类型而定：
+    return HUMAN_STAGES.has(cur) ? 'pending-human' : 'processing';
+  }
+  // state==='done' 但 currentStage 还在该阶段——理论上推进逻辑不会出现这种情况，兜底为 processing
+  return 'processing';
+}
+```
+
+#### `currentStage` 推进时机约定
+
+`currentStage` 在 stage 完成（`state==='done'`）的**同一次写操作里**立即推进到下一个 stage，
+新 stage 的 `state` 初始化为 `'pending'`。完成态短暂停留只在响应中可见，下一次读取时
+`currentStage` 已经是下一段。这保证派生函数永远不需要处理"两阶段都完成"的歧义。
+唯一例外：`distribute` 是终态，完成后 `currentStage` 保持 `distribute`，`state==='done'`。
+
+#### 完整派生表（参考）
+
+| currentStage     | state       | TaskStatus       | 备注                       |
+|------------------|-------------|------------------|----------------------------|
+| quality          | pending     | pending-human    | 任务刚创建                  |
+| quality          | processing  | pending-human    | 编辑确认队列处理中           |
+| dedupe           | pending     | processing       | 上阶段刚完，等待自动跑       |
+| dedupe           | processing  | processing       | 系统跑重复检测               |
+| parse            | pending     | processing       |                            |
+| parse            | processing  | processing       |                            |
+| parse-review     | pending     | pending-human    |                            |
+| parse-review     | processing  | pending-human    |                            |
+| tag              | pending     | processing       |                            |
+| tag              | processing  | processing       |                            |
+| tag-review       | pending     | pending-human    |                            |
+| tag-review       | processing  | pending-human    |                            |
+| publish          | pending     | processing       | 上阶段刚完，等待自动发布     |
+| publish          | processing  | processing       |                            |
+| distribute       | pending     | published        | **已发布未分发**            |
+| distribute       | processing  | published        | 编辑正在填表，未保存         |
+| distribute       | done        | distributed      | **已发布已分发**（终态）    |
+| 任意             | rejected    | rejected         | 该阶段拒绝，currentStage 不前进 |
 
 ---
 
@@ -268,27 +347,120 @@ CLAUDE.md 的项目约定。
   - `questions: Record<taskId, TaskQuestion[]>`
   - `distConfigs: Record<taskId, DistributeConfig>`
 
-- **初始化 10 个示例任务**，分散在不同阶段：
+- **初始化 10 个示例任务**，分散在不同阶段（详细数据策略见 §5.3）：
   - 质量检测 2 个（含中间分段题目待编辑确认）
   - 解析审核 1 个
   - AI 打标处理中 2 个
   - 已发布未分发 3 个
   - 已分发完成 2 个
 
-- **系统态阶段用 setTimeout 模拟跑算法**：调用 `advanceSystemStage` 后，立即标记
-  `state: 'processing'` 并返回 success；2–4 秒后定时器回写 `state: 'done'` 并自动
-  推进 `currentStage` 到下一个。
-
 - **状态机推进只在两处发生**：
   1. `maybeAdvance(taskId, stage)`：人工审完该阶段最后一题时检查并推进。
-  2. `autoAdvance(taskId, stage)`：系统态阶段定时器完成时直接推进。
+  2. `lazyAdvance(taskId)`：每次读取任务（GET 路由）时按时间戳惰性推进系统态阶段——
+     见 §5.1。
 
 - **全部用不可变更新**：`tasks = tasks.map(t => t.id === id ? { ...t, ... } : t)`，无
   `.push` / 字段直接赋值。
 
-- **stageOrder**：`['quality','dedupe','parse','parse-review','tag','tag-review',
-  'publish','distribute']`。`autoAdvance` 取下一个 stage；到 `distribute` 后不再
-  前进（终态）。
+### §5.1 系统态推进：惰性 + 显式按钮，不用 setTimeout
+
+**问题背景**：Umi mock 文件保存即热重载，所有内存数据 + 正在跑的 `setTimeout` 全部丢失。
+依赖定时器的任务会卡死在 `processing` 永不前进。
+
+**方案**：双轨推进。
+
+1. **惰性推进**（每次 GET 触发自检）：
+   ```typescript
+   // 任务读取入口统一调用
+   function lazyAdvance(task: UploadTask): UploadTask {
+     const cur = task.currentStage;
+     // 仅系统态阶段惰性推进；人工态阶段必须用户点确认
+     if (HUMAN_STAGES.has(cur)) return task;
+     const sp = task.stageProgress[cur];
+     if (sp.state !== 'processing' || !sp.startedAt) return task;
+     // 系统态：超过模拟时长则视为完成
+     const elapsed = Date.now() - new Date(sp.startedAt).getTime();
+     const target = SIMULATED_DURATION_MS[cur] ?? 3000;
+     if (elapsed < target) return task;
+     return advanceToNext(task, cur, genStageSummary(cur, questions[task.id]));
+   }
+   ```
+   `listTasks` / `getTask` 都先 `map(lazyAdvance)` 再返回，状态自动追上墙钟时间，
+   不依赖任何后台定时器。
+
+2. **显式"立即完成"按钮**（演示加速）：`advanceSystemStage` POST 路由直接把 `state` 设
+   `'done'` 并推进 currentStage，跳过等待。
+
+3. **从 processing 进入**：上一阶段完成时 `advanceToNext` 把下一阶段的 `state` 初始化
+   为 `'pending'`，**同时若下一阶段是系统态，自动 stamp `startedAt = now`，state 改
+   `processing`**——这样惰性推进的时间窗立刻开始计时，不需要任何额外触发。
+
+4. `SIMULATED_DURATION_MS`：`{ dedupe: 2500, parse: 3500, tag: 3000, publish: 1500 }`，
+   纯演示节奏配置，可调。
+
+### §5.2 mock 错误返回约定
+
+文件顶部抽 helper：
+
+```typescript
+function ok<T>(res: Response, data: T) {
+  res.json({ success: true, message: '', data });
+}
+function fail(res: Response, message: string, status = 400) {
+  res.status(status).json({ success: false, message, data: null });
+}
+```
+
+所有写操作前先校验必填项，不合法用 `fail(res, '...')`。状态机非法跳转（如对
+`state==='done'` 的 stage 调 `advance`）同样用 `fail`。
+
+### §5.3 样本数据策略
+
+`genQuestionsForTasks(tasks)` 实现要点：
+
+- **每个任务造 8 道题**，索引 1–8。
+- **stem HTML 模板池**（写在文件顶部常量数组中）：
+  - 3 段含 `<img>` 标签（指向占位图 `https://placehold.co/...`）
+  - 2 段含数学公式（用 MathML，验证 sanitize 白名单：`<math><mrow><msup><mi>x</mi><mn>2</mn></msup></mrow></math>`）
+  - 3 段纯文本+段落，无媒体
+- **题型分布**：单选 / 多选 / 填空 / 解答 各 2 题。
+- **质量检测产物**（仅 `currentStage` 已过 `quality` 的任务持有）：
+  - 5 题 `qualityVerdict='auto-pass'`（80+ 分）
+  - 2 题 `qualityVerdict='mid-need-review'`（55–75 分，含 2 条 `qualityDeductions`）
+  - 1 题 `qualityVerdict='auto-reject'`（30 分以下）
+- **解析产物**（已过 `parse` 的任务）：每题 `parseConfidence` 至少有 1 个字段 < 0.8
+  用于演示红框；其余字段 0.9+。
+- **打标产物**（已过 `tag` 的任务）：`tags.knowledgePoints` 选 `mockData.ts`（QuestionTagging
+  的本地 mock）现有的真实知识点 id 数组（如 `math-kp1-1`），保证 TreeSelect 能匹配显示。
+- **重复检测**：在 `currentStage` 已过 `dedupe` 的任务里，标记 1 题 `duplicateOf =
+  '<另一任务的题ID>'`，用于 §10 SystemStatus 完成态摘要展示。
+
+### §5.4 状态机推进的边界
+
+- **`stageOrder`**：`['quality','dedupe','parse','parse-review','tag','tag-review',
+  'publish','distribute']`。`advanceToNext` 取下一个 stage；到 `distribute` 后
+  `state` 由 `pending` → `done` 视为终态，不再前进。
+- **全部题目都被拒绝**（边界场景）：`maybeAdvance` 检查 `keptCount` ——
+  ```typescript
+  function maybeAdvance(taskId, stage) {
+    const qs = questions[taskId];
+    const allReviewed = qs.every(q => isStageReviewed(q, stage));
+    if (!allReviewed) return;
+    const keptCount = qs.filter(q => isKeptForStage(q, stage)).length;
+    if (keptCount === 0) {
+      // 任务终止：state 标 rejected，currentStage 不前进
+      tasks = tasks.map(t => t.id === taskId
+        ? { ...t, stageProgress: { ...t.stageProgress,
+            [stage]: { ...t.stageProgress[stage], state: 'rejected',
+                       finishedAt: now(), summary: '所有题目均被拒绝' } } }
+        : t);
+      return;
+    }
+    advanceToNext(/* ... */);
+  }
+  ```
+  `rejected` 适用于：质量检测全部删除、解析审核全部触发重新生成且循环失败（原型不模拟
+  失败，故仅质量检测会触发）。
 
 ---
 
@@ -313,18 +485,30 @@ CLAUDE.md 的项目约定。
 
 ### 汇总卡（`SummaryCards.tsx`）
 
-5 个桶（按状态分）：
+5 个桶（按状态分）。`distributed` 与 `published` 合并到"已发布"桶，靠"已分发"二级标识区分：
 
-| key             | label       | color |
-|-----------------|-------------|-------|
-| `pending-human` | 待人工处理 ⚠ | amber |
-| `processing`    | 系统处理中   | blue  |
-| `published`     | 已发布      | green |
-| `rejected`      | 已拒绝/退回  | red   |
-| `all`           | 全部任务    | gray  |
+| key             | label       | color | 含义                             |
+|-----------------|-------------|-------|---------------------------------|
+| `pending-human` | 待人工处理 ⚠ | amber | status='pending-human'          |
+| `processing`    | 系统处理中   | blue  | status='processing'             |
+| `published`     | 已发布      | green | status='published' \| 'distributed' |
+| `rejected`      | 已拒绝/退回  | red   | status='rejected'               |
+| `all`           | 全部任务    | gray  | 不过滤                           |
 
-实现：调用 `getUploadTasks({ pageSize: 0 })` 拿总数后在前端 `reduce` 各桶数量；选中态
-用颜色边框高亮，点击切换 `filterStatus` 并 `actionRef.reload()`。
+**计数来源**：不再单独发 `pageSize: 0` 全量请求。mock 端在列表响应里附带
+`bucketCounts: Record<BucketKey, number>` 字段（基于全集过滤前计算），前端零计算
+直接显示。响应类型：
+
+```typescript
+interface ListResponse {
+  success: true;
+  data: UploadTask[];          // 当前页（已按 filterStatus 过滤）
+  total: number;
+  bucketCounts: Record<BucketKey, number>;   // 全集分桶数
+}
+```
+
+选中态用颜色边框高亮，点击切换 `filterStatus` prop → ProTable 自动重发请求。
 
 ### 列定义
 
@@ -335,7 +519,17 @@ CLAUDE.md 的项目约定。
 | 流水线进度 | stageProgress  | 8 段进度条 + 下方一行 summary 文案                            |
 | 状态       | status         | Pill                                                       |
 | 更新时间   | updatedAt      | valueType: dateTime                                        |
-| 操作       | option         | 动态：pending-human→"进入处理"；published→"配置分发"；rejected→"查看原因" |
+| 操作       | option         | 4 种 status 各自的操作矩阵见下表                              |
+
+**操作列文案矩阵**（完整覆盖 4 种 status）：
+
+| status          | 主操作                          | 次要操作              |
+|-----------------|--------------------------------|---------------------|
+| pending-human   | "进入处理" → /upload/:id/:currentStage | "详情" → 同上但只读 |
+| processing      | "查看进度" → /upload/:id/:currentStage | "立即完成（演示）" 直调 advanceSystemStage 后 reload |
+| published       | "配置分发" → /upload/:id/distribute    | "详情"            |
+| distributed     | "查看分发" → /upload/:id/distribute（只读）| "详情"        |
+| rejected        | "查看原因" → /upload/:id/:rejectedStage（只读）| —          |
 
 ### 进度条（`ProgressBar.tsx`）
 
@@ -362,22 +556,49 @@ CLAUDE.md 的项目约定。
 
 ```typescript
 const StagePage: React.FC = () => {
-  const { taskId, stage } = useParams<{ taskId: string; stage: StageKey }>();
+  const { taskId, stage: rawStage } = useParams<{ taskId: string; stage: string }>();
   const { data: task, loading, refresh } = useRequest(() => getUploadTask(taskId!));
 
+  // 运行时类型 guard，防御手改 URL
+  if (!isValidStage(rawStage)) return <Empty description="无此阶段" />;
+  const stage: StageKey = rawStage;
+
   if (loading || !task) return <Spin />;
-  if (!isValidStage(stage)) return <Empty description="无此阶段" />;
+
+  // 越级访问（手改 URL 跳到还没到达的阶段）→ 只读模式
+  const stageIdx = STAGE_KEYS.indexOf(stage);
+  const curIdx   = STAGE_KEYS.indexOf(task.currentStage);
+  const readOnly = stageIdx > curIdx || stageIdx < curIdx;
+  // stageIdx > curIdx: 越级访问未来阶段
+  // stageIdx < curIdx: 回看历史阶段，已经审完不允许再操作
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <StageHeader task={task} currentStage={stage} onRefresh={refresh} />
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        {renderStage(stage, task, refresh)}
+        {renderStage(stage, task, refresh, readOnly)}
       </div>
     </div>
   );
 };
+
+// constants.ts 中：
+export function isValidStage(s: string | undefined): s is StageKey {
+  return !!s && (STAGE_KEYS as readonly string[]).includes(s);
+}
 ```
+
+**`renderStage` 把 `readOnly` 透传给所有阶段薄壳**，每个 stage 组件再透传给工作区
+模板。三个工作区模板的 Props 都加可选 `readOnly?: boolean`：
+
+```typescript
+interface BatchReviewProps   { /* ... */ readOnly?: boolean }
+interface QuestionAuditProps { /* ... */ readOnly?: boolean }
+interface DistributeFormProps { /* ... */ readOnly?: boolean }
+```
+
+`readOnly=true` 时所有"保留/删除/保存/重新生成/确认通过/保存配置"按钮置灰禁用，
+表单字段 `disabled`。
 
 ### `StageHeader.tsx` 顶栏
 
@@ -490,15 +711,42 @@ interface QuestionAuditProps {
 
 **关键点**：
 
-- 复用 `QuestionTagging` 的键盘流：`↑↓` 切题、`Ctrl/Cmd+Enter` 保存当前题并跳下一题。
-- mode 切换决定右栏字段集：`parse` 渲染解析字段编辑；`tag` 用现有 `TagManage` 同款
-  TreeSelect 拉知识点树。
-- 低置信度高亮：`parseConfidence < 0.8` 字段红框；`tagConfidence[k] < 0.7` 标签变橙色。
+- **键盘流抽取为公共 hook**：现有键盘事件写死在 `QuestionTagging/index.tsx:216-234` 的
+  `useEffect` 里，无法直接复用。**新增 `src/hooks/useQuestionNavKeyboard.ts`** 抽出
+  `↑↓` 切题与 `Ctrl/Cmd+Enter` 保存并跳题逻辑，同步改造 QuestionTagging 也用这个 hook。
+  签名：
+  ```typescript
+  function useQuestionNavKeyboard(opts: {
+    enabled: boolean;
+    onPrev: () => void;
+    onNext: () => void;
+    onSaveNext?: () => void;        // Ctrl+Enter
+  }): void;
+  ```
+  QuestionAudit 内调用 `useQuestionNavKeyboard({ enabled: !readOnly, ... })`。
+
+- **mode 切换决定右栏字段集**：
+  - `mode='parse'`：渲染解析字段编辑（题型/题干/选项/答案/解析），字段级 confidence
+    驱动红框。
+  - `mode='tag'`：渲染标签编辑。**知识点 TreeSelect 数据来自 `getKnowledgeTree()`
+    服务端 mock**（已在 `src/services/tagSystem.ts:52` 实现），不复用 QuestionTagging
+    的组件内本地 `mockData.ts`。这避免新模块与既有页面隐式耦合。在 mock 端 §5.3
+    生成 `tags.knowledgePoints` 时仍要选用 `getKnowledgeTree()` 返回的真实 id，
+    保证 TreeSelect 能匹配显示。
+
+- 低置信度高亮：`parseConfidence[field] < 0.8` 字段红框；`tagConfidence[k] < 0.7`
+  标签变橙色。
+
 - HTML 渲染必经 `sanitizeHtml()`，对齐 `QuestionTagging/components/QuestionDetail.tsx`。
+
 - "重新生成"按钮调用 `onRegenerate`，service 端 mock 延时 1.5s 回写新内容；不是整任务
   重跑，是单题重跑。
+
 - "确认通过"支持单题（当前题）/ 批量（左栏勾选多题）两种模式。
+
 - 审完最后一题自动调 `onConfirm` → service 端 `maybeAdvance` → 顶栏步骤条前进。
+
+- `readOnly=true` 时：键盘 hook 禁用、右栏按钮 disabled、字段 disabled，仅供查看历史。
 
 ---
 
@@ -553,9 +801,9 @@ interface DistributeFormProps {
 处理中态：
 ┌─ 居中 600px ────────────────────────────────────────┐
 │  AI 解析  · 系统处理中…                              │
-│  [Progress 进度环 60%]  已处理 30 / 50 题             │
-│  预计还需 1 分 20 秒                                 │
-│  （演示用）[ ⏵ 模拟立即完成 ]                          │
+│  [Spin] 不确定进度环（不模拟百分比）                    │
+│  共 50 题待处理                                      │
+│  [ ⏵ 模拟立即完成 ]   ← 原型常驻按钮                  │
 └───────────────────────────────────────────────────┘
 
 完成态：
@@ -563,6 +811,10 @@ interface DistributeFormProps {
 │  解析准确率 96% · 低置信度字段 8 处                    │
 │  完成时间 2024-12-25 10:30                          │
 │  [ → 进入下一阶段：解析审核 ]                          │
+
+dedupe 完成态额外加一段：                              │
+│  发现 1 道重复题：                                   │
+│  Q3 → 已关联到任务 #042 的 Q15  [查看原题]            │
 ```
 
 **Props**：
@@ -571,14 +823,22 @@ interface DistributeFormProps {
 interface SystemStatusProps {
   stage: 'dedupe' | 'parse' | 'tag' | 'publish';
   stageProgress: StageProgress;
+  questions: TaskQuestion[];               // 用于 dedupe 摘要展示重复题清单
   onAdvance: () => Promise<void>;          // 演示用：触发立即完成
   onNext:    () => void;                   // 跳到下一阶段路由
 }
 ```
 
-- 进度环用 `setInterval` 在前端模拟前进，mock 完成时间一到就跳完成态。
-- "模拟立即完成"按钮原型可见，真接后端时移除。
-- 完成态"进入下一阶段"按钮；distribute 是终态，按钮变"返回任务列表"。
+- **不模拟百分比进度**：进度环改用 Antd 的 `<Spin />`（不确定态），避免前端 setInterval
+  与 mock 时间戳两个时钟漂移导致"卡 95% 突跳"。处理中态只展示"系统处理中…"+ 待处理题数。
+- **"模拟立即完成"按钮原型常驻**：本项目无后端、上线后也无后端，按钮不会被移除。文案
+  保持 "（演示）"前缀以表明非真实业务路径。
+- **完成态摘要**展示 `stageProgress.summary` 文案，由 mock `genStageSummary()` 生成。
+- **dedupe 阶段额外展示重复题清单**：从 `questions` 里筛 `duplicateOf != null` 的题，
+  列在完成态下方；"查看原题"在原型阶段只弹一个 Modal 展示该题 stem（HTML 经 sanitize），
+  不做真实跳转。这一段对应源需求"重复题关联到现有试题"的最小 UI 落地。
+- 完成态"进入下一阶段"按钮跳路由；`publish` 完成后下一阶段是 `distribute`，按钮文案
+  改为"配置分发渠道"；`distribute` 是终态，无该按钮。
 
 ---
 
@@ -599,11 +859,21 @@ interface SystemStatusProps {
 **前端边界情况**
 
 - **任务 ID 无效**：`getUploadTask` 404 → 显示空态 + "返回任务列表"按钮。
-- **阶段 URL 不合法**：`renderStage` 的 switch 兜底返回"无此阶段"空态。
-- **越级访问**（任务在 `quality`，URL 直打 `tag-review`）：仍渲染该阶段页，但工作区显示
-  "该阶段尚未到达"，按 readOnly 模式避免误操作。
+- **阶段 URL 不合法**：`isValidStage` 类型 guard 不通过 → "无此阶段"空态。
+- **越级访问 / 回看历史**：均由 §7 的 `readOnly` 标识统一处理——三套工作区模板 props
+  都接受 `readOnly?: boolean`，置灰所有操作按钮、字段 `disabled`，仅供查看。
 - **HTML 内容**：所有 `dangerouslySetInnerHTML` 必经 `sanitizeHtml()`。
-- **系统态被刷新**：进度环靠 `stageProgress.state` 重新水合，mock 端 setTimeout 仍在跑。
+- **系统态阶段任何刷新**（浏览器 reload / mock 文件热重载）：
+  - mock 内存数据丢失 → 任务回到初始 10 个示例（原型可接受）。
+  - mock 数据未丢失但定时器丢失 → 由 §5.1 的"惰性推进"在下次 GET 时按时间戳追上，
+    用户无感。
+
+**rejected 状态生命周期**
+
+- rejected 任务在列表显示"查看原因"操作，跳到 `currentStage`（即触发 rejected 的那个
+  阶段）的子路由 + `readOnly=true`，展示扣分明细、删除原因等历史信息。
+- 原型阶段不支持"重新上传到同一任务"，用户需通过"新建上传任务"重新创建。
+- rejected 任务永远不再前进，`stageProgress` 不变。
 
 **原型阶段不做**
 
