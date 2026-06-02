@@ -159,6 +159,14 @@ const STEM_TEMPLATES: string[] = [
 <p>（4）设 <math><mrow><msub><mi>d</mi><mi>n</mi></msub><mo>=</mo><msub><mi>a</mi><mi>n</mi></msub><mo>·</mo><msub><mi>c</mi><mi>n</mi></msub></mrow></math>，若 <math><mrow><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>d</mi><mi>k</mi></msub><mo>&lt;</mo><mi>M</mi></mrow></math> 对任意正整数 n 恒成立，求实数 M 的最小值。</p>`,
 ];
 
+// ===== 重复检测来源任务池 =====
+
+const SOURCE_TASKS = [
+  { id: 'src-task-1', name: '2024年河南省中考数学试卷' },
+  { id: 'src-task-2', name: '2024年山西省中考数学试卷' },
+  { id: 'src-task-3', name: '2024年河北省中考数学试卷' },
+];
+
 // ===== 状态机：advanceToNext / lazyAdvance / maybeAdvance =====
 
 function advanceToNext(
@@ -483,9 +491,28 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
         // 否则（mid + currentStage='quality'）：保持 undefined，等用户在 BatchReview 操作
       }
 
-      // 重复检测产物：已过 dedupe 的任务，index=3 的题打 duplicateOf
+      // 重复检测产物：已过 dedupe 的任务，给 index 3 和 5 生成结构化重复对
       if (passedDedupe && i === 3) {
-        base.duplicateOf = 'other-task-q-id';
+        base.duplicateOf = {
+          sourceQuestionId: `${SOURCE_TASKS[0].id}-q-3`,
+          sourceTaskName: SOURCE_TASKS[0].name,
+          sourceQuestionIndex: 3,
+          similarity: 96.3,
+          reason: 'stem-similar',
+          sourceStem: STEM_TEMPLATES[2],
+          sourceAnswer: '<p>本题考查函数极值，最小值为 -4。</p>',
+        };
+      }
+      if (passedDedupe && i === 5) {
+        base.duplicateOf = {
+          sourceQuestionId: `${SOURCE_TASKS[1].id}-q-5`,
+          sourceTaskName: SOURCE_TASKS[1].name,
+          sourceQuestionIndex: 5,
+          similarity: 88.1,
+          reason: 'answer-identical',
+          sourceStem: STEM_TEMPLATES[4],
+          sourceAnswer: '<p>干路电流为 0.3A。</p>',
+        };
       }
 
       // 解析产物：已过 parse 的任务
