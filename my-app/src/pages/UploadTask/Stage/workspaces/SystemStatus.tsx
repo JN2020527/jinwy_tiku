@@ -1,15 +1,14 @@
-import { Alert, Button, Card, List, Modal, Space, Spin, Tag, message } from 'antd';
-import React, { useMemo, useState } from 'react';
+import { Alert, Button, Card, Spin, Tag, message } from 'antd';
+import React, { useState } from 'react';
 import {
   STAGE_LABELS,
   nextStageOf,
 } from '../../constants';
-import { sanitizeHtml } from '@/utils/sanitize';
 import type { StageKey, StageProgress, TaskQuestion } from '../../types';
 import styles from './SystemStatus.less';
 
 export interface SystemStatusProps {
-  stage: 'dedupe' | 'parse' | 'tag' | 'publish';
+  stage: 'parse' | 'tag' | 'publish';
   stageProgress: StageProgress;
   questions: TaskQuestion[];
   onAdvance: () => Promise<void>;
@@ -26,15 +25,9 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
   readOnly = false,
 }) => {
   const [advancing, setAdvancing] = useState(false);
-  const [previewQ, setPreviewQ] = useState<TaskQuestion | null>(null);
 
   const stageLabel = STAGE_LABELS[stage];
   const nextStage: StageKey | null = nextStageOf(stage);
-
-  const duplicates = useMemo(
-    () => questions.filter((q) => !!q.duplicateOf),
-    [questions],
-  );
 
   const handleAdvance = async () => {
     setAdvancing(true);
@@ -77,30 +70,6 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
           </div>
         )}
 
-        {stage === 'dedupe' && duplicates.length > 0 && (
-          <Card size="small" title={`发现 ${duplicates.length} 道重复题`}>
-            <List
-              dataSource={duplicates}
-              renderItem={(q) => (
-                <List.Item
-                  actions={[
-                    <Button
-                      key="view"
-                      type="link"
-                      size="small"
-                      onClick={() => setPreviewQ(q)}
-                    >
-                      查看原题
-                    </Button>,
-                  ]}
-                >
-                  Q{q.index} → 已关联到 {q.duplicateOf}
-                </List.Item>
-              )}
-            />
-          </Card>
-        )}
-
         {nextStage && (
           <Button type="primary" onClick={onNext} disabled={readOnly}>
             {nextButtonText}
@@ -130,21 +99,6 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
         {stageProgress.state === 'pending' && renderPending()}
         {stageProgress.state === 'rejected' && renderRejected()}
       </Card>
-
-      <Modal
-        title={previewQ ? `Q${previewQ.index} 原题` : ''}
-        open={!!previewQ}
-        onCancel={() => setPreviewQ(null)}
-        footer={null}
-        width={720}
-      >
-        {previewQ && (
-          <div
-            // eslint-disable-next-line react/no-danger
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewQ.stem) }}
-          />
-        )}
-      </Modal>
     </div>
   );
 };
