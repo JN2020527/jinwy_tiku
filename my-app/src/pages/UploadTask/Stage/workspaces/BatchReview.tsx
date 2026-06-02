@@ -1,4 +1,12 @@
 import {
+  CheckCircleFilled,
+  CloseCircleFilled,
+  ExclamationCircleFilled,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
+  MinusOutlined,
+} from '@ant-design/icons';
+import {
   Button,
   Input,
   Modal,
@@ -9,7 +17,7 @@ import {
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { sanitizeHtml } from '@/utils/sanitize';
 import type { TaskQuestion } from '../../types';
 import styles from './BatchReview.less';
@@ -22,12 +30,28 @@ export interface BatchReviewProps {
   readOnly?: boolean;
 }
 
-function scoreColor(score: number | undefined): string {
-  if (score === null || score === undefined) return '#64748b';
-  if (score >= 80) return '#16a34a';
-  if (score >= 55) return '#d97706';
-  return '#dc2626';
+function scoreLevel(
+  score: number | undefined,
+): 'pass' | 'review' | 'reject' | 'none' {
+  if (score === null || score === undefined) return 'none';
+  if (score >= 80) return 'pass';
+  if (score >= 55) return 'review';
+  return 'reject';
 }
+
+const SCORE_CLASS: Record<string, string> = {
+  pass: styles.scorePass,
+  review: styles.scoreReview,
+  reject: styles.scoreReject,
+  none: styles.scoreNone,
+};
+
+const SCORE_ICON: Record<string, React.FC> = {
+  pass: ArrowUpOutlined,
+  review: MinusOutlined,
+  reject: ArrowDownOutlined,
+  none: MinusOutlined,
+};
 
 const BatchReview: React.FC<BatchReviewProps> = ({
   questions,
@@ -44,6 +68,35 @@ const BatchReview: React.FC<BatchReviewProps> = ({
     reason: string;
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [undoAction, setUndoAction] = useState<{
+    type: 'keep' | 'reject';
+    ids: string[];
+  } | null>(null);
+
+  // 撤销栏 5 秒后自动消失
+  useEffect(() => {
+    if (!undoAction) return;
+    const timer = setTimeout(() => setUndoAction(null), 5000);
+    return () => clearTimeout(timer);
+  }, [undoAction]);
+
+  const handleUndo = async () => {
+    if (!undoAction) return;
+    setSubmitting(true);
+    try {
+      if (undoAction.type === 'keep') {
+        await onReject(undoAction.ids, '撤销保留');
+      } else {
+        await onKeep(undoAction.ids);
+      }
+      message.success('已撤销');
+    } catch (e) {
+      message.error((e as Error).message || '撤销失败');
+    } finally {
+      setUndoAction(null);
+      setSubmitting(false);
+    }
+  };
 
   const visible = useMemo(
     () =>
@@ -60,6 +113,7 @@ const BatchReview: React.FC<BatchReviewProps> = ({
       await onKeep(ids);
       setSelectedRowKeys((prev) => prev.filter((k) => !ids.includes(String(k))));
       message.success(`已保留 ${ids.length} 题`);
+      setUndoAction({ type: 'keep', ids });
     } catch (e) {
       message.error((e as Error).message || '保留失败');
     } finally {
@@ -81,6 +135,7 @@ const BatchReview: React.FC<BatchReviewProps> = ({
         prev.filter((k) => !rejectTarget.ids.includes(String(k))),
       );
       message.success(`已删除 ${rejectTarget.ids.length} 题`);
+      setUndoAction({ type: 'reject', ids: rejectTarget.ids });
       setRejectTarget(null);
     } catch (e) {
       message.error((e as Error).message || '删除失败');
@@ -110,12 +165,18 @@ const BatchReview: React.FC<BatchReviewProps> = ({
     {
       title: '评分',
       dataIndex: 'qualityScore',
-      width: 80,
-      render: (s: number | undefined) => (
-        <span className={styles.scoreCell} style={{ color: scoreColor(s) }}>
-          {s ?? '—'}
-        </span>
-      ),
+      width: 100,
+      sorter: (a, b) => (a.qualityScore ?? 0) - (b.qualityScore ?? 0),
+      render: (s: number | undefined) => {
+        const level = scoreLevel(s);
+        const Icon = SCORE_ICON[level];
+        return (
+          <span className={`${styles.scoreCell} ${SCORE_CLASS[level]}`}>
+            <Icon className={styles.scoreIcon} />
+            {s ?? '—'}
+          </span>
+        );
+      },
     },
     {
       title: '扣分明细',
@@ -161,21 +222,25 @@ const BatchReview: React.FC<BatchReviewProps> = ({
     <div className={styles.batchReview}>
       <div className={styles.summaryRow}>
         <div className={styles.summaryCard}>
-          <div className={`${styles.summaryDot} ${styles.pass}`}>✓</div>
+          <CheckCircleFilled className={`${styles.summaryDot} ${styles.pass}`} />
           <div className={styles.summaryInfo}>
             <span className={styles.summaryLabel}>自动通过</span>
             <span className={styles.summaryValue}>{summary.autoPass}</span>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <div className={`${styles.summaryDot} ${styles.review}`}>!</div>
+          <ExclamationCircleFilled
+            className={`${styles.summaryDot} ${styles.review}`}
+          />
           <div className={styles.summaryInfo}>
             <span className={styles.summaryLabel}>待编辑确认</span>
             <span className={styles.summaryValue}>{summary.needReview}</span>
           </div>
         </div>
         <div className={styles.summaryCard}>
-          <div className={`${styles.summaryDot} ${styles.reject}`}>✗</div>
+          <CloseCircleFilled
+            className={`${styles.summaryDot} ${styles.reject}`}
+          />
           <div className={styles.summaryInfo}>
             <span className={styles.summaryLabel}>自动拒绝</span>
             <span className={styles.summaryValue}>{summary.autoReject}</span>
@@ -234,8 +299,26 @@ const BatchReview: React.FC<BatchReviewProps> = ({
         </div>
       )}
 
+      {undoAction && (
+        <div className={styles.undoBar}>
+          <span>
+            {undoAction.type === 'keep'
+              ? `已保留 ${undoAction.ids.length} 题`
+              : `已删除 ${undoAction.ids.length} 题`}
+            ，5 秒内可撤销
+          </span>
+          <Button size="small" disabled={submitting} onClick={handleUndo}>
+            撤销
+          </Button>
+        </div>
+      )}
+
       <Modal
-        title="删除原因（必填）"
+        title={
+          <span>
+            删除原因 <span style={{ color: '#ff4d4f' }}>*</span>
+          </span>
+        }
         open={!!rejectTarget}
         onCancel={() => setRejectTarget(null)}
         onOk={handleRejectConfirm}
