@@ -362,25 +362,108 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
       // AI 质量评分 + 自动判定：currentStage 在或晚于 quality 时即生成
       if (hasQualityScore) {
         if (i <= 5) {
-          // 自动通过：80+ 分
-          base.qualityScore = 80 + i;
+          // 自动通过：85 分左右，个别维度小扣分
+          const minorDeduct = i % 2 === 0 ? 2 : 0;
+          base.qualityDimensions = [
+            { name: '题干完整度', score: 25, maxScore: 25 },
+            { name: '公式/图片正确性', score: 20, maxScore: 20 },
+            {
+              name: '答案规范性',
+              score: 20 - minorDeduct,
+              maxScore: 20,
+              note: minorDeduct ? '缺少单位' : undefined,
+            },
+            { name: '解析完整性', score: 20, maxScore: 20 },
+          ];
+          base.qualityScore = base.qualityDimensions.reduce(
+            (s, d) => s + d.score,
+            0,
+          );
           base.qualityVerdict = 'auto-pass';
         } else if (i <= 7) {
-          // 中段：55-75 分，2 条扣分（人工待决）
-          base.qualityScore = i === 6 ? 65 : 58;
+          // 中段：55-75 分，部分维度明显丢分
+          base.qualityDimensions =
+            i === 6
+              ? [
+                  {
+                    name: '题干完整度',
+                    score: 20,
+                    maxScore: 25,
+                    note: '缺关键条件',
+                  },
+                  {
+                    name: '公式/图片正确性',
+                    score: 15,
+                    maxScore: 20,
+                    note: '公式格式不规范',
+                  },
+                  { name: '答案规范性', score: 18, maxScore: 20 },
+                  {
+                    name: '解析完整性',
+                    score: 12,
+                    maxScore: 20,
+                    note: '缺少解题步骤',
+                  },
+                ]
+              : [
+                  {
+                    name: '题干完整度',
+                    score: 18,
+                    maxScore: 25,
+                    note: '条件不清晰',
+                  },
+                  { name: '公式/图片正确性', score: 16, maxScore: 20 },
+                  {
+                    name: '答案规范性',
+                    score: 12,
+                    maxScore: 20,
+                    note: '缺少单位',
+                  },
+                  {
+                    name: '解析完整性',
+                    score: 12,
+                    maxScore: 20,
+                    note: '缺少解题步骤',
+                  },
+                ];
+          base.qualityScore = base.qualityDimensions.reduce(
+            (s, d) => s + d.score,
+            0,
+          );
           base.qualityVerdict = 'mid-need-review';
-          base.qualityDeductions = [
-            { rule: '缺解析说明', points: 15 },
-            { rule: '选项格式不规范', points: 20 },
-          ];
         } else {
-          // 自动拒绝：30 分
-          base.qualityScore = 30;
-          base.qualityVerdict = 'auto-reject';
-          base.qualityDeductions = [
-            { rule: '题干缺失关键信息', points: 40 },
-            { rule: '答案不规范', points: 30 },
+          // 自动拒绝：30 分，多维度严重丢分
+          base.qualityDimensions = [
+            {
+              name: '题干完整度',
+              score: 8,
+              maxScore: 25,
+              note: '缺失关键信息',
+            },
+            {
+              name: '公式/图片正确性',
+              score: 10,
+              maxScore: 20,
+              note: '图片无法识别',
+            },
+            {
+              name: '答案规范性',
+              score: 2,
+              maxScore: 20,
+              note: '答案格式错误',
+            },
+            {
+              name: '解析完整性',
+              score: 10,
+              maxScore: 20,
+              note: '解析不完整',
+            },
           ];
+          base.qualityScore = base.qualityDimensions.reduce(
+            (s, d) => s + d.score,
+            0,
+          );
+          base.qualityVerdict = 'auto-reject';
         }
       }
 
