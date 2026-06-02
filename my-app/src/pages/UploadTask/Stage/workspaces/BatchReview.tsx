@@ -23,11 +23,6 @@ export interface BatchReviewProps {
   readOnly?: boolean;
 }
 
-function stemToPlainText(html: string): string {
-  const text = html.replace(/<[^>]+>/g, '').trim();
-  return text.length > 120 ? text.slice(0, 120) + '…' : text;
-}
-
 function scoreColor(score: number | undefined): string {
   if (score == null) return '#64748b';
   if (score >= 80) return '#16a34a';
@@ -44,7 +39,7 @@ const BatchReview: React.FC<BatchReviewProps> = ({
 }) => {
   const [showAll, setShowAll] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [previewQ, setPreviewQ] = useState<TaskQuestion | null>(null);
+
   const [rejectTarget, setRejectTarget] = useState<{
     ids: string[];
     reason: string;
@@ -105,15 +100,14 @@ const BatchReview: React.FC<BatchReviewProps> = ({
       render: (idx: number) => `Q${idx}`,
     },
     {
-      title: '题干预览',
+      title: '题干',
       dataIndex: 'stem',
       render: (_: string, q) => (
-        <Space size={8}>
-          <span>{stemToPlainText(q.stem)}</span>
-          <Button type="link" size="small" onClick={() => setPreviewQ(q)}>
-            查看全文
-          </Button>
-        </Space>
+        <div
+          className={styles.stemCell}
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.stem) }}
+        />
       ),
     },
     {
@@ -229,21 +223,6 @@ const BatchReview: React.FC<BatchReviewProps> = ({
           <Tag color="default">只读</Tag> 该阶段已审完，仅供查看
         </div>
       )}
-
-      <Modal
-        title={previewQ ? `Q${previewQ.index} 题干全文` : ''}
-        open={!!previewQ}
-        onCancel={() => setPreviewQ(null)}
-        footer={null}
-        width={720}
-      >
-        {previewQ && (
-          <div
-            // eslint-disable-next-line react/no-danger
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewQ.stem) }}
-          />
-        )}
-      </Modal>
 
       <Modal
         title="删除原因（必填）"
