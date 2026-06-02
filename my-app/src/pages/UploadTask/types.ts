@@ -71,9 +71,11 @@ export interface UploadTask {
 
 // ===== 任务下的题目 =====
 
-export interface QualityDeduction {
-  rule: string;
-  points: number;
+export interface QualityDimension {
+  name: string;
+  score: number;
+  maxScore: number;
+  note?: string;
 }
 
 export interface TaskQuestion {
@@ -86,7 +88,7 @@ export interface TaskQuestion {
   analysis?: string;
 
   qualityScore?: number;
-  qualityDeductions?: QualityDeduction[];
+  qualityDimensions?: QualityDimension[];
   qualityVerdict?: QualityVerdict;
   qualityKept?: boolean;
 
