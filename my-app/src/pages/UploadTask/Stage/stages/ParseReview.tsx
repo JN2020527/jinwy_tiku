@@ -37,6 +37,7 @@ const ParseReview: React.FC<{
         onRefresh();
       }}
       readOnly={readOnly}
+      variant="compact"
     />
   );
 };
