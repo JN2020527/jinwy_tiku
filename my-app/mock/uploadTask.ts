@@ -397,7 +397,7 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
                     maxScore: 20,
                     note: '公式格式不规范',
                   },
-                  { name: '答案规范性', score: 18, maxScore: 20 },
+                  { name: '答案规范性', score: 18, maxScore: 20, note: '个别表述不严谨' },
                   {
                     name: '解析完整性',
                     score: 12,
@@ -412,7 +412,7 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
                     maxScore: 25,
                     note: '条件不清晰',
                   },
-                  { name: '公式/图片正确性', score: 16, maxScore: 20 },
+                  { name: '公式/图片正确性', score: 16, maxScore: 20, note: '部分公式排版不规范' },
                   {
                     name: '答案规范性',
                     score: 12,
