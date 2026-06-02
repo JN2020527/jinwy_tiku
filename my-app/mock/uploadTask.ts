@@ -57,25 +57,106 @@ function initialStageProgress(): Record<StageKey, StageProgress> {
   );
 }
 
-// ===== stem HTML 模板池：3 段 <img> / 2 段 MathML / 3 段纯文本 =====
+// ===== stem HTML 模板池：8 道真实长题干，覆盖图片 / MathML / 表格 / 多段落 =====
 
 const STEM_TEMPLATES: string[] = [
-  // 0 - 图片
-  '<p>如图所示，已知三角形 ABC 中，AB = AC。求证角 B 等于角 C。</p><p><img src="https://placehold.co/400x200" alt="三角形 ABC" /></p>',
-  // 1 - 图片
-  '<p>下图是一辆小车沿直线运动的位移-时间图像，求小车在 0~5 秒内的平均速度。</p><p><img src="https://placehold.co/400x200" alt="s-t 图" /></p>',
-  // 2 - MathML
-  '<p>已知函数 <math><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mn>2</mn><mi>x</mi><mo>-</mo><mn>3</mn></mrow></math>，求 f(x) 的最小值。</p>',
-  // 3 - MathML
-  '<p>解不等式 <math><mrow><mfrac><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow><mrow><mi>x</mi><mo>-</mo><mn>2</mn></mrow></mfrac><mo>&gt;</mo><mn>0</mn></mrow></math>。</p>',
-  // 4 - 图片
-  '<p>如下图所示电路，已知 R1 = 10Ω，R2 = 20Ω，电源电压 6V，求干路电流。</p><p><img src="https://placehold.co/400x200" alt="电路图" /></p>',
-  // 5 - 纯文本
-  '<p>一个长方形的长是 12 厘米，宽是 8 厘米，求它的周长和面积。</p>',
-  // 6 - 纯文本
-  '<p>小明从家到学校用了 15 分钟，速度为每分钟 80 米，求小明家到学校的距离。</p>',
-  // 7 - 纯文本
-  '<p>下列说法中正确的是（    ）：质量是物体的固有属性，与位置无关。重力的方向总是指向地心。</p>',
+  // 0 - 图片 + 多段论述（数学几何证明）
+  `<p>如图所示，在锐角三角形 ABC 中，AB = AC = 10，BC = 12。点 D 是 BC 的中点，点 E 在 AC 上，且 DE ⊥ AC。连接 AE 和 BE。</p>
+<p><img src="https://placehold.co/420x180/eff6ff/2563eb?text=%E4%B8%89%E8%A7%92%E5%BD%A2+ABC+%E7%A4%BA%E6%84%8F%E5%9B%BE" alt="三角形 ABC 示意图" /></p>
+<p>已知：</p>
+<table border="1" cellpadding="4" cellspacing="0">
+  <tr><th>线段</th><th>长度</th></tr>
+  <tr><td>AB</td><td>10</td></tr>
+  <tr><td>AC</td><td>10</td></tr>
+  <tr><td>BC</td><td>12</td></tr>
+</table>
+<p>请回答以下问题：</p>
+<p>（1）求 AD 的长度；</p>
+<p>（2）求 DE 的长度；</p>
+<p>（3）求四边形 ABDE 的面积。</p>`,
+
+  // 1 - 图片 + 数据分析（物理运动学）
+  `<p>一辆汽车在平直公路上做直线运动，其速度 v 与时间 t 的关系如图所示。已知汽车在 0~2s 内做匀加速运动，在 2~6s 内做匀速运动，在 6~10s 内做匀减速运动直至停止。</p>
+<p><img src="https://placehold.co/420x180/fef3c7/d97706?text=v-t+%E5%9B%BE%E5%83%8F" alt="v-t 图像" /></p>
+<p>根据图像回答下列问题：</p>
+<p>（1）求汽车在 0~2s 内的加速度大小；</p>
+<p>（2）求汽车在 0~10s 内的总位移；</p>
+<p>（3）若汽车质量为 1500kg，求在匀减速阶段受到的阻力大小。</p>`,
+
+  // 2 - MathML + 多步推导（函数与导数）
+  `<p>已知函数 <math><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><mfrac><mn>1</mn><mn>3</mn></mfrac><msup><mi>x</mi><mn>3</mn></msup><mo>+</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><msup><mi>x</mi><mn>2</mn></msup><mo>-</mo><mn>2</mn><mi>x</mi><mo>+</mo><mn>1</mn></mrow></math>，定义域为 <math><mrow><mi>x</mi><mo>∈</mo><mo>[</mo><mo>-</mo><mn>3</mn><mo>,</mo><mn>2</mn><mo>]</mo></mrow></math>。</p>
+<p>请完成以下各题：</p>
+<p>（1）求 <math><mrow><msup><mi>f</mi><mo>'</mo></msup><mo>(</mo><mi>x</mi><mo>)</mo></mrow></math> 并化简；</p>
+<p>（2）求函数 <math><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow></math> 的单调递增区间和单调递减区间；</p>
+<p>（3）求函数 <math><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow></math> 在区间 <math><mrow><mo>[</mo><mo>-</mo><mn>3</mn><mo>,</mo><mn>2</mn><mo>]</mo></mrow></math> 上的最大值和最小值；</p>
+<p>（4）若方程 <math><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><mi>k</mi></mrow></math> 有三个不同的实数根，求实数 <math><mi>k</mi></math> 的取值范围。</p>`,
+
+  // 3 - MathML + 表格（概率统计）
+  `<p>某校对高一年级 600 名学生的数学期末考试成绩进行了统计，成绩 <math><mrow><mi>X</mi></mrow></math> 服从正态分布 <math><mrow><mi>N</mi><mo>(</mo><mn>75</mn><mo>,</mo><msup><mn>10</mn><mn>2</mn></msup><mo>)</mo></mrow></math>。部分统计结果如下表所示：</p>
+<table border="1" cellpadding="4" cellspacing="0">
+  <tr><th>分数段</th><th>人数</th><th>频率</th></tr>
+  <tr><td>[40, 55)</td><td>24</td><td>0.04</td></tr>
+  <tr><td>[55, 65)</td><td>84</td><td>0.14</td></tr>
+  <tr><td>[65, 75)</td><td>192</td><td>0.32</td></tr>
+  <tr><td>[75, 85)</td><td>192</td><td>0.32</td></tr>
+  <tr><td>[85, 95)</td><td>84</td><td>0.14</td></tr>
+  <tr><td>[95, 100]</td><td>24</td><td>0.04</td></tr>
+</table>
+<p>已知正态分布的参考数据：</p>
+<p><math><mrow><mi>P</mi><mo>(</mo><mi>μ</mi><mo>-</mo><mi>σ</mi><mo>&lt;</mo><mi>X</mi><mo>≤</mo><mi>μ</mi><mo>+</mo><mi>σ</mi><mo>)</mo><mo>≈</mo><mn>0.6827</mn></mrow></math>，<math><mrow><mi>P</mi><mo>(</mo><mi>μ</mi><mo>-</mo><mn>2</mn><mi>σ</mi><mo>&lt;</mo><mi>X</mi><mo>≤</mo><mi>μ</mi><mo>+</mo><mn>2</mn><mi>σ</mi><mo>)</mo><mo>≈</mo><mn>0.9545</mn></mrow></math></p>
+<p>（1）从 600 名学生中随机抽取 1 人，求该生成绩不低于 85 分的概率；</p>
+<p>（2）用分层抽样的方法从成绩在 [55, 65) 和 [85, 95) 的学生中抽取 8 人，再从这 8 人中随机选 3 人参加座谈会，求恰好有 2 人来自 [85, 95) 分数段的概率；</p>
+<p>（3）若从全校高一 1200 名学生中随机抽取 4 人，记成绩不低于 85 分的人数为 <math><mi>Y</mi></math>，求 <math><mrow><mi>E</mi><mo>(</mo><mi>Y</mi><mo>)</mo></mrow></math>。</p>`,
+
+  // 4 - 图片 + 复杂实验场景（化学实验）
+  `<p>某化学兴趣小组利用如图所示装置进行以下实验：将一定质量的锌片放入盛有稀硫酸的烧杯中，用排水集气法收集产生的氢气。</p>
+<p><img src="https://placehold.co/420x200/f0fdf4/16a34a?text=%E5%AE%9E%E9%AA%8C%E8%A3%85%E7%BD%AE%E7%A4%BA%E6%84%8F%E5%9B%BE" alt="实验装置示意图" /></p>
+<p>实验记录如下：</p>
+<table border="1" cellpadding="4" cellspacing="0">
+  <tr><th>时间 / min</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr>
+  <tr><th>H₂ 体积 / mL</th><td>0</td><td>22</td><td>44</td><td>62</td><td>76</td><td>84</td><td>84</td></tr>
+</table>
+<p>已知：锌片质量为 6.5g，稀硫酸足量。标准状况下氢气密度为 0.0899 g/L。</p>
+<p>请回答：</p>
+<p>（1）写出锌与稀硫酸反应的化学方程式；</p>
+<p>（2）计算理论上最多可产生氢气的体积（标准状况）；</p>
+<p>（3）分析第 5~6 分钟氢气体积不再变化的原因；</p>
+<p>（4）该实验的氢气产率是多少？（保留一位小数）</p>`,
+
+  // 5 - 长文本阅读理解 + 多段（语文/综合）
+  `<p><strong>阅读以下材料，回答问题。</strong></p>
+<p>小明家装修新房，客厅长 6 米、宽 4.5 米、高 3 米。计划在客厅铺设木地板，四周墙面（除去门窗）刷乳胶漆。已知门窗总面积为 6 平方米。</p>
+<p>材料报价如下：</p>
+<table border="1" cellpadding="4" cellspacing="0">
+  <tr><th>项目</th><th>单价</th><th>备注</th></tr>
+  <tr><td>木地板</td><td>180 元/㎡</td><td>含安装费，损耗按 5% 计</td></tr>
+  <tr><td>乳胶漆</td><td>45 元/㎡</td><td>含人工费，涂刷两遍</td></tr>
+  <tr><td>踢脚线</td><td>25 元/m</td><td>沿墙周长铺设，门窗处不铺</td></tr>
+</table>
+<p>请计算：</p>
+<p>（1）需要购买多少平方米的木地板？（结果保留一位小数）</p>
+<p>（2）需要刷乳胶漆的墙面面积是多少？</p>
+<p>（3）踢脚线需要多少米？</p>
+<p>（4）以上三项的总费用是多少元？（结果保留整数）</p>`,
+
+  // 6 - 地理图表 + 多问
+  `<p>读"中国某地区等高线地形图"（比例尺 1:50000，等高距 50m），回答下列问题。</p>
+<p><img src="https://placehold.co/420x220/fdf2f8/db2777?text=%E7%AD%89%E9%AB%98%E7%BA%BF%E5%9C%B0%E5%BD%A2%E5%9B%BE" alt="等高线地形图" /></p>
+<p>已知图中 A 点海拔为 350m，B 点海拔为 150m，AB 两点图上距离为 4cm。图中小河自北向南流。</p>
+<p>（1）计算 AB 两点的实际水平距离；</p>
+<p>（2）计算 AB 两地的相对高度及平均坡度；</p>
+<p>（3）判断图中 C 处（等高线向低处凸出）的地形名称，并说明其对交通线路建设的影响；</p>
+<p>（4）若要在该区域修建一座水库，大坝应建在哪个位置最合适？请说明理由；</p>
+<p>（5）从地形角度分析，甲、乙两个居民点哪个发展前景更好？为什么？</p>`,
+
+  // 7 - 综合应用题（英语完形填空风格，但数学内容）
+  `<p>已知数列 <math><mrow><mo>{</mo><msub><mi>a</mi><mi>n</mi></msub><mo>}</mo></mrow></math> 的前 n 项和为 <math><mrow><msub><mi>S</mi><mi>n</mi></msub></mrow></math>，且满足 <math><mrow><msub><mi>S</mi><mi>n</mi></msub><mo>=</mo><mn>2</mn><msub><mi>a</mi><mi>n</mi></msub><mo>-</mo><mn>1</mn></mrow></math>（<math><mrow><mi>n</mi><mo>∈</mo><msup><mi>N</mi><mo>*</mo></msup></mrow></math>）。</p>
+<p>设数列 <math><mrow><mo>{</mo><msub><mi>b</mi><mi>n</mi></msub><mo>}</mo></mrow></math> 满足 <math><mrow><msub><mi>b</mi><mi>n</mi></msub><mo>=</mo><msub><mi>a</mi><mi>n</mi></msub><mo>+</mo><msub><mi>a</mi><mi>n</mi><mo>+</mo><mn>1</mn></msub></mrow></math>（<math><mrow><mi>n</mi><mo>≥</mo><mn>1</mn></mrow></math>），数列 <math><mrow><mo>{</mo><msub><mi>c</mi><mi>n</mi></msub><mo>}</mo></mrow></math> 满足 <math><mrow><msub><mi>c</mi><mi>n</mi></msub><mo>=</mo><mfrac><mn>1</mn><mrow><msub><mi>b</mi><mi>n</mi></msub><mo>·</mo><msub><mi>b</mi><mi>n</mi><mo>+</mo><mn>1</mn></msub></mrow></mfrac></mrow></math>。</p>
+<p>请完成以下问题：</p>
+<p>（1）求数列 <math><mrow><mo>{</mo><msub><mi>a</mi><mi>n</mi></msub><mo>}</mo></mrow></math> 的通项公式；</p>
+<p>（2）证明数列 <math><mrow><mo>{</mo><msub><mi>b</mi><mi>n</mi></msub><mo>}</mo></mrow></math> 是等比数列，并求其公比；</p>
+<p>（3）求数列 <math><mrow><mo>{</mo><msub><mi>c</mi><mi>n</mi></msub><mo>}</mo></mrow></math> 的前 n 项和 <math><mrow><msub><mi>T</mi><mi>n</mi></msub></mrow></math>；</p>
+<p>（4）设 <math><mrow><msub><mi>d</mi><mi>n</mi></msub><mo>=</mo><msub><mi>a</mi><mi>n</mi></msub><mo>·</mo><msub><mi>c</mi><mi>n</mi></msub></mrow></math>，若 <math><mrow><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>d</mi><mi>k</mi></msub><mo>&lt;</mo><mi>M</mi></mrow></math> 对任意正整数 n 恒成立，求实数 M 的最小值。</p>`,
 ];
 
 // ===== 状态机：advanceToNext / lazyAdvance / maybeAdvance =====
