@@ -43,6 +43,23 @@ export type BucketKey =
 
 export type QualityVerdict = 'auto-pass' | 'mid-need-review' | 'auto-reject';
 
+export interface DuplicateMatch {
+  /** 被重复的原题 ID */
+  sourceQuestionId: string;
+  /** 来源上传任务/试卷名称 */
+  sourceTaskName: string;
+  /** 原题在来源任务中的序号 */
+  sourceQuestionIndex: number;
+  /** 相似度分数 0~100 */
+  similarity: number;
+  /** 判重依据 */
+  reason: 'stem-similar' | 'answer-identical' | 'overall-similar';
+  /** 原题题干 HTML（用于并排对比） */
+  sourceStem: string;
+  /** 原题答案（可选） */
+  sourceAnswer?: string;
+}
+
 // ===== 主任务 =====
 
 export interface StageProgress {
@@ -92,7 +109,7 @@ export interface TaskQuestion {
   qualityVerdict?: QualityVerdict;
   qualityKept?: boolean;
 
-  duplicateOf?: string;
+  duplicateOf?: DuplicateMatch;
 
   parseConfidence?: Partial<
     Record<'stem' | 'options' | 'answer' | 'analysis', number>
