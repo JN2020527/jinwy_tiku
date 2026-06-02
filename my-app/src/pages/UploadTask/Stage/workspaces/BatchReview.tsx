@@ -13,6 +13,7 @@ import type { ColumnsType } from 'antd/es/table';
 import React, { useMemo, useState } from 'react';
 import { sanitizeHtml } from '@/utils/sanitize';
 import type { TaskQuestion } from '../../types';
+import styles from './BatchReview.less';
 
 export interface BatchReviewProps {
   questions: TaskQuestion[];
@@ -28,10 +29,10 @@ function stemToPlainText(html: string): string {
 }
 
 function scoreColor(score: number | undefined): string {
-  if (score == null) return '#6b7280';
-  if (score >= 80) return '#22c55e';
-  if (score >= 55) return '#f59e0b';
-  return '#ef4444';
+  if (score == null) return '#64748b';
+  if (score >= 80) return '#16a34a';
+  if (score >= 55) return '#d97706';
+  return '#dc2626';
 }
 
 const BatchReview: React.FC<BatchReviewProps> = ({
@@ -120,8 +121,8 @@ const BatchReview: React.FC<BatchReviewProps> = ({
       dataIndex: 'qualityScore',
       width: 80,
       render: (s: number | undefined) => (
-        <span style={{ color: scoreColor(s), fontWeight: 600 }}>
-          {s ?? '-'}
+        <span className={styles.scoreCell} style={{ color: scoreColor(s) }}>
+          {s ?? '—'}
         </span>
       ),
     },
@@ -166,7 +167,7 @@ const BatchReview: React.FC<BatchReviewProps> = ({
   const selectedIds = selectedRowKeys.map((k) => String(k));
 
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className={styles.batchReview}>
       <Alert
         type="info"
         showIcon
@@ -177,15 +178,15 @@ const BatchReview: React.FC<BatchReviewProps> = ({
           </span>
         }
       />
-      <Space>
+      <div className={styles.controls}>
         <Switch
           checkedChildren="显示全部"
           unCheckedChildren="仅待审"
           checked={showAll}
           onChange={setShowAll}
         />
-        <span style={{ color: '#6b7280' }}>当前展示 {visible.length} 题</span>
-      </Space>
+        <span className={styles.visibleCount}>当前展示 {visible.length} 题</span>
+      </div>
 
       <Table<TaskQuestion>
         rowKey="id"
@@ -204,18 +205,7 @@ const BatchReview: React.FC<BatchReviewProps> = ({
       />
 
       {!readOnly && selectedIds.length > 0 && (
-        <div
-          style={{
-            position: 'sticky',
-            bottom: 0,
-            background: '#fff',
-            borderTop: '1px solid #e5e7eb',
-            padding: '12px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
+        <div className={styles.stickyBar}>
           <span>选中 {selectedIds.length} 项</span>
           <Button
             type="primary"
@@ -235,7 +225,7 @@ const BatchReview: React.FC<BatchReviewProps> = ({
       )}
 
       {readOnly && (
-        <div style={{ color: '#6b7280' }}>
+        <div className={styles.readOnlyHint}>
           <Tag color="default">只读</Tag> 该阶段已审完，仅供查看
         </div>
       )}

@@ -1,11 +1,8 @@
-import { Tooltip, Typography } from 'antd';
+import { Tooltip } from 'antd';
 import React from 'react';
-import {
-  STAGE_KEYS,
-  STAGE_LABELS,
-  STAGE_STATE_COLORS,
-} from '../constants';
+import { STAGE_KEYS, STAGE_LABELS, STAGE_STATE_COLORS } from '../constants';
 import type { StageState, UploadTask } from '../types';
+import styles from './ProgressBar.less';
 
 interface ProgressBarProps {
   task: UploadTask;
@@ -25,8 +22,8 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ task }) => {
     (currentProgress?.state === 'rejected' ? '已拒绝' : '进行中');
 
   return (
-    <div style={{ minWidth: 220 }}>
-      <div style={{ display: 'flex', gap: 2, marginBottom: 6 }}>
+    <div className={styles.progressBar}>
+      <div className={styles.segments}>
         {STAGE_KEYS.map((stage) => {
           const sp = task.stageProgress[stage];
           const state: StageState = sp?.state ?? 'pending';
@@ -36,20 +33,16 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ task }) => {
               title={`${STAGE_LABELS[stage]} · ${STATE_LABELS[state]}`}
             >
               <div
-                style={{
-                  flex: 1,
-                  height: 4,
-                  borderRadius: 2,
-                  background: STAGE_STATE_COLORS[state],
-                }}
+                className={styles.segment}
+                style={{ background: STAGE_STATE_COLORS[state] }}
               />
             </Tooltip>
           );
         })}
       </div>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+      <span className={styles.summary}>
         {STAGE_LABELS[task.currentStage]} · {currentSummary}
-      </Typography.Text>
+      </span>
     </div>
   );
 };

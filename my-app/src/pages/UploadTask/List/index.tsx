@@ -13,6 +13,7 @@ import type { BucketKey, TaskStatus, UploadTask } from '../types';
 import NewTaskModal from './NewTaskModal';
 import ProgressBar from './ProgressBar';
 import SummaryCards from './SummaryCards';
+import styles from './index.less';
 
 const STATUS_META: Record<TaskStatus, { label: string; color: string }> = {
   'pending-human': { label: '待人工处理', color: 'orange' },
@@ -55,39 +56,53 @@ const UploadTaskList: React.FC = () => {
       case 'pending-human':
         return (
           <Space size="middle">
-            <a onClick={() => history.push(stagePath)}>进入处理</a>
-            <a onClick={() => history.push(`${stagePath}?readOnly=1`)}>详情</a>
+            <span className={styles.actionLink} onClick={() => history.push(stagePath)}>
+              进入处理
+            </span>
+            <span className={styles.actionLink} onClick={() => history.push(`${stagePath}?readOnly=1`)}>
+              详情
+            </span>
           </Space>
         );
       case 'processing':
         return (
           <Space size="middle">
-            <a onClick={() => history.push(stagePath)}>查看进度</a>
-            <a onClick={() => handleAdvance(record)}>立即完成（演示）</a>
+            <span className={styles.actionLink} onClick={() => history.push(stagePath)}>
+              查看进度
+            </span>
+            <span className={styles.actionLinkDanger} onClick={() => handleAdvance(record)}>
+              立即完成（演示）
+            </span>
           </Space>
         );
       case 'published':
         return (
           <Space size="middle">
-            <a onClick={() => history.push(distributePath)}>配置分发</a>
-            <a onClick={() => history.push(`${stagePath}?readOnly=1`)}>详情</a>
+            <span className={styles.actionLink} onClick={() => history.push(distributePath)}>
+              配置分发
+            </span>
+            <span className={styles.actionLink} onClick={() => history.push(`${stagePath}?readOnly=1`)}>
+              详情
+            </span>
           </Space>
         );
       case 'distributed':
         return (
           <Space size="middle">
-            <a onClick={() => history.push(`${distributePath}?readOnly=1`)}>
+            <span className={styles.actionLink} onClick={() => history.push(`${distributePath}?readOnly=1`)}>
               查看分发
-            </a>
-            <a onClick={() => history.push(`${stagePath}?readOnly=1`)}>详情</a>
+            </span>
+            <span className={styles.actionLink} onClick={() => history.push(`${stagePath}?readOnly=1`)}>
+              详情
+            </span>
           </Space>
         );
       case 'rejected':
         return (
           <Space size="middle">
-            <a onClick={() => history.push(`${stagePath}?readOnly=1`)}>
+            <span className={styles.actionLink} onClick={() => history.push(`${stagePath}?readOnly=1`)}>
               查看原因
-            </a>
+            </span>
           </Space>
         );
       default:
@@ -100,11 +115,11 @@ const UploadTaskList: React.FC = () => {
       title: '任务名',
       dataIndex: 'name',
       render: (_dom, record) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{record.name}</div>
-          <div style={{ fontSize: 12, color: '#888' }}>
+        <div className={styles.taskName}>
+          <span className={styles.taskNameTitle}>{record.name}</span>
+          <span className={styles.taskNameMeta}>
             {record.subject} · {record.grade} · {record.totalQuestions}题
-          </div>
+          </span>
         </div>
       ),
     },

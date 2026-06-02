@@ -1,0 +1,41 @@
+@import '../../styles/variables.less';
+
+.batchReview {
+  padding: @space-lg;
+  display: flex;
+  flex-direction: column;
+  gap: @space-md;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: @space-md;
+}
+
+.visibleCount {
+  color: @color-text-secondary;
+  font-size: @font-size-sm;
+}
+
+.scoreCell {
+  font-weight: @font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+}
+
+.stickyBar {
+  position: sticky;
+  bottom: 0;
+  background: @color-bg-container;
+  border-top: 1px solid @color-border;
+  padding: @space-md @space-lg;
+  display: flex;
+  align-items: center;
+  gap: @space-md;
+  z-index: 10;
+}
+
+.readOnlyHint {
+  color: @color-text-secondary;
+  font-size: @font-size-sm;
+}

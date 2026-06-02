@@ -1,11 +1,10 @@
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { history } from 'umi';
-import { Button, Steps, Typography } from 'antd';
+import { Button, Steps } from 'antd';
 import React from 'react';
 import { STAGE_LABELS, STAGE_KEYS } from '../constants';
 import type { StageKey, UploadTask } from '../types';
-
-const { Text } = Typography;
+import styles from './StageHeader.less';
 
 export interface StageHeaderProps {
   task: UploadTask;
@@ -42,29 +41,20 @@ const StageHeader: React.FC<StageHeaderProps> = ({ task, currentStage }) => {
   });
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '12px 24px',
-        borderBottom: '1px solid #f0f0f0',
-        background: '#fff',
-      }}
-    >
+    <div className={styles.stageHeader}>
       <Button
         icon={<ArrowLeftOutlined />}
         onClick={() => history.push('/question-bank/upload')}
       >
         返回
       </Button>
-      <div style={{ minWidth: 240 }}>
-        <strong>{task.name}</strong>{' '}
-        <Text type="secondary">
+      <div className={styles.taskInfo}>
+        <span className={styles.taskName}>{task.name}</span>{' '}
+        <span className={styles.taskMeta}>
           {task.subject} · {task.grade} · {task.totalQuestions}题
-        </Text>
+        </span>
       </div>
-      <div style={{ flex: 1 }}>
+      <div className={styles.stepsWrap}>
         <Steps
           current={currentIdx}
           size="small"

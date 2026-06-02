@@ -100,7 +100,7 @@ const StagePage: React.FC = () => {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
       <StageHeader task={task} currentStage={rawStage} onRefresh={refresh} />
       <div style={{ flex: 1, overflow: 'hidden' }}>
         {renderStage(rawStage, task, refresh, readOnly)}

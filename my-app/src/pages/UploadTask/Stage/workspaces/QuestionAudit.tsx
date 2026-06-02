@@ -17,6 +17,7 @@ import { useQuestionNavKeyboard } from '@/hooks/useQuestionNavKeyboard';
 import { getKnowledgeTree, type KnowledgeNode } from '@/services/tagSystem';
 import { sanitizeHtml } from '@/utils/sanitize';
 import type { TaskQuestion } from '../../types';
+import styles from './QuestionAudit.less';
 
 export interface QuestionAuditProps {
   questions: TaskQuestion[];
@@ -60,16 +61,6 @@ function mapKnowledgeNodes(nodes: KnowledgeNode[]): TreeNode[] {
 
 function isReviewed(q: TaskQuestion, mode: 'parse' | 'tag'): boolean {
   return mode === 'parse' ? !!q.parseReviewed : !!q.tagReviewed;
-}
-
-function fieldFrameStyle(confidence: number | undefined): React.CSSProperties {
-  const low = confidence != null && confidence < 0.8;
-  return {
-    border: low ? '2px solid #f5222d' : '1px solid transparent',
-    padding: 4,
-    borderRadius: 4,
-    marginBottom: 8,
-  };
 }
 
 const QuestionAudit: React.FC<QuestionAuditProps> = ({
@@ -201,26 +192,16 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
 
   const current = questions.find((q) => q.id === currentId) ?? null;
 
+  const fieldFrameClass = (confidence: number | undefined): string => {
+    const low = confidence != null && confidence < 0.8;
+    return `${styles.fieldFrame} ${low ? styles.fieldFrameLow : ''}`;
+  };
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        height: '100%',
-        minHeight: 0,
-        background: '#f5f5f5',
-      }}
-    >
+    <div className={styles.auditRoot}>
       {/* 左栏 */}
-      <div
-        style={{
-          width: 280,
-          background: '#fff',
-          borderRight: '1px solid #e5e7eb',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div style={{ padding: 12, borderBottom: '1px solid #f0f0f0' }}>
+      <div className={styles.leftPanel}>
+        <div className={styles.filterBar}>
           <Radio.Group
             value={filterMode}
             onChange={(e) => setFilterMode(e.target.value)}
@@ -231,7 +212,7 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
             <Radio.Button value="reviewed">已审 ({reviewedCount})</Radio.Button>
           </Radio.Group>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className={styles.questionList}>
           {filtered.map((q) => {
             const reviewed = isReviewed(q, mode);
             const active = q.id === currentId;
@@ -239,17 +220,7 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
               <div
                 key={q.id}
                 onClick={() => setCurrentId(q.id)}
-                style={{
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: active ? '#e6f4ff' : 'transparent',
-                  borderLeft: active
-                    ? '3px solid #1677ff'
-                    : '3px solid transparent',
-                }}
+                className={`${styles.questionItem} ${active ? styles.questionItemActive : ''}`}
               >
                 <Checkbox
                   checked={selectedIds.includes(q.id)}
@@ -263,7 +234,7 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
                     )
                   }
                 />
-                <span style={{ fontWeight: active ? 600 : 400 }}>
+                <span className={active ? styles.questionIndexActive : styles.questionIndex}>
                   Q{q.index}
                 </span>
                 {q.tags?.questionType && (
@@ -277,26 +248,17 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
       </div>
 
       {/* 中栏 */}
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflowY: 'auto',
-          padding: 16,
-          background: '#fff',
-          margin: '0 8px',
-        }}
-      >
+      <div className={styles.centerPanel}>
         {!current && (
-          <div style={{ color: '#9ca3af' }}>请选择左侧题目</div>
+          <div className={styles.emptyHint}>请选择左侧题目</div>
         )}
         {current && (
           <>
-            <div style={{ marginBottom: 12, fontWeight: 600 }}>
+            <div className={styles.previewTitle}>
               Q{current.index} {current.tags?.questionType || ''}
             </div>
-            <div style={fieldFrameStyle(current.parseConfidence?.stem)}>
-              <div style={{ color: '#6b7280', marginBottom: 4 }}>题干</div>
+            <div className={fieldFrameClass(current.parseConfidence?.stem)}>
+              <div className={styles.fieldLabel}>题干</div>
               <div
                 // eslint-disable-next-line react/no-danger
                 dangerouslySetInnerHTML={{
@@ -305,8 +267,8 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
               />
             </div>
             {current.options && current.options.length > 0 && (
-              <div style={fieldFrameStyle(current.parseConfidence?.options)}>
-                <div style={{ color: '#6b7280', marginBottom: 4 }}>选项</div>
+              <div className={fieldFrameClass(current.parseConfidence?.options)}>
+                <div className={styles.fieldLabel}>选项</div>
                 {current.options.map((opt, i) => (
                   <div key={i} style={{ marginBottom: 4 }}>
                     <strong>{String.fromCharCode(65 + i)}. </strong>
@@ -318,12 +280,12 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
                 ))}
               </div>
             )}
-            <div style={fieldFrameStyle(current.parseConfidence?.answer)}>
-              <div style={{ color: '#6b7280', marginBottom: 4 }}>答案</div>
+            <div className={fieldFrameClass(current.parseConfidence?.answer)}>
+              <div className={styles.fieldLabel}>答案</div>
               <div>{current.answer || '—'}</div>
             </div>
-            <div style={fieldFrameStyle(current.parseConfidence?.analysis)}>
-              <div style={{ color: '#6b7280', marginBottom: 4 }}>解析</div>
+            <div className={fieldFrameClass(current.parseConfidence?.analysis)}>
+              <div className={styles.fieldLabel}>解析</div>
               <div
                 // eslint-disable-next-line react/no-danger
                 dangerouslySetInnerHTML={{
@@ -336,18 +298,10 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
       </div>
 
       {/* 右栏 */}
-      <div
-        style={{
-          width: 380,
-          background: '#fff',
-          borderLeft: '1px solid #e5e7eb',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div className={styles.rightPanel}>
+        <div className={styles.editArea}>
           {!draft && (
-            <div style={{ color: '#9ca3af' }}>请选择左侧题目</div>
+            <div className={styles.emptyHint}>请选择左侧题目</div>
           )}
           {draft && mode === 'parse' && (
             <Form layout="vertical" disabled={readOnly}>
@@ -359,11 +313,8 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
                     {PARSE_FIELD_LABELS[field]}
                     {conf != null && (
                       <span
-                        style={{
-                          marginLeft: 8,
-                          color: low ? '#f5222d' : '#9ca3af',
-                          fontSize: 12,
-                        }}
+                        className={styles.confidenceTag}
+                        style={{ color: low ? '#dc2626' : '#94a3b8' }}
                       >
                         (置信度 {Math.round(conf * 100)}%)
                       </span>
@@ -527,15 +478,7 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
             </Form>
           )}
         </div>
-        <div
-          style={{
-            padding: 12,
-            borderTop: '1px solid #f0f0f0',
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 8,
-          }}
-        >
+        <div className={styles.editToolbar}>
           <Space>
             <Button
               onClick={handleSave}
@@ -562,22 +505,7 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
       </div>
 
       {/* 底部状态条 */}
-      <div
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: '#fff',
-          borderTop: '1px solid #e5e7eb',
-          padding: '8px 16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: 12,
-          color: '#6b7280',
-        }}
-      >
+      <div className={styles.bottomBar}>
         <span>
           已审 {reviewedCount} / {questions.length} ·
           全部通过后自动推进。↑↓ 切题，Ctrl+Enter 保存下一题

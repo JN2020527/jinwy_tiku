@@ -5,10 +5,10 @@ import {
   FolderOpenOutlined,
   SyncOutlined,
 } from '@ant-design/icons';
-import { Card, Col, Row } from 'antd';
 import React from 'react';
 import { BUCKET_DEFS } from '../constants';
 import type { BucketKey } from '../types';
+import styles from './SummaryCards.less';
 
 interface SummaryCardsProps {
   bucketCounts: Record<BucketKey, number>;
@@ -30,54 +30,37 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
   onChange,
 }) => {
   return (
-    <Row gutter={16} style={{ marginBottom: 16 }}>
+    <div className={styles.summaryCards}>
       {BUCKET_DEFS.map((bucket) => {
         const isActive = active === bucket.key;
         return (
-          <Col span={4} key={bucket.key}>
-            <Card
-              hoverable
-              onClick={() => onChange(bucket.key)}
-              styles={{ body: { padding: 16 } }}
-              style={{
-                border: isActive
-                  ? `2px solid ${bucket.color}`
-                  : '1px solid #f0f0f0',
-                borderRadius: 6,
-                cursor: 'pointer',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 600,
-                      color: bucket.color,
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {bucketCounts[bucket.key] ?? 0}
-                  </div>
-                  <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                    {bucket.label}
-                  </div>
+          <div
+            key={bucket.key}
+            className={`${styles.card} ${isActive ? styles.cardActive : ''}`}
+            style={isActive ? { borderColor: bucket.color } : undefined}
+            onClick={() => onChange(bucket.key)}
+          >
+            <div className={styles.cardContent}>
+              <div className={styles.cardInfo}>
+                <div
+                  className={styles.cardCount}
+                  style={{ color: bucket.color }}
+                >
+                  {bucketCounts[bucket.key] ?? 0}
                 </div>
-                <div style={{ fontSize: 24, color: bucket.color, opacity: 0.6 }}>
-                  {ICONS[bucket.key]}
-                </div>
+                <div className={styles.cardLabel}>{bucket.label}</div>
               </div>
-            </Card>
-          </Col>
+              <div
+                className={styles.cardIcon}
+                style={{ color: bucket.color }}
+              >
+                {ICONS[bucket.key]}
+              </div>
+            </div>
+          </div>
         );
       })}
-    </Row>
+    </div>
   );
 };
 

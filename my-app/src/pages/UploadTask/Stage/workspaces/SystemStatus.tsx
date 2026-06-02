@@ -6,6 +6,7 @@ import {
 } from '../../constants';
 import { sanitizeHtml } from '@/utils/sanitize';
 import type { StageKey, StageProgress, TaskQuestion } from '../../types';
+import styles from './SystemStatus.less';
 
 export interface SystemStatusProps {
   stage: 'dedupe' | 'parse' | 'tag' | 'publish';
@@ -48,14 +49,14 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
   };
 
   const renderProcessing = () => (
-    <Space direction="vertical" align="center" size={16} style={{ width: '100%' }}>
-      <h3 style={{ margin: 0 }}>{stageLabel} · 系统处理中…</h3>
+    <div className={styles.processing}>
+      <h3 className={styles.processingTitle}>{stageLabel} · 系统处理中…</h3>
       <Spin size="large" />
-      <div style={{ color: '#6b7280' }}>共 {questions.length} 题待处理</div>
+      <div className={styles.processingCount}>共 {questions.length} 题待处理</div>
       <Button onClick={handleAdvance} loading={advancing} disabled={readOnly}>
         ⏵ 模拟立即完成（演示）
       </Button>
-    </Space>
+    </div>
   );
 
   const renderDone = () => {
@@ -63,15 +64,15 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
     const nextButtonText =
       nextStage === 'distribute' ? '→ 配置分发渠道' : `→ 进入下一阶段：${nextLabel ?? ''}`;
     return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <h3 style={{ margin: 0 }}>
-          {stageLabel} · <Tag color="success">✓ 已完成</Tag>
+      <div className={styles.done}>
+        <h3 className={styles.doneTitle}>
+          {stageLabel} <Tag color="success">✓ 已完成</Tag>
         </h3>
         {stageProgress.summary && (
-          <div style={{ color: '#374151' }}>{stageProgress.summary}</div>
+          <div className={styles.doneSummary}>{stageProgress.summary}</div>
         )}
         {stageProgress.finishedAt && (
-          <div style={{ color: '#6b7280' }}>
+          <div className={styles.doneTime}>
             完成时间 {stageProgress.finishedAt}
           </div>
         )}
@@ -105,12 +106,12 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
             {nextButtonText}
           </Button>
         )}
-      </Space>
+      </div>
     );
   };
 
   const renderPending = () => (
-    <div style={{ color: '#6b7280' }}>等待上一阶段完成…</div>
+    <div className={styles.pending}>等待上一阶段完成…</div>
   );
 
   const renderRejected = () => (
@@ -122,8 +123,8 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
   );
 
   return (
-    <div style={{ maxWidth: 600, margin: '40px auto', padding: 16 }}>
-      <Card>
+    <div className={styles.systemStatus}>
+      <Card className={styles.statusCard}>
         {stageProgress.state === 'processing' && renderProcessing()}
         {stageProgress.state === 'done' && renderDone()}
         {stageProgress.state === 'pending' && renderPending()}

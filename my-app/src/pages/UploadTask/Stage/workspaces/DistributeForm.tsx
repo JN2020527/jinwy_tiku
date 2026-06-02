@@ -18,6 +18,7 @@ import type {
   Subject,
   UploadTask,
 } from '../../types';
+import styles from './DistributeForm.less';
 
 export interface DistributeFormProps {
   task: UploadTask;
@@ -160,8 +161,8 @@ const DistributeForm: React.FC<DistributeFormProps> = ({
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '24px auto', padding: 16 }}>
-      <h2 style={{ marginBottom: 16 }}>分发配置</h2>
+    <div className={styles.distributeRoot}>
+      <h2 className={styles.title}>分发配置</h2>
 
       {initial?.configuredAt && (
         <Alert
@@ -240,8 +241,8 @@ const DistributeForm: React.FC<DistributeFormProps> = ({
             <Space direction="vertical" style={{ width: '100%' }}>
               {CHANNEL_OPTIONS.map((c) => (
                 <Checkbox key={c.value} value={c.value}>
-                  <strong>{c.label}</strong>
-                  <span style={{ marginLeft: 8, color: '#6b7280' }}>
+                  <span className={styles.channelLabel}>{c.label}</span>
+                  <span className={styles.channelDesc}>
                     {c.desc}
                   </span>
                 </Checkbox>

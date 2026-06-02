@@ -1,0 +1,150 @@
+@import '../../styles/variables.less';
+
+.auditRoot {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  background: @color-bg;
+}
+
+// ── Left panel ──
+.leftPanel {
+  width: 280px;
+  background: @color-bg-container;
+  border-right: 1px solid @color-border;
+  display: flex;
+  flex-direction: column;
+}
+
+.filterBar {
+  padding: @space-md;
+  border-bottom: 1px solid @color-border-light;
+}
+
+.questionList {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.questionItem {
+  padding: @space-sm @space-md;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: @space-sm;
+  border-left: 3px solid transparent;
+  transition:
+    background @transition-fast,
+    border-color @transition-fast;
+
+  &:hover {
+    background: @color-border-light;
+  }
+}
+
+.questionItemActive {
+  background: @color-primary-light;
+  border-left-color: @color-primary;
+}
+
+.questionIndex {
+  font-weight: @font-weight-medium;
+}
+
+.questionIndexActive {
+  font-weight: @font-weight-semibold;
+}
+
+// ── Center panel ──
+.centerPanel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: @space-lg;
+  background: @color-bg-container;
+  margin: 0 @space-sm;
+}
+
+.previewTitle {
+  margin-bottom: @space-md;
+  font-weight: @font-weight-semibold;
+  color: @color-text;
+}
+
+.fieldFrame {
+  border: 1px solid transparent;
+  padding: @space-xs;
+  border-radius: @radius-sm;
+  margin-bottom: @space-sm;
+  transition: border-color @transition-fast;
+}
+
+.fieldFrameLow {
+  border: 2px solid @color-error;
+  background: @color-error-light;
+}
+
+.fieldLabel {
+  color: @color-text-secondary;
+  margin-bottom: @space-xs;
+  font-size: @font-size-sm;
+  font-weight: @font-weight-medium;
+}
+
+.emptyHint {
+  color: @color-text-tertiary;
+  padding: @space-xl 0;
+}
+
+// ── Right panel ──
+.rightPanel {
+  width: 380px;
+  background: @color-bg-container;
+  border-left: 1px solid @color-border;
+  display: flex;
+  flex-direction: column;
+}
+
+.editArea {
+  flex: 1;
+  overflow-y: auto;
+  padding: @space-lg;
+}
+
+.editToolbar {
+  padding: @space-md;
+  border-top: 1px solid @color-border-light;
+  display: flex;
+  justify-content: space-between;
+  gap: @space-sm;
+}
+
+// ── Bottom status bar ──
+.bottomBar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: @color-bg-container;
+  border-top: 1px solid @color-border;
+  padding: @space-sm @space-lg;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: @font-size-xs;
+  color: @color-text-secondary;
+  z-index: 10;
+}
+
+.confidenceTag {
+  margin-left: @space-sm;
+  font-size: @font-size-xs;
+
+  &Low {
+    color: @color-error;
+  }
+
+  &Normal {
+    color: @color-text-tertiary;
+  }
+}
