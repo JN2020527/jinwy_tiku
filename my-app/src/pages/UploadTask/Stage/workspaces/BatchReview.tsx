@@ -2,9 +2,6 @@ import {
   CheckCircleFilled,
   CloseCircleFilled,
   ExclamationCircleFilled,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
-  MinusOutlined,
 } from '@ant-design/icons';
 import {
   Button,
@@ -44,13 +41,6 @@ const SCORE_CLASS: Record<string, string> = {
   review: styles.scoreReview,
   reject: styles.scoreReject,
   none: styles.scoreNone,
-};
-
-const SCORE_ICON: Record<string, React.FC> = {
-  pass: ArrowUpOutlined,
-  review: MinusOutlined,
-  reject: ArrowDownOutlined,
-  none: MinusOutlined,
 };
 
 const BatchReview: React.FC<BatchReviewProps> = ({
@@ -169,25 +159,34 @@ const BatchReview: React.FC<BatchReviewProps> = ({
       sorter: (a, b) => (a.qualityScore ?? 0) - (b.qualityScore ?? 0),
       render: (s: number | undefined) => {
         const level = scoreLevel(s);
-        const Icon = SCORE_ICON[level];
         return (
           <span className={`${styles.scoreCell} ${SCORE_CLASS[level]}`}>
-            <Icon className={styles.scoreIcon} />
             {s ?? '—'}
           </span>
         );
       },
     },
     {
-      title: '扣分明细',
-      dataIndex: 'qualityDeductions',
+      title: '评分明细',
+      dataIndex: 'qualityDimensions',
       render: (_: unknown, q) => (
-        <Space size={[4, 4]} wrap>
-          {(q.qualityDeductions ?? []).map((d, i) => (
-            <Tag key={i} color="orange">
-              {d.rule}(-{d.points})
-            </Tag>
-          ))}
+        <Space direction="vertical" size={[4, 4]}>
+          {(q.qualityDimensions ?? []).map((d, i) => {
+            const full = d.score === d.maxScore;
+            return (
+              <span key={i} className={styles.dimRow}>
+                <span className={styles.dimName}>{d.name}</span>
+                <span className={full ? styles.dimFull : styles.dimPartial}>
+                  {d.score}/{d.maxScore}
+                </span>
+                {!full && d.note && (
+                  <Tag color="orange" className={styles.dimNote}>
+                    {d.note}
+                  </Tag>
+                )}
+              </span>
+            );
+          })}
         </Space>
       ),
     },
