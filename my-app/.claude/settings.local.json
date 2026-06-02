@@ -35,7 +35,8 @@
       "mcp__codegraph__codegraph_context",
       "mcp__codegraph__codegraph_node",
       "Bash(/Users/jinwenyuan/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh *)",
-      "mcp__codegraph__codegraph_search"
+      "mcp__codegraph__codegraph_search",
+      "Bash(npx max *)"
     ]
   }
 }
