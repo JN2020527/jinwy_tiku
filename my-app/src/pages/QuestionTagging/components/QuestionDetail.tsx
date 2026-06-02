@@ -1,4 +1,5 @@
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { sanitizeHtml } from '@/utils/sanitize';
 import { Button, Collapse, Empty, Tag } from 'antd';
 import React from 'react';
 import { Question } from '../types';
@@ -124,7 +125,7 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
             borderRadius: 4,
             lineHeight: '1.8',
           }}
-          dangerouslySetInnerHTML={{ __html: question.stem }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(question.stem) }}
         />
       </div>
 
@@ -137,7 +138,7 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
             children: (
               <div
                 dangerouslySetInnerHTML={{
-                  __html: question.answer || '暂无答案',
+                  __html: sanitizeHtml(question.answer || '暂无答案'),
                 }}
               />
             ),
@@ -149,7 +150,7 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
                   label: '解析',
                   children: (
                     <div
-                      dangerouslySetInnerHTML={{ __html: question.analysis }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(question.analysis) }}
                     />
                   ),
                 },

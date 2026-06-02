@@ -38,11 +38,7 @@ export function parseStem(html: string): ParsedStem {
   result.analysis = extractContent(patterns.解析);
 
   result.cleanStem = html
-    .replace(/【答案】[\s\S]*?(?=【(?:难度|知识点|详解|解析)】|$)/g, '')
-    .replace(/【难度】[\s\S]*?(?=【(?:答案|知识点|详解|解析)】|$)/g, '')
-    .replace(/【知识点】[\s\S]*?(?=【(?:答案|难度|详解|解析)】|$)/g, '')
-    .replace(/【详解】[\s\S]*?(?=【(?:答案|难度|知识点|解析)】|$)/g, '')
-    .replace(/【解析】[\s\S]*?(?=【(?:答案|难度|知识点|详解)】|$)/g, '')
+    .replace(/【(?:答案|难度|知识点|详解|解析)】[\s\S]*?(?=【(?:答案|难度|知识点|详解|解析)】|$)/g, '')
     .trim();
 
   return result;

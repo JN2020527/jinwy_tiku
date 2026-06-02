@@ -1,11 +1,5 @@
 export default [
   {
-    path: '/welcome',
-    name: 'welcome',
-    icon: 'smile',
-    component: './Welcome',
-  },
-  {
     path: '/system',
     name: '系统管理',
     icon: 'setting',
@@ -72,14 +66,15 @@ export default [
         component: './ContentCenter/TagManage',
       },
       {
-        path: '/question-bank/task',
-        name: '题库任务',
-        component: './ContentCenter/QuestionBankTask',
+        path: '/question-bank/upload',
+        name: '试题上传',
+        icon: 'cloudUpload',
+        component: './UploadTask/List',
       },
       {
-        path: '/question-bank/word-upload',
-        name: '试题上传',
-        component: './PaperUpload',
+        path: '/question-bank/task',
+        redirect: '/question-bank/upload',
+        hideInMenu: true,
       },
       {
         path: '/question-bank/tagging',
@@ -91,22 +86,21 @@ export default [
   },
   {
     path: '/',
-    redirect: '/welcome',
+    redirect: '/content/product-list',
   },
   {
     component: './404',
   },
   {
-    path: '/question-bank/word-upload/edit',
-    name: '在线校对',
-    component: './PaperUpload/Edit',
+    path: '/question-bank/tagging-fullscreen',
+    name: '试题打标',
+    component: './QuestionTagging',
     hideInMenu: true,
     layout: false,
   },
   {
-    path: '/question-bank/tagging-fullscreen',
-    name: '试题打标',
-    component: './QuestionTagging',
+    path: '/question-bank/upload/:taskId/:stage',
+    component: './UploadTask/Stage',
     hideInMenu: true,
     layout: false,
   },

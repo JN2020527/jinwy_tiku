@@ -167,6 +167,7 @@ const SOURCE_TASKS = [
   { id: 'src-task-3', name: '2024年河北省中考数学试卷' },
 ];
 
+
 // ===== 状态机：advanceToNext / lazyAdvance / maybeAdvance =====
 
 function advanceToNext(
@@ -513,6 +514,7 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
           sourceStem: STEM_TEMPLATES[4],
           sourceAnswer: '<p>干路电流为 0.3A。</p>',
         };
+
       }
 
       // 解析产物：已过 parse 的任务
@@ -1167,6 +1169,7 @@ export default {
     }
     ok(res, undefined);
   },
+
 
   // ----- 渠道分发 -----
 

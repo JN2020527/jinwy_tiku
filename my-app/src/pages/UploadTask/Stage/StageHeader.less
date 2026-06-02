@@ -1,0 +1,28 @@
+@import '../styles/variables.less';
+
+.stageHeader {
+  display: flex;
+  align-items: center;
+  gap: @space-lg;
+  padding: @space-md @space-xl;
+  border-bottom: 1px solid @color-border;
+  background: @color-bg-container;
+}
+
+.taskInfo {
+  min-width: 240px;
+}
+
+.taskName {
+  font-weight: @font-weight-semibold;
+  color: @color-text;
+}
+
+.taskMeta {
+  font-size: @font-size-xs;
+  color: @color-text-secondary;
+}
+
+.stepsWrap {
+  flex: 1;
+}

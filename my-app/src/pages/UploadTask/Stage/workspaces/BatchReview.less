@@ -1,0 +1,202 @@
+@import '../../styles/variables.less';
+
+.batchReview {
+  padding: @space-lg;
+  display: flex;
+  flex-direction: column;
+  gap: @space-md;
+  touch-action: manipulation;
+}
+
+// ── 统计摘要卡片 ──
+
+.summaryRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: @space-md;
+}
+
+.summaryCard {
+  display: flex;
+  align-items: center;
+  gap: @space-md;
+  padding: @space-md @space-lg;
+  background: @color-bg-container;
+  border: 1px solid @color-border;
+  border-radius: @radius-md;
+  transition: box-shadow @transition-fast;
+
+  &:hover {
+    box-shadow: @shadow-sm;
+  }
+}
+
+.summaryDot {
+  font-size: 20px;
+  flex-shrink: 0;
+
+  &.pass {
+    color: @color-success;
+  }
+
+  &.review {
+    color: @color-warning;
+  }
+
+  &.reject {
+    color: @color-error;
+  }
+}
+
+.summaryInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summaryLabel {
+  font-size: @font-size-xs;
+  color: @color-text-secondary;
+}
+
+.summaryValue {
+  font-size: 20px;
+  font-weight: @font-weight-semibold;
+  color: @color-text;
+  font-variant-numeric: tabular-nums;
+}
+
+// ── 筛选控件 ──
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: @space-md;
+}
+
+.visibleCount {
+  color: @color-text-secondary;
+  font-size: @font-size-sm;
+}
+
+// ── 表格内元素 ──
+
+.scoreCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: @font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+}
+
+.scorePass {
+  color: @color-success;
+}
+
+.scoreReview {
+  color: @color-warning;
+}
+
+.scoreReject {
+  color: @color-error;
+}
+
+.scoreNone {
+  color: @color-text-secondary;
+}
+
+// ── 评分维度明细 ──
+
+.dimRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: @font-size-sm;
+}
+
+.dimName {
+  color: @color-text-secondary;
+}
+
+.dimFull {
+  color: @color-success;
+  font-weight: @font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+}
+
+.dimPartial {
+  color: @color-text;
+  font-variant-numeric: tabular-nums;
+}
+
+.dimNote {
+  font-size: @font-size-xs;
+}
+
+.stemCell {
+  line-height: 1.7;
+  font-size: @font-size-sm;
+  overflow-wrap: break-word;
+
+  img {
+    max-width: 100%;
+  }
+
+  table {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  math {
+    font-size: 1em;
+  }
+}
+
+// ── 底部操作栏 ──
+
+.stickyBar {
+  position: sticky;
+  bottom: 0;
+  background: @color-bg-container;
+  border-top: 1px solid @color-border;
+  padding: @space-md @space-lg;
+  display: flex;
+  align-items: center;
+  gap: @space-md;
+  z-index: 10;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 4%);
+}
+
+.readOnlyHint {
+  color: @color-text-secondary;
+  font-size: @font-size-sm;
+}
+
+// ── 撤销栏 ──
+
+.undoBar {
+  display: flex;
+  align-items: center;
+  gap: @space-md;
+  padding: @space-sm @space-lg;
+  background: @color-primary-light;
+  border: 1px solid @color-primary-border;
+  border-radius: @radius-md;
+  font-size: @font-size-sm;
+}
+
+// ── 删除原因弹窗 ──
+
+.rejectModal {
+  .ant-modal-body {
+    overscroll-behavior: contain;
+  }
+}
+
+// ── Reduced motion ──
+
+@media (prefers-reduced-motion: reduce) {
+  .summaryCard {
+    transition: none;
+  }
+}

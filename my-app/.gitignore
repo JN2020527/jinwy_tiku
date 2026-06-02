@@ -12,3 +12,7 @@
 /.mfsu
 .swc
 /.worktrees
+.DS_Store
+/.superpowers
+/.codegraph
+.superpowers/

@@ -1,0 +1,39 @@
+@import '../styles/variables.less';
+
+.taskName {
+  display: flex;
+  flex-direction: column;
+}
+
+.taskNameTitle {
+  font-weight: @font-weight-medium;
+  color: @color-text;
+}
+
+.taskNameMeta {
+  font-size: @font-size-xs;
+  color: @color-text-tertiary;
+  margin-top: 2px;
+}
+
+.actionLink {
+  color: @color-primary;
+  cursor: pointer;
+  transition: color @transition-fast;
+
+  &:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+  }
+}
+
+.actionLinkDanger {
+  color: @color-error;
+  cursor: pointer;
+  transition: color @transition-fast;
+
+  &:hover {
+    color: #b91c1c;
+    text-decoration: underline;
+  }
+}

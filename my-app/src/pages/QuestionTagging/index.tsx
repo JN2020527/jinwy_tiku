@@ -10,6 +10,7 @@ import TaggingForm, { TaggingFormRef } from './components/TaggingForm';
 import { mockQuestions, mockSubjects } from './mockData';
 import type { Paper } from './types';
 import { FilterParams, Question } from './types';
+import { useQuestionNavKeyboard } from '@/hooks/useQuestionNavKeyboard';
 import './index.less';
 
 const QuestionTagging: React.FC = () => {
@@ -212,27 +213,13 @@ const QuestionTagging: React.FC = () => {
     handleNext();
   };
 
-  // 键盘快捷键
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // 上下键切换试题
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        handlePrevious();
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        handleNext();
-      }
-      // Ctrl+Enter 保存并下一题（通过 ref 调用表单验证）
-      else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        taggingFormRef.current?.saveAndNext();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentQuestionId, paperQuestions]);
+  // 键盘快捷键（抽到 useQuestionNavKeyboard 统一处理）
+  useQuestionNavKeyboard({
+    enabled: true,
+    onPrev: handlePrevious,
+    onNext: handleNext,
+    onSaveNext: () => taggingFormRef.current?.saveAndNext(),
+  });
 
   // 返回上一页
   const handleBack = () => {

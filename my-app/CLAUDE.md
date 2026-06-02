@@ -1,160 +1,112 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code (claude.ai/code) 在本仓库中工作时提供指引。
 
-> **注意**: 完整的项目架构、后端开发命令和 Word 解析流程请参阅根目录的 `../CLAUDE.md`。本文件仅包含前端特有的内容。
+## 项目概览
 
-## 前端开发命令
+晋文源题库管理系统 —— 一个面向 K12 教育内容的**纯前端原型项目**。核心业务是试题打标（标注知识点/题型/难度等）与题库标签体系管理。
+
+**本项目不需要后端**：这是一个用于演示与交互验证的前端原型，所有数据由 `mock/` 目录提供，无需也不应依赖真实后端服务。新增功能时请继续走"前端组件 + mock 数据"的方式，不要假设有可用的后端 API。
+
+技术栈：**Umi Max 4** + **React 18** + **Ant Design 5 / Pro Components** + **wangEditor 5**（富文本）。TypeScript 全程。
+
+## 常用命令
 
 ```bash
-npm run dev          # 启动开发服务器 (http://localhost:8000)
-npm run start        # 同 dev
-npm run build        # 生产环境构建
-npm run format       # 使用 Prettier 格式化代码
+npm run dev        # 启动开发服务器 http://localhost:8000 (= npm run start)
+npm run build      # 生产构建 (max build)
+npm run format     # Prettier 格式化全部文件
+npm run setup      # max setup —— 重新生成 src/.umi 类型 (装包后自动跑)
 ```
 
-## 技术栈
+- 无测试框架配置（package.json 无 test 脚本）。
+- Lint 通过 husky `pre-commit` → `lint-staged` 自动执行，使用 `max lint`（ESLint + Stylelint）+ Prettier。无独立 `npm run lint` 脚本；如需手动校验单文件用 `npx max lint <file>`。
 
-- **框架**: Umi Max 4 (React 元框架)
-- **UI 库**: Ant Design 5 + Ant Design Pro Components
-- **富文本编辑器**: wangEditor 5 (`@wangeditor/editor-for-react`)
-- **状态管理**: Umi 内置 model 插件
-- **代码质量**: Prettier + ESLint + Husky + lint-staged
+## CodeGraph 知识图谱（必须使用）
 
-## 项目结构
+本项目已配置 CodeGraph 知识图谱。**回答代码架构相关问题、查找符号关系、分析改动影响时，必须优先使用 CodeGraph，不要自行 grep/读文件。**
 
-```
-src/
-├── pages/                 # 页面组件（基于路由）
-│   ├── PaperUpload/       # Word 试卷上传工作流
-│   │   ├── index.tsx      # 上传页面
-│   │   └── Edit/          # 全屏校对页面 (layout: false)
-│   ├── QuestionTagging/   # 试题打标功能
-│   │   ├── index.tsx      # 主页面（三栏布局）
-│   │   └── components/    # FilterPanel, PaperList, PaperQuestionNav, QuestionList, QuestionDetail, TaggingForm
-│   └── ContentCenter/     # 产品、学科、标签管理
-├── services/              # API 服务层
-│   ├── paperUpload.ts     # 试卷上传、解析、提交
-│   ├── tagSystem.ts       # 标签分类、知识树
-│   └── questionBankTask.ts
-├── components/            # 共享组件
-│   └── RichTextEditor/    # wangEditor 封装
-├── models/                # 全局状态 (Umi data flow)
-├── utils/                 # 工具函数
-│   └── parseStem.ts       # HTML 内容解析
-└── app.tsx                # 运行时配置
+### MCP 工具（直接调用）
 
-config/
-├── routes.ts              # 路由定义
-└── defaultSettings.ts     # ProLayout 主题设置
-```
+以下工具直接出现在工具列表中，优先使用：
 
-## 路由配置
+- `codegraph_search` —— 按名称搜索符号（函数、类、组件等）
+- `codegraph_context` —— 为任务构建代码上下文（入口 + 关联符号 + 源码）
+- `codegraph_trace` —— 追踪两个符号之间的调用路径（"X 怎么到达 Y"）
+- `codegraph_explore` —— 批量查看多个符号的源码和关系，按文件分组
+- `codegraph_node` —— 查看单个符号的详情（含源码）
 
-路由定义在 `config/routes.ts`，支持：
-- 嵌套路由：使用 `routes` 数组
-- 隐藏菜单：`hideInMenu: true`
-- 全屏页面：`layout: false`（无侧边栏/头部）
-- 图标：来自 `@ant-design/icons`
+### CLI 命令（通过 Bash 调用）
 
-**题库相关路由：**
-- `/question-bank/tag-system` - 标签体系管理 → `ContentCenter/TagManage`
-- `/question-bank/task` - 题库任务 → `ContentCenter/QuestionBankTask`
-- `/question-bank/word-upload` - 试卷上传页面 → `PaperUpload`
-- `/question-bank/word-upload/edit` - 全屏校对页面 (layout: false) → `PaperUpload/Edit`
-- `/question-bank/tagging` - 重定向到 `/question-bank/tagging-fullscreen`
-- `/question-bank/tagging-fullscreen` - 试题打标页面 (layout: false) → `QuestionTagging`
+MCP 未暴露的工具，通过 `codegraph <command>` CLI 调用（效果与 MCP 相同，读同一个数据库）：
 
-**注意：** 部分 `/question-bank` 路由实际映射到 `ContentCenter` 下的组件。
+- `codegraph impact <symbol>` —— 分析改动爆炸半径（影响哪些文件和符号）
+- `codegraph callers <symbol>` —— 查谁调用了这个符号
+- `codegraph callees <symbol>` —— 查这个符号调用了谁
+- `codegraph files [path]` —— 查项目文件结构（比 ls 更快，只看已索引文件）
+- `codegraph status [path]` —— 查索引健康状态和统计
+- `codegraph sync [path]` —— 手动增量同步（通常不需要，自动同步已开启）
+- `codegraph query <search>` —— 搜索符号（CLI 版 search）
 
-## 试题打标功能
+CLI 命令示例：`codegraph impact sanitizeHtml --depth 2 --json`、`codegraph callers TagManage --json`。
 
-### 页面布局
+### 使用规则
 
-三栏全屏布局 (`layout: false`)：
-- **左栏 (25%)**: 筛选面板 + 题目列表（分页）
-- **中栏 (50%)**: 题目详情展示（单题/批量模式）
-- **右栏 (25%)**: 打标表单（单题/批量模式）
+1. CodeGraph 返回的结果应视为已读，不需要再用 grep/Read 验证
+2. MCP 工具优先，CLI 命令补充（impact/callers/callees 只有 CLI 版）
+3. 只有当 CodeGraph 不可用或返回不足时，才回退到手动搜索
 
-### 键盘快捷键
+## 架构要点
 
-- `↑/↓` 或 `←/→`: 在题目间导航
-- `Ctrl/Cmd + Enter`: 保存当前题目并跳转到下一题
+### 路由与布局
+- 路由定义在 `config/routes.ts`（**不是** `src/`）。`component: './X'` 相对 `src/pages/` 解析。
+- 全屏页面（无侧边栏/头部）设 `layout: false`——打标页用此模式做沉浸式工作区。
+- 顶层布局/主题在 `.umirc.ts` 的 `layout` 字段 + `config/defaultSettings.ts`；运行时布局逻辑在 `src/app.tsx`（`getInitialState` + `layout` 导出）。
+- 注意路由命名与实现的错位：`/question-bank/*` 下的多个菜单项实际映射到 `src/pages/ContentCenter/` 组件（如标签体系 → `ContentCenter/TagManage`）。改路由时以 `routes.ts` 的 `component` 路径为准。
 
-### 工作模式
+### 数据流：两套 Mock 机制（关键）
+本项目无后端，数据有**两种**来源，改某个页面前先确认它用哪一种：
+- **服务端 mock**（`mock/*.ts`，经 `src/services/` 走 `/api` 请求）：用于 `TagManage`、`UploadTask`。新增/改 service 接口时**必须同步**改对应 mock 文件，否则页面拿不到数据。
+- **组件内本地 mock**（页面里 `import { ... } from './mockData'`）：用于 **`QuestionTagging`**（最复杂的页面）、`ContentCenter/ProductList`、`SubjectManage`。这些页面**不经过 `mock/` 目录**，数据直接在组件旁的 `mockData.ts` 里改。
+- 服务端 mock 文件按 service 对应：`mock/tagSystem.ts`、`mock/uploadTask.ts`（含状态机、种子数据、阶段推进），用 Umi 路由键写法（如 `'GET /api/tags/knowledge-tree'`）。
+- API 统一走 `@umijs/max` 的 `request`，响应封装为 `{ success: boolean, message: string, data: T }`，mock 返回值需遵循同一封装。
+- `.umirc.ts` 中 `proxy['/api'] → http://localhost:8001` 为历史遗留配置，当前无对应后端，可忽略。
 
-- **单题模式**: 点击题目查看并单独打标
-- **批量模式**: 勾选多题后批量打标（使用 Switch 控制各字段）
+### Service 层
+`src/services/` 是唯一的 API 边界，按业务域拆分：
+- `tagSystem.ts` —— 知识点树、题型树、属性标签分类、教材版本与章节的完整 CRUD。
+- `uploadTask.ts` —— 上传任务 CRUD、8 阶段状态机推进、阶段数据读写、分发配置。
 
-### 存疑标记
+### 业务页面
+- `QuestionTagging/` —— 三栏全屏打标工作区，是本仓库最复杂的页面，详见下节。
+- `ContentCenter/` —— TagManage（标签体系，含知识树/题型树/属性面板）、AnswerManage、ProductList、SubjectManage。
+- `UploadTask/` —— 试题上传 8 阶段流水线，含列表页（`List/`）和阶段工作区（`Stage/`，按阶段分派到 `stages/Quality|Dedupe|Parse|ParseReview|Tag|TagReview|Publish|Distribute`）。
 
-打标人员对标签不确定时，可标记题目为"存疑"，方便后续复查。
+### 试题上传流水线（UploadTask）
 
-- **数据字段**: `Question.doubtful?: boolean`，`Paper.doubtfulCount: number`
-- **单题操作**: TaggingForm 底部"标记存疑"/"取消存疑"按钮（橙色），点击后自动跳转下一题
-- **批量操作**: 批量模式下"批量标记存疑"按钮
-- **视觉标识**: PaperQuestionNav 方块右上角橙色圆点角标；QuestionDetail 题号旁橙色 Tag
-- **统计显示**: PaperList 进度条旁显示存疑数量（如 `3/10 · 2存疑`）
-- **筛选支持**: FilterPanel tagStatus 下拉新增"存疑"选项，筛选含存疑题目的试卷
+8 阶段状态机：`quality → dedupe → parse → parse-review → tag → tag-review → publish → distribute`。
+- **3 个人工阶段**（quality / parse-review / tag-review）：`state='processing'` 时阻塞等待人工操作。
+- **5 个系统阶段**：mock 中模拟自动推进（`advanceSystemStage` 拒绝推进人工阶段）。
+- 类型在 `UploadTask/types.ts`，常量/派生函数在 `UploadTask/constants.ts`（`STAGE_KEYS`、`deriveStatus`、`HUMAN_STAGES` 等）。
+- 阶段路由：`/question-bank/upload/:taskId/:stage`，Stage 组件根据 `isValidStage` 校验后分派。
+- 4 种工作区模板：`BatchReview`（质量检测）、`SystemStatus`（系统阶段）、`QuestionAudit`（审核）、`DistributeForm`（分发配置）。
+- 共享键盘导航 hook：`src/hooks/useQuestionNavKeyboard.ts`（QuestionTagging 和审核阶段复用）。
 
-### 标签状态
+### 试题打标页（QuestionTagging）
+三栏布局：左（筛选 + 试卷/题目列表）/ 中（题目详情）/ 右（打标表单）。组件在 `components/`，类型集中在 `types.ts`。
+- 键盘流：`↑↓←→` 题间导航，`Ctrl/Cmd+Enter` 存当前题并跳下一题。
+- 单题 / 批量两种模式（批量用 Switch 控制每个字段是否写入）。
+- **存疑标记**：打标人不确定时标记题目待复查。数据上是 `Question.doubtful?: boolean` 与 `Paper.doubtfulCount`；UI 上有橙色角标/Tag、列表统计（`3/10 · 2存疑`）、筛选器 `tagStatus` 的"存疑"选项。
+- `tagStatus`（未打标/部分打标/已打标）由知识点、题型、难度、章节等字段是否填充自动推导，不要手动散落判断逻辑。
 
-根据以下字段自动计算：知识点、题型、难度、章节
-- `untagged`: 未打标
-- `partial`: 部分打标
-- `complete`: 完成打标
+### HTML 内容处理（安全敏感）
+试题题干/答案/解析都是 HTML，且常含数学公式（MathML）和图片：
+- 渲染前**必须**经 `src/utils/sanitize.ts` 的 `sanitizeHtml()` 过滤——它白名单放行了 MathML 标签与表格/图片，禁用 data 属性。任何 `dangerouslySetInnerHTML` 都应先 sanitize（`QuestionTagging/components/QuestionDetail.tsx` 在用）。
+- ⚠️ `src/utils/parseStem.ts` 与 `src/components/RichTextEditor/` 原仅服务于已删除的 PaperUpload，现为**孤儿代码**（全仓库无引用），新功能需要时可复用，否则可清理。
 
-## API 服务层模式
+## 约定
 
-所有 API 调用使用 `@umijs/max` 的 request 工具：
-
-```typescript
-import { request } from '@umijs/max';
-
-export async function getKnowledgeTree() {
-  return request('/api/tags/knowledge-tree', { method: 'GET' });
-}
-```
-
-响应格式：`{ success: boolean, message: string, data: T }`
-
-## 重要注意事项
-
-### TypeScript 配置
-- `tsconfig.json` 继承自 `.umi/tsconfig.json`（自动生成）
-- **不要手动编辑**生成的 tsconfig
-
-### API 代理配置
-- `.umirc.ts` 将 `/api` 代理到 `http://localhost:8001`
-- 后端默认运行在 8000 端口，需要调整其中之一
-
-### Mock 数据
-- 当前已禁用 (`mock: false`)
-- 开发新功能时可在页面目录创建 mock 数据（如 `QuestionTagging/mockData.ts`）
-
-### 布局系统
-- **标准页面**: 使用 `PageContainer` 组件
-- **全屏页面**: 路由配置 `layout: false`
-- **三栏页面**: 使用 `Row` 和 `Col` 自定义布局
-
-## 新增前端页面流程
-
-1. 在 `src/pages/[PageName]/index.tsx` 创建组件
-2. 在 `config/routes.ts` 添加路由（path, name, icon, component）
-3. 如需 API 调用，在 `src/services/` 创建服务文件
-4. 复杂页面可创建 `components/` 子目录
-
-**示例结构（QuestionTagging）：**
-```
-src/pages/QuestionTagging/
-├── index.tsx              # 主页面组件
-├── components/            # 页面专用组件
-│   ├── FilterPanel.tsx    # 筛选面板
-│   ├── PaperList.tsx      # 试卷列表（含统计）
-│   ├── PaperQuestionNav.tsx # 试卷内题目导航
-│   ├── QuestionList.tsx   # 题目卡片列表
-│   ├── QuestionDetail.tsx # 题目详情展示
-│   └── TaggingForm.tsx    # 打标表单
-├── types.ts               # TypeScript 接口
-└── mockData.ts            # 开发用 Mock 数据
-```
+- **TypeScript 配置自动生成**：`tsconfig.json` 继承 `src/.umi/tsconfig.json`，`src/.umi*` 全是生成产物，**不要手改**。
+- 代码风格：单引号、`trailingComma: all`、printWidth 80（`.prettierrc`）；imports 由 `prettier-plugin-organize-imports` 自动整理。
+- 新增页面流程：`config/routes.ts` 加路由 → `src/pages/<Name>/index.tsx` 建组件 → 需要数据则二选一（走 `src/services/` + `mock/` 服务端 mock，或在页面目录建 `mockData.ts` 本地 mock）→ 复杂页面拆 `components/` 子目录 + `types.ts`。
+- **`useRequest` 类型推断**：service 层返回 `Promise<T>`（已 unwrap），但 `useRequest` 默认推断为 `unknown`。需加 `formatResult: (res: T) => res` 触发 `OptionsWithFormat` 重载才能得到正确类型。

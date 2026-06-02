@@ -1,141 +1,195 @@
 import { request } from '@umijs/max';
 
+// --- API Types ---
+
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
+export interface AttributeItem {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface TagCategory {
+  id: string;
+  name: string;
+  tags: AttributeItem[];
+}
+
+export interface KnowledgeNode {
+  id: string;
+  name: string;
+  parentId: string | null;
+  children?: KnowledgeNode[];
+}
+
+export interface QuestionTypeNode {
+  id: string;
+  name: string;
+  parentId: string | null;
+  children?: QuestionTypeNode[];
+}
+
+export interface TextbookVersion {
+  id: string;
+  name: string;
+}
+
+export interface TextbookChapter {
+  id: string;
+  name: string;
+  parentId: string | null;
+  version: string;
+  children?: TextbookChapter[];
+}
+
+// --- Knowledge Tree ---
+
 export async function getKnowledgeTree() {
-  return request('/api/tags/knowledge-tree', {
+  return request<ApiResponse<KnowledgeNode[]>>('/api/tags/knowledge-tree', {
     method: 'GET',
   });
 }
 
-// Replaced getTagAttributes with getTagCategories
+// --- Tag Category CRUD ---
+
 export async function getTagCategories() {
-  return request('/api/tags/categories', {
+  return request<ApiResponse<TagCategory[]>>('/api/tags/categories', {
     method: 'GET',
   });
 }
 
-export async function addTagCategory(data: any) {
-  return request('/api/tags/category', {
+export async function addTagCategory(data: { name: string; tags?: AttributeItem[] }) {
+  return request<ApiResponse<TagCategory>>('/api/tags/category', {
     method: 'POST',
     data,
   });
 }
 
-export async function updateTagCategory(data: any) {
-  return request('/api/tags/category', {
+export async function updateTagCategory(data: { id: string; name: string; tags?: AttributeItem[] }) {
+  return request<ApiResponse<TagCategory>>('/api/tags/category', {
     method: 'PUT',
     data,
   });
 }
 
 export async function deleteTagCategory(id: string) {
-  return request('/api/tags/category', {
+  return request<ApiResponse<void>>('/api/tags/category', {
     method: 'DELETE',
     params: { id },
   });
 }
 
-export async function addKnowledgeNode(data: any) {
-  return request('/api/tags/knowledge-node', {
+// --- Knowledge Node CRUD ---
+
+export async function addKnowledgeNode(data: { name: string; parentId: string | null }) {
+  return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
     method: 'POST',
     data,
   });
 }
 
-export async function updateKnowledgeNode(data: any) {
-  return request('/api/tags/knowledge-node', {
+export async function updateKnowledgeNode(data: { id: string; name: string }) {
+  return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
     method: 'PUT',
     data,
   });
 }
 
 export async function deleteKnowledgeNode(id: string) {
-  return request('/api/tags/knowledge-node', {
+  return request<ApiResponse<void>>('/api/tags/knowledge-node', {
     method: 'DELETE',
     params: { id },
   });
 }
 
-// Question Type CRUD
+// --- Question Type CRUD ---
+
 export async function getQuestionTypeTree() {
-  return request('/api/tags/question-type-tree', {
+  return request<ApiResponse<QuestionTypeNode[]>>('/api/tags/question-type-tree', {
     method: 'GET',
   });
 }
 
-export async function addQuestionTypeNode(data: any) {
-  return request('/api/tags/question-type-node', {
+export async function addQuestionTypeNode(data: { name: string; parentId: string | null }) {
+  return request<ApiResponse<QuestionTypeNode>>('/api/tags/question-type-node', {
     method: 'POST',
     data,
   });
 }
 
-export async function updateQuestionTypeNode(data: any) {
-  return request('/api/tags/question-type-node', {
+export async function updateQuestionTypeNode(data: { id: string; name: string }) {
+  return request<ApiResponse<QuestionTypeNode>>('/api/tags/question-type-node', {
     method: 'PUT',
     data,
   });
 }
 
 export async function deleteQuestionTypeNode(id: string) {
-  return request('/api/tags/question-type-node', {
+  return request<ApiResponse<void>>('/api/tags/question-type-node', {
     method: 'DELETE',
     params: { id },
   });
 }
 
-// Attribute CRUD
-export async function addAttribute(data: any) {
-  return request('/api/tags/attribute', {
+// --- Attribute CRUD ---
+
+export async function addAttribute(data: { categoryId: string; name: string; color: string }) {
+  return request<ApiResponse<AttributeItem>>('/api/tags/attribute', {
     method: 'POST',
     data,
   });
 }
 
-export async function updateAttribute(data: any) {
-  return request('/api/tags/attribute', {
+export async function updateAttribute(data: { id: string; categoryId: string; name?: string; color?: string }) {
+  return request<ApiResponse<AttributeItem>>('/api/tags/attribute', {
     method: 'PUT',
     data,
   });
 }
 
 export async function deleteAttribute(id: string, categoryId: string) {
-  return request('/api/tags/attribute', {
+  return request<ApiResponse<void>>('/api/tags/attribute', {
     method: 'DELETE',
     params: { id, categoryId },
   });
 }
 
-// Textbook API
+// --- Textbook ---
+
 export async function getTextbookVersions() {
-  return request('/api/tags/textbook-versions', {
+  return request<ApiResponse<TextbookVersion[]>>('/api/tags/textbook-versions', {
     method: 'GET',
   });
 }
 
 export async function getTextbookChapters(version: string) {
-  return request('/api/tags/textbook-chapters', {
+  return request<ApiResponse<TextbookChapter[]>>('/api/tags/textbook-chapters', {
     method: 'GET',
     params: { version },
   });
 }
 
-// Textbook Chapter CRUD
-export async function addTextbookChapter(data: any) {
-  return request('/api/tags/textbook-chapter', {
+export async function addTextbookChapter(data: { name: string; parentId: string | null; version: string }) {
+  return request<ApiResponse<TextbookChapter>>('/api/tags/textbook-chapter', {
     method: 'POST',
     data,
   });
 }
 
-export async function updateTextbookChapter(data: any) {
-  return request('/api/tags/textbook-chapter', {
+export async function updateTextbookChapter(data: { id: string; name: string }) {
+  return request<ApiResponse<TextbookChapter>>('/api/tags/textbook-chapter', {
     method: 'PUT',
     data,
   });
 }
 
 export async function deleteTextbookChapter(id: string) {
-  return request('/api/tags/textbook-chapter', {
+  return request<ApiResponse<void>>('/api/tags/textbook-chapter', {
     method: 'DELETE',
     params: { id },
   });
