@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   Input,
   Modal,
@@ -24,7 +23,7 @@ export interface BatchReviewProps {
 }
 
 function scoreColor(score: number | undefined): string {
-  if (score == null) return '#64748b';
+  if (score === null || score === undefined) return '#64748b';
   if (score >= 80) return '#16a34a';
   if (score >= 55) return '#d97706';
   return '#dc2626';
@@ -53,8 +52,6 @@ const BatchReview: React.FC<BatchReviewProps> = ({
         : questions.filter((q) => q.qualityVerdict === 'mid-need-review'),
     [questions, showAll],
   );
-
-  const total = questions.length;
 
   const handleKeep = async (ids: string[]) => {
     if (ids.length === 0) return;
@@ -162,16 +159,29 @@ const BatchReview: React.FC<BatchReviewProps> = ({
 
   return (
     <div className={styles.batchReview}>
-      <Alert
-        type="info"
-        showIcon
-        message={
-          <span>
-            共 {total} 题 · 自动通过 {summary.autoPass} · 待编辑确认{' '}
-            {summary.needReview} · 自动拒绝 {summary.autoReject}
-          </span>
-        }
-      />
+      <div className={styles.summaryRow}>
+        <div className={styles.summaryCard}>
+          <div className={`${styles.summaryDot} ${styles.pass}`}>✓</div>
+          <div className={styles.summaryInfo}>
+            <span className={styles.summaryLabel}>自动通过</span>
+            <span className={styles.summaryValue}>{summary.autoPass}</span>
+          </div>
+        </div>
+        <div className={styles.summaryCard}>
+          <div className={`${styles.summaryDot} ${styles.review}`}>!</div>
+          <div className={styles.summaryInfo}>
+            <span className={styles.summaryLabel}>待编辑确认</span>
+            <span className={styles.summaryValue}>{summary.needReview}</span>
+          </div>
+        </div>
+        <div className={styles.summaryCard}>
+          <div className={`${styles.summaryDot} ${styles.reject}`}>✗</div>
+          <div className={styles.summaryInfo}>
+            <span className={styles.summaryLabel}>自动拒绝</span>
+            <span className={styles.summaryValue}>{summary.autoReject}</span>
+          </div>
+        </div>
+      </div>
       <div className={styles.controls}>
         <Switch
           checkedChildren="显示全部"

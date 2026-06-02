@@ -7,6 +7,76 @@
   gap: @space-md;
 }
 
+// ── 统计摘要卡片 ──
+
+.summaryRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: @space-md;
+}
+
+.summaryCard {
+  display: flex;
+  align-items: center;
+  gap: @space-md;
+  padding: @space-md @space-lg;
+  background: @color-bg-container;
+  border: 1px solid @color-border;
+  border-radius: @radius-md;
+  transition: box-shadow @transition-fast;
+
+  &:hover {
+    box-shadow: @shadow-sm;
+  }
+}
+
+.summaryDot {
+  width: 36px;
+  height: 36px;
+  border-radius: @radius-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: @font-weight-semibold;
+  flex-shrink: 0;
+
+  &.pass {
+    background: @color-success-light;
+    color: @color-success;
+  }
+
+  &.review {
+    background: @color-warning-light;
+    color: @color-warning;
+  }
+
+  &.reject {
+    background: @color-error-light;
+    color: @color-error;
+  }
+}
+
+.summaryInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summaryLabel {
+  font-size: @font-size-xs;
+  color: @color-text-secondary;
+}
+
+.summaryValue {
+  font-size: 20px;
+  font-weight: @font-weight-semibold;
+  color: @color-text;
+  font-variant-numeric: tabular-nums;
+}
+
+// ── 筛选控件 ──
+
 .controls {
   display: flex;
   align-items: center;
@@ -18,10 +88,46 @@
   font-size: @font-size-sm;
 }
 
+// ── 表格内元素 ──
+
 .scoreCell {
   font-weight: @font-weight-semibold;
   font-variant-numeric: tabular-nums;
 }
+
+.stemCell {
+  line-height: 1.7;
+  font-size: @font-size-sm;
+  padding: @space-sm @space-md;
+  background: @color-bg;
+  border-radius: @radius-md;
+  border-left: 3px solid @color-primary-border;
+
+  img {
+    max-width: 100%;
+    border-radius: @radius-sm;
+  }
+
+  table {
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: @radius-sm;
+  }
+
+  math {
+    font-size: 1em;
+  }
+
+  p {
+    margin-bottom: @space-xs;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+// ── 底部操作栏 ──
 
 .stickyBar {
   position: sticky;
@@ -33,27 +139,10 @@
   align-items: center;
   gap: @space-md;
   z-index: 10;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 4%);
 }
 
 .readOnlyHint {
   color: @color-text-secondary;
   font-size: @font-size-sm;
-}
-
-.stemCell {
-  line-height: 1.7;
-  font-size: @font-size-sm;
-
-  img {
-    max-width: 100%;
-  }
-
-  table {
-    max-width: 100%;
-    overflow-x: auto;
-  }
-
-  math {
-    font-size: 1em;
-  }
 }
