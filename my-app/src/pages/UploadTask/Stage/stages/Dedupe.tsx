@@ -10,7 +10,7 @@ import { getStageQuestions, advanceSystemStage, unlinkDuplicate } from '@/servic
 import type { TaskQuestion } from '../../types';
 import DedupeSummary from './dedupe/DedupeSummary';
 import DuplicatePairCard from './dedupe/DuplicatePairCard';
-import styles from './dedupe.less';
+import styles from './dedupe/dedupe.less';
 
 interface DedupeProps {
   task: {
