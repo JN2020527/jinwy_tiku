@@ -1,14 +1,12 @@
 import { useRequest } from '@umijs/max';
 import React from 'react';
 import {
-  confirmParseReview,
   getStageQuestions,
-  regenerateParse,
   updateParsedFields,
 } from '@/services/uploadTask';
 import type { TaskQuestion } from '../../types';
-import QuestionAudit from '../workspaces/QuestionAudit';
 import type { UploadTask } from '../../types';
+import ParseReviewWorkspace from '../workspaces/ParseReviewWorkspace';
 
 const ParseReview: React.FC<{
   task: UploadTask;
@@ -19,25 +17,19 @@ const ParseReview: React.FC<{
     () => getStageQuestions(task.id, 'parse-review'),
     { formatResult: (res: TaskQuestion[]) => res },
   );
+
   return (
-    <QuestionAudit
+    <ParseReviewWorkspace
       questions={questions ?? []}
-      mode="parse"
-      onUpdate={async (q, patch) => {
-        await updateParsedFields(task.id, q.id, patch);
-        await refresh();
-      }}
-      onRegenerate={async (q) => {
-        await regenerateParse(task.id, q.id);
-        await refresh();
-      }}
-      onConfirm={async (ids) => {
-        await confirmParseReview(task.id, ids);
+      readOnly={readOnly}
+      onSave={async (q, patch) => {
+        await updateParsedFields(task.id, q.id, {
+          answer: patch.answer,
+          analysis: patch.analysis,
+        });
         await refresh();
         onRefresh();
       }}
-      readOnly={readOnly}
-      variant="compact"
     />
   );
 };

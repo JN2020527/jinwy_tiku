@@ -913,7 +913,7 @@ export default {
     let updated: TaskQuestion | undefined;
     questions[taskId] = list.map((q) => {
       if (q.id !== questionId) return q;
-      const merged = { ...q, ...patch };
+      const merged = { ...q, ...patch, parseReviewed: true };
       updated = merged;
       return merged;
     });
@@ -921,6 +921,7 @@ export default {
       fail(res, '题目不存在', 404);
       return;
     }
+    maybeAdvance(taskId, 'parse-review');
     ok(res, updated);
   },
 
@@ -958,6 +959,7 @@ export default {
       fail(res, '题目不存在', 404);
       return;
     }
+    maybeAdvance(taskId, 'parse-review');
     ok(res, updated);
   },
 
@@ -1011,6 +1013,7 @@ export default {
       fail(res, '题目不存在', 404);
       return;
     }
+    maybeAdvance(taskId, 'parse-review');
     ok(res, updated);
   },
 
@@ -1047,6 +1050,7 @@ export default {
       fail(res, '题目不存在', 404);
       return;
     }
+    maybeAdvance(taskId, 'parse-review');
     ok(res, updated);
   },
 
