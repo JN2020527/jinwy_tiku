@@ -5,6 +5,7 @@
   display: flex;
   flex-direction: column;
   gap: @space-md;
+  touch-action: manipulation;
 }
 
 // ── 统计摘要卡片 ──
@@ -98,6 +99,7 @@
 .stemCell {
   line-height: 1.7;
   font-size: @font-size-sm;
+  overflow-wrap: break-word;
 
   img {
     max-width: 100%;
@@ -131,4 +133,20 @@
 .readOnlyHint {
   color: @color-text-secondary;
   font-size: @font-size-sm;
+}
+
+// ── 删除原因弹窗 ──
+
+.rejectModal {
+  .ant-modal-body {
+    overscroll-behavior: contain;
+  }
+}
+
+// ── Reduced motion ──
+
+@media (prefers-reduced-motion: reduce) {
+  .summaryCard {
+    transition: none;
+  }
 }

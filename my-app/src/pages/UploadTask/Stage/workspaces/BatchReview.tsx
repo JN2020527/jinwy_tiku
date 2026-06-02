@@ -241,16 +241,20 @@ const BatchReview: React.FC<BatchReviewProps> = ({
         onOk={handleRejectConfirm}
         okText="确认删除"
         okButtonProps={{ danger: true, loading: submitting }}
+        wrapClassName={styles.rejectModal}
       >
         <Input.TextArea
+          name="rejectReason"
           rows={4}
+          autoComplete="off"
+          aria-label="删除原因"
           value={rejectTarget?.reason ?? ''}
           onChange={(e) =>
             setRejectTarget((prev) =>
               prev ? { ...prev, reason: e.target.value } : prev,
             )
           }
-          placeholder="请填写删除原因，便于后续追溯"
+          placeholder="请填写删除原因，便于后续追溯…"
         />
       </Modal>
     </div>
