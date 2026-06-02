@@ -89,10 +89,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.scoreIcon {
-  font-size: 12px;
-}
-
 .scorePass {
   color: @color-success;
 }
@@ -107,6 +103,34 @@
 
 .scoreNone {
   color: @color-text-secondary;
+}
+
+// ── 评分维度明细 ──
+
+.dimRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: @font-size-sm;
+}
+
+.dimName {
+  color: @color-text-secondary;
+}
+
+.dimFull {
+  color: @color-success;
+  font-weight: @font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+}
+
+.dimPartial {
+  color: @color-text;
+  font-variant-numeric: tabular-nums;
+}
+
+.dimNote {
+  font-size: @font-size-xs;
 }
 
 .stemCell {
