@@ -29,7 +29,9 @@
       "Bash(sed -n '/^## Task 19/,$p' /Users/jinwenyuan/.claude/jobs/53403e67/tmp/plan-parts/phase5.md)",
       "Bash(awk *)",
       "Bash(perl -i -pe 's/^\\(- \\\\[ \\\\] \\\\*\\\\*Step \\\\d+\\\\.\\\\d+ .+?\\)\\\\s*$/$1**/ unless /\\\\*\\\\*\\\\s*$/' docs/superpowers/plans/2026-06-01-upload-pipeline.md)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "WebFetch(domain:github.com)",
+      "Bash(npx skills *)"
     ]
   }
 }
