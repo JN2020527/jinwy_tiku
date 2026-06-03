@@ -84,6 +84,19 @@ export async function confirmQualityReject(
   }).then(unwrap);
 }
 
+// ----- 重复检测 -----
+
+export async function unlinkDuplicate(
+  taskId: string,
+  questionId: string,
+): Promise<void> {
+  return request<ApiResponse<void>>(
+    '/api/upload-task/dedupe/unlink',
+    { method: 'POST', data: { taskId, questionId } },
+  ).then(unwrap);
+}
+
+
 // ----- 解析审核 -----
 
 export async function updateParsedFields(
