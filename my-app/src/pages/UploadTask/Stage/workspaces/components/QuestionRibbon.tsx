@@ -25,7 +25,9 @@ const QuestionRibbon: React.FC<QuestionRibbonProps> = ({
             key={q.id}
             type="button"
             onClick={() => onNavigate(q.id)}
-            className={`${styles.pill} ${active ? styles.pillActive : ''} ${reviewed ? styles.pillReviewed : ''}`}
+            className={`${styles.pill} ${active ? styles.pillActive : ''} ${
+              reviewed ? styles.pillReviewed : ''
+            }`}
           >
             <span className={styles.pillLabel}>Q{q.index + 1}</span>
             {reviewed && <span className={styles.pillCheck}>✓</span>}

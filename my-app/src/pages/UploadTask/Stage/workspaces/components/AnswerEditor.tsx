@@ -1,6 +1,6 @@
+import RichTextEditor from '@/components/RichTextEditor';
 import { Button } from 'antd';
 import React from 'react';
-import RichTextEditor from '@/components/RichTextEditor';
 import styles from '../ParseReviewWorkspace.less';
 
 interface AnswerEditorProps {
@@ -73,9 +73,7 @@ const AnswerEditor: React.FC<AnswerEditorProps> = ({
 
     {!readOnly && (
       <div className={styles.editorToolbar}>
-        <span className={styles.toolbarHint}>
-          Ctrl+Enter 保存下一题
-        </span>
+        <span className={styles.toolbarHint}>Ctrl+Enter 保存下一题</span>
         <Button
           type="primary"
           loading={saving}

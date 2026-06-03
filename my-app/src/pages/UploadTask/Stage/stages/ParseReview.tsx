@@ -1,11 +1,7 @@
+import { getStageQuestions, updateParsedFields } from '@/services/uploadTask';
 import { useRequest } from '@umijs/max';
 import React from 'react';
-import {
-  getStageQuestions,
-  updateParsedFields,
-} from '@/services/uploadTask';
-import type { TaskQuestion } from '../../types';
-import type { UploadTask } from '../../types';
+import type { TaskQuestion, UploadTask } from '../../types';
 import ParseReviewWorkspace from '../workspaces/ParseReviewWorkspace';
 
 const ParseReview: React.FC<{

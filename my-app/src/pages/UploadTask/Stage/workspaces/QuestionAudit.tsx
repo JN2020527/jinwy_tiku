@@ -1,3 +1,6 @@
+import { useQuestionNavKeyboard } from '@/hooks/useQuestionNavKeyboard';
+import { getKnowledgeTree, type KnowledgeNode } from '@/services/tagSystem';
+import { sanitizeHtml } from '@/utils/sanitize';
 import {
   Button,
   Checkbox,
@@ -13,9 +16,6 @@ import {
   message,
 } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
-import { useQuestionNavKeyboard } from '@/hooks/useQuestionNavKeyboard';
-import { getKnowledgeTree, type KnowledgeNode } from '@/services/tagSystem';
-import { sanitizeHtml } from '@/utils/sanitize';
 import type { TaskQuestion } from '../../types';
 import styles from './QuestionAudit.less';
 
@@ -220,7 +220,9 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
               <div
                 key={q.id}
                 onClick={() => setCurrentId(q.id)}
-                className={`${styles.questionItem} ${active ? styles.questionItemActive : ''}`}
+                className={`${styles.questionItem} ${
+                  active ? styles.questionItemActive : ''
+                }`}
               >
                 <Checkbox
                   checked={selectedIds.includes(q.id)}
@@ -234,7 +236,11 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
                     )
                   }
                 />
-                <span className={active ? styles.questionIndexActive : styles.questionIndex}>
+                <span
+                  className={
+                    active ? styles.questionIndexActive : styles.questionIndex
+                  }
+                >
                   Q{q.index}
                 </span>
                 {q.tags?.questionType && (
@@ -249,9 +255,7 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
 
       {/* 中栏 */}
       <div className={styles.centerPanel}>
-        {!current && (
-          <div className={styles.emptyHint}>请选择左侧题目</div>
-        )}
+        {!current && <div className={styles.emptyHint}>请选择左侧题目</div>}
         {current && (
           <>
             <div className={styles.previewTitle}>
@@ -267,7 +271,9 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
               />
             </div>
             {current.options && current.options.length > 0 && (
-              <div className={fieldFrameClass(current.parseConfidence?.options)}>
+              <div
+                className={fieldFrameClass(current.parseConfidence?.options)}
+              >
                 <div className={styles.fieldLabel}>选项</div>
                 {current.options.map((opt, i) => (
                   <div key={i} style={{ marginBottom: 4 }}>
@@ -300,9 +306,7 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
       {/* 右栏 */}
       <div className={styles.rightPanel}>
         <div className={styles.editArea}>
-          {!draft && (
-            <div className={styles.emptyHint}>请选择左侧题目</div>
-          )}
+          {!draft && <div className={styles.emptyHint}>请选择左侧题目</div>}
           {draft && mode === 'parse' && (
             <Form layout="vertical" disabled={readOnly}>
               {PARSE_FIELDS.map((field) => {
@@ -339,12 +343,9 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
                               prev
                                 ? {
                                     ...prev,
-                                    options: (prev.options ?? [
-                                      '',
-                                      '',
-                                      '',
-                                      '',
-                                    ]).map((v, j) =>
+                                    options: (
+                                      prev.options ?? ['', '', '', '']
+                                    ).map((v, j) =>
                                       j === i ? e.target.value : v,
                                     ),
                                   }
@@ -507,8 +508,8 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
       {/* 底部状态条 */}
       <div className={styles.bottomBar}>
         <span>
-          已审 {reviewedCount} / {questions.length} ·
-          全部通过后自动推进。↑↓ 切题，Ctrl+Enter 保存下一题
+          已审 {reviewedCount} / {questions.length} · 全部通过后自动推进。↑↓
+          切题，Ctrl+Enter 保存下一题
           {readOnly && (
             <Tag color="default" style={{ marginLeft: 8 }}>
               只读

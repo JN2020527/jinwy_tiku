@@ -1,6 +1,6 @@
+import { useQuestionNavKeyboard } from '@/hooks/useQuestionNavKeyboard';
 import { Modal, message } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useQuestionNavKeyboard } from '@/hooks/useQuestionNavKeyboard';
 import type { TaskQuestion } from '../../types';
 import AnswerEditor from './components/AnswerEditor';
 import QuestionContext from './components/QuestionContext';
@@ -21,9 +21,7 @@ const ParseReviewWorkspace: React.FC<ParseReviewWorkspaceProps> = ({
   onSave,
   readOnly,
 }) => {
-  const [currentId, setCurrentId] = useState<string>(
-    questions[0]?.id ?? '',
-  );
+  const [currentId, setCurrentId] = useState<string>(questions[0]?.id ?? '');
   const [draftAnswer, setDraftAnswer] = useState('');
   const [draftAnalysis, setDraftAnalysis] = useState('');
   const [saving, setSaving] = useState(false);
@@ -56,8 +54,7 @@ const ParseReviewWorkspace: React.FC<ParseReviewWorkspaceProps> = ({
 
   const allReviewed = useMemo(
     () =>
-      questions.length > 0 &&
-      questions.every((q) => q.parseReviewed === true),
+      questions.length > 0 && questions.every((q) => q.parseReviewed === true),
     [questions],
   );
 
@@ -89,7 +86,14 @@ const ParseReviewWorkspace: React.FC<ParseReviewWorkspaceProps> = ({
     } finally {
       setSaving(false);
     }
-  }, [current, saving, draftAnswer, draftAnalysis, onSave, jumpToNextUnreviewed]);
+  }, [
+    current,
+    saving,
+    draftAnswer,
+    draftAnalysis,
+    onSave,
+    jumpToNextUnreviewed,
+  ]);
 
   // Unsaved changes protection before switching
   const switchToQuestion = useCallback(
@@ -162,10 +166,7 @@ const ParseReviewWorkspace: React.FC<ParseReviewWorkspaceProps> = ({
       <div className={styles.mainBody}>
         {current ? (
           <>
-            <QuestionContext
-              stem={current.stem}
-              options={current.options}
-            />
+            <QuestionContext stem={current.stem} options={current.options} />
             <AnswerEditor
               key={currentId}
               answer={draftAnswer}

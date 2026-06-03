@@ -204,7 +204,10 @@ function advanceToNext(
   };
 }
 
-function genStageSummary(stage: StageKey, qs: TaskQuestion[] | undefined): string {
+function genStageSummary(
+  stage: StageKey,
+  qs: TaskQuestion[] | undefined,
+): string {
   const list = qs ?? [];
   switch (stage) {
     case 'quality': {
@@ -224,13 +227,17 @@ function genStageSummary(stage: StageKey, qs: TaskQuestion[] | undefined): strin
       return `解析准确率 96% · 低置信字段 ${lowConf} 处`;
     }
     case 'parse-review':
-      return `解析审核完成 · 已确认 ${list.filter((q) => q.parseReviewed).length} 题`;
+      return `解析审核完成 · 已确认 ${
+        list.filter((q) => q.parseReviewed).length
+      } 题`;
     case 'tag': {
       const needReview = list.filter((q) => !q.tagReviewed).length;
       return `打标完成 · 待复核 ${needReview} 题`;
     }
     case 'tag-review':
-      return `打标审核完成 · 已确认 ${list.filter((q) => q.tagReviewed).length} 题`;
+      return `打标审核完成 · 已确认 ${
+        list.filter((q) => q.tagReviewed).length
+      } 题`;
     case 'publish':
       return '已发布至题库';
     case 'distribute':
@@ -356,7 +363,8 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
         base.analysis = '<p>代入公式直接得到结果。</p>';
       } else {
         base.answer = '<p>解：由题意可得 ...（详见解析）</p>';
-        base.analysis = '<p>本题考查综合应用能力，解题步骤分三步：① ... ② ... ③ ...</p>';
+        base.analysis =
+          '<p>本题考查综合应用能力，解题步骤分三步：① ... ② ... ③ ...</p>';
       }
 
       // AI 质量评分 + 自动判定：currentStage 在或晚于 quality 时即生成
@@ -397,7 +405,12 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
                     maxScore: 20,
                     note: '公式格式不规范',
                   },
-                  { name: '答案规范性', score: 18, maxScore: 20, note: '个别表述不严谨' },
+                  {
+                    name: '答案规范性',
+                    score: 18,
+                    maxScore: 20,
+                    note: '个别表述不严谨',
+                  },
                   {
                     name: '解析完整性',
                     score: 12,
@@ -412,7 +425,12 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
                     maxScore: 25,
                     note: '条件不清晰',
                   },
-                  { name: '公式/图片正确性', score: 16, maxScore: 20, note: '部分公式排版不规范' },
+                  {
+                    name: '公式/图片正确性',
+                    score: 16,
+                    maxScore: 20,
+                    note: '部分公式排版不规范',
+                  },
                   {
                     name: '答案规范性',
                     score: 12,
@@ -491,7 +509,9 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
       // 解析产物：已过 parse 的任务
       if (passedParse) {
         // 每题至少 1 个字段 < 0.8（用 i%4 选）
-        const lowField = (['stem', 'options', 'answer', 'analysis'] as const)[i % 4];
+        const lowField = (['stem', 'options', 'answer', 'analysis'] as const)[
+          i % 4
+        ];
         const conf: Partial<
           Record<'stem' | 'options' | 'answer' | 'analysis', number>
         > = {
@@ -519,10 +539,10 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
             qType === 'single'
               ? '单选题'
               : qType === 'multi'
-                ? '多选题'
-                : qType === 'fill'
-                  ? '填空题'
-                  : '解答题',
+              ? '多选题'
+              : qType === 'fill'
+              ? '填空题'
+              : '解答题',
           difficulty: ((i % 5) + 1) as 1 | 2 | 3 | 4 | 5,
           cognitionLevel: i % 2 === 0 ? '理解' : '应用',
         };
@@ -798,7 +818,14 @@ export default {
 
   'POST /api/upload-task/create': (req: Request, res: Response) => {
     const body = req.body ?? {};
-    const required = ['name', 'fileName', 'subject', 'grade', 'source', 'batch'];
+    const required = [
+      'name',
+      'fileName',
+      'subject',
+      'grade',
+      'source',
+      'batch',
+    ];
     for (const k of required) {
       if (!body[k] || String(body[k]).trim() === '') {
         fail(res, `字段 ${k} 不能为空`);
@@ -895,7 +922,10 @@ export default {
 
   // ----- 解析审核 -----
 
-  'POST /api/upload-task/parse-review/update': (req: Request, res: Response) => {
+  'POST /api/upload-task/parse-review/update': (
+    req: Request,
+    res: Response,
+  ) => {
     const { taskId, questionId, patch } = req.body ?? {};
     if (!taskId || !questionId) {
       fail(res, 'taskId 与 questionId 必填');
