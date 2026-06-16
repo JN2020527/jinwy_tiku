@@ -23,7 +23,7 @@ Because no test framework is configured, verify changes with `npm run build` and
 
 ## Commit & Pull Request Guidelines
 
-Recent history uses Conventional Commit style, for example `feat(upload): add DedupeSummary component`, `fix(upload): correct dedupe.less import path`, and `style(upload): format parse-review redesign files with Prettier`. Keep commits scoped and imperative. Pull requests should include a short summary, affected routes or pages, manual verification steps, linked issues when relevant, and screenshots for visible UI changes.
+Recent history uses Conventional Commit style, for example `feat(tagging): add doubtful marker filter`, `fix(tag-system): preserve selected tree node`, and `style(answer-manage): format drawer layout`. Keep commits scoped and imperative. Pull requests should include a short summary, affected routes or pages, manual verification steps, linked issues when relevant, and screenshots for visible UI changes.
 
 ## Security & Configuration Tips
 

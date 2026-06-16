@@ -66,17 +66,6 @@ export default [
         component: './ContentCenter/TagManage',
       },
       {
-        path: '/question-bank/upload',
-        name: '试题上传',
-        icon: 'cloudUpload',
-        component: './UploadTask/List',
-      },
-      {
-        path: '/question-bank/task',
-        redirect: '/question-bank/upload',
-        hideInMenu: true,
-      },
-      {
         path: '/question-bank/tagging',
         name: '试题打标',
         icon: 'tags',
@@ -95,12 +84,6 @@ export default [
     path: '/question-bank/tagging-fullscreen',
     name: '试题打标',
     component: './QuestionTagging',
-    hideInMenu: true,
-    layout: false,
-  },
-  {
-    path: '/question-bank/upload/:taskId/:stage',
-    component: './UploadTask/Stage',
     hideInMenu: true,
     layout: false,
   },

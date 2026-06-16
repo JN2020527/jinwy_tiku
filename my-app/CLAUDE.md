@@ -6,7 +6,7 @@
 
 晋文源题库管理系统 —— 一个面向 K12 教育内容的**纯前端原型项目**。核心业务是试题打标（标注知识点/题型/难度等）与题库标签体系管理。
 
-**本项目不需要后端**：这是一个用于演示与交互验证的前端原型，所有数据由 `mock/` 目录提供，无需也不应依赖真实后端服务。新增功能时请继续走"前端组件 + mock 数据"的方式，不要假设有可用的后端 API。
+**本项目不需要后端**：这是一个用于演示与交互验证的前端原型，数据来自 `mock/` 服务端 mock 或页面旁的 `mockData.ts` 本地 mock，无需也不应依赖真实后端服务。新增功能时请继续走"前端组件 + mock 数据"的方式，不要假设有可用的后端 API。
 
 技术栈：**Umi Max 4** + **React 18** + **Ant Design 5 / Pro Components** + **wangEditor 5**（富文本）。TypeScript 全程。
 
@@ -69,9 +69,9 @@ CLI 命令示例：`codegraph impact sanitizeHtml --depth 2 --json`、`codegraph
 
 本项目无后端，数据有**两种**来源，改某个页面前先确认它用哪一种：
 
-- **服务端 mock**（`mock/*.ts`，经 `src/services/` 走 `/api` 请求）：用于 `TagManage`、`UploadTask`。新增/改 service 接口时**必须同步**改对应 mock 文件，否则页面拿不到数据。
+- **服务端 mock**（`mock/*.ts`，经 `src/services/` 走 `/api` 请求）：用于 `TagManage`。新增/改 service 接口时**必须同步**改对应 mock 文件，否则页面拿不到数据。
 - **组件内本地 mock**（页面里 `import { ... } from './mockData'`）：用于 **`QuestionTagging`**（最复杂的页面）、`ContentCenter/ProductList`、`SubjectManage`。这些页面**不经过 `mock/` 目录**，数据直接在组件旁的 `mockData.ts` 里改。
-- 服务端 mock 文件按 service 对应：`mock/tagSystem.ts`、`mock/uploadTask.ts`（含状态机、种子数据、阶段推进），用 Umi 路由键写法（如 `'GET /api/tags/knowledge-tree'`）。
+- 服务端 mock 文件按 service 对应：当前只有 `mock/tagSystem.ts`，用 Umi 路由键写法（如 `'GET /api/tags/knowledge-tree'`）。
 - API 统一走 `@umijs/max` 的 `request`，响应封装为 `{ success: boolean, message: string, data: T }`，mock 返回值需遵循同一封装。
 - `.umirc.ts` 中 `proxy['/api'] → http://localhost:8001` 为历史遗留配置，当前无对应后端，可忽略。
 
@@ -80,24 +80,11 @@ CLI 命令示例：`codegraph impact sanitizeHtml --depth 2 --json`、`codegraph
 `src/services/` 是唯一的 API 边界，按业务域拆分：
 
 - `tagSystem.ts` —— 知识点树、题型树、属性标签分类、教材版本与章节的完整 CRUD。
-- `uploadTask.ts` —— 上传任务 CRUD、8 阶段状态机推进、阶段数据读写、分发配置。
 
 ### 业务页面
 
 - `QuestionTagging/` —— 三栏全屏打标工作区，是本仓库最复杂的页面，详见下节。
 - `ContentCenter/` —— TagManage（标签体系，含知识树/题型树/属性面板）、AnswerManage、ProductList、SubjectManage。
-- `UploadTask/` —— 试题上传 8 阶段流水线，含列表页（`List/`）和阶段工作区（`Stage/`，按阶段分派到 `stages/Quality|Dedupe|Parse|ParseReview|Tag|TagReview|Publish|Distribute`）。
-
-### 试题上传流水线（UploadTask）
-
-8 阶段状态机：`quality → dedupe → parse → parse-review → tag → tag-review → publish → distribute`。
-
-- **3 个人工阶段**（quality / parse-review / tag-review）：`state='processing'` 时阻塞等待人工操作。
-- **5 个系统阶段**：mock 中模拟自动推进（`advanceSystemStage` 拒绝推进人工阶段）。
-- 类型在 `UploadTask/types.ts`，常量/派生函数在 `UploadTask/constants.ts`（`STAGE_KEYS`、`deriveStatus`、`HUMAN_STAGES` 等）。
-- 阶段路由：`/question-bank/upload/:taskId/:stage`，Stage 组件根据 `isValidStage` 校验后分派。
-- 4 种工作区模板：`BatchReview`（质量检测）、`SystemStatus`（系统阶段）、`QuestionAudit`（审核）、`DistributeForm`（分发配置）。
-- 共享键盘导航 hook：`src/hooks/useQuestionNavKeyboard.ts`（QuestionTagging 和审核阶段复用）。
 
 ### 试题打标页（QuestionTagging）
 
