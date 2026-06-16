@@ -1,3 +1,4 @@
+import type { AttributeItem, TagCategory } from '@/services/tagSystem';
 import {
   addAttribute,
   addTagCategory,
@@ -6,24 +7,14 @@ import {
   updateAttribute,
   updateTagCategory,
 } from '@/services/tagSystem';
-import type { AttributeItem, TagCategory } from '@/services/tagSystem';
 import { EditOutlined, PlusOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import {
-  Button,
-  Form,
-  Input,
-  message,
-  Modal,
-  Space,
-  Table,
-  Tag,
-} from 'antd';
 import {
   EditableProTable,
   ModalForm,
   ProFormText,
 } from '@ant-design/pro-components';
+import { Button, Form, Input, message, Modal, Space, Table, Tag } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import React, { useState } from 'react';
 
 interface AttributeTagsPanelProps {
@@ -62,9 +53,7 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
   const [expandedCategories, setExpandedCategories] = useState<
     Record<string, boolean>
   >({});
-  const [inputVisible, setInputVisible] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [inputVisible, setInputVisible] = useState<Record<string, boolean>>({});
   const [inputValue, setInputValue] = useState<Record<string, string>>({});
 
   // --- Category Handlers ---
@@ -86,7 +75,10 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
     setCatModalVisible(true);
   };
 
-  const handleCatModalFinish = async (values: { name: string; tags?: AttributeItem[] }) => {
+  const handleCatModalFinish = async (values: {
+    name: string;
+    tags?: AttributeItem[];
+  }) => {
     let res;
     if (catModalType === 'add') {
       res = await addTagCategory(values);
@@ -152,11 +144,17 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
     });
   };
 
-  const handleAttrModalFinish = async (values: { name: string; color?: string }) => {
+  const handleAttrModalFinish = async (values: {
+    name: string;
+    color?: string;
+  }) => {
     let res;
     const payload = { ...values, categoryId: currentCategoryId };
     if (attrModalType === 'add') {
-      res = await addAttribute({ ...payload, color: payload.color || 'default' });
+      res = await addAttribute({
+        ...payload,
+        color: payload.color || 'default',
+      });
     } else {
       res = await updateAttribute({ ...payload, id: selectedAttr!.id });
     }
@@ -202,9 +200,7 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
       dataIndex: 'name',
       key: 'name',
       width: 150,
-      render: (text: string) => (
-        <span style={{ fontWeight: 500 }}>{text}</span>
-      ),
+      render: (text: string) => <span style={{ fontWeight: 500 }}>{text}</span>,
     },
     {
       title: '包含标签',
@@ -363,7 +359,12 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
               title: '操作',
               valueType: 'option',
               width: 100,
-              render: (_text: React.ReactNode, record: AttributeItem, _index: number, action: EditableColumnAction) => [
+              render: (
+                _text: React.ReactNode,
+                record: AttributeItem,
+                _index: number,
+                action: EditableColumnAction,
+              ) => [
                 <a
                   key="editable"
                   onClick={() => {
@@ -375,7 +376,9 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
                 <a
                   key="delete"
                   onClick={() => {
-                    const dataSource = catForm.getFieldValue('tags') as AttributeItem[];
+                    const dataSource = catForm.getFieldValue(
+                      'tags',
+                    ) as AttributeItem[];
                     const newDataSource = dataSource.filter(
                       (item) => item.id !== record.id,
                     );
@@ -397,7 +400,10 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
             type: 'multiple',
             editableKeys,
             onChange: setEditableKeys,
-            onValuesChange: (_record: AttributeItem, recordList: AttributeItem[]) => {
+            onValuesChange: (
+              _record: AttributeItem,
+              recordList: AttributeItem[],
+            ) => {
               catForm.setFieldsValue({ tags: recordList });
             },
             actionRender: (_row, _config, defaultDom) => [

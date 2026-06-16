@@ -12,12 +12,7 @@ import {
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import React, { useState } from 'react';
-import type {
-  DistributeConfig,
-  Grade,
-  Subject,
-  UploadTask,
-} from '../../types';
+import type { DistributeConfig, Grade, Subject, UploadTask } from '../../types';
 import styles from './DistributeForm.less';
 
 export interface DistributeFormProps {
@@ -242,9 +237,7 @@ const DistributeForm: React.FC<DistributeFormProps> = ({
               {CHANNEL_OPTIONS.map((c) => (
                 <Checkbox key={c.value} value={c.value}>
                   <span className={styles.channelLabel}>{c.label}</span>
-                  <span className={styles.channelDesc}>
-                    {c.desc}
-                  </span>
+                  <span className={styles.channelDesc}>{c.desc}</span>
                 </Checkbox>
               ))}
             </Space>
@@ -257,17 +250,10 @@ const DistributeForm: React.FC<DistributeFormProps> = ({
 
         {!readOnly && editing && (
           <Space>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={submitting}
-            >
+            <Button type="primary" htmlType="submit" loading={submitting}>
               保存分发配置
             </Button>
-            <Button
-              disabled
-              title="原型不支持草稿"
-            >
+            <Button disabled title="原型不支持草稿">
               仅保存草稿
             </Button>
           </Space>

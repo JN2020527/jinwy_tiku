@@ -59,13 +59,16 @@ CLI 命令示例：`codegraph impact sanitizeHtml --depth 2 --json`、`codegraph
 ## 架构要点
 
 ### 路由与布局
+
 - 路由定义在 `config/routes.ts`（**不是** `src/`）。`component: './X'` 相对 `src/pages/` 解析。
 - 全屏页面（无侧边栏/头部）设 `layout: false`——打标页用此模式做沉浸式工作区。
 - 顶层布局/主题在 `.umirc.ts` 的 `layout` 字段 + `config/defaultSettings.ts`；运行时布局逻辑在 `src/app.tsx`（`getInitialState` + `layout` 导出）。
 - 注意路由命名与实现的错位：`/question-bank/*` 下的多个菜单项实际映射到 `src/pages/ContentCenter/` 组件（如标签体系 → `ContentCenter/TagManage`）。改路由时以 `routes.ts` 的 `component` 路径为准。
 
 ### 数据流：两套 Mock 机制（关键）
+
 本项目无后端，数据有**两种**来源，改某个页面前先确认它用哪一种：
+
 - **服务端 mock**（`mock/*.ts`，经 `src/services/` 走 `/api` 请求）：用于 `TagManage`、`UploadTask`。新增/改 service 接口时**必须同步**改对应 mock 文件，否则页面拿不到数据。
 - **组件内本地 mock**（页面里 `import { ... } from './mockData'`）：用于 **`QuestionTagging`**（最复杂的页面）、`ContentCenter/ProductList`、`SubjectManage`。这些页面**不经过 `mock/` 目录**，数据直接在组件旁的 `mockData.ts` 里改。
 - 服务端 mock 文件按 service 对应：`mock/tagSystem.ts`、`mock/uploadTask.ts`（含状态机、种子数据、阶段推进），用 Umi 路由键写法（如 `'GET /api/tags/knowledge-tree'`）。
@@ -73,11 +76,14 @@ CLI 命令示例：`codegraph impact sanitizeHtml --depth 2 --json`、`codegraph
 - `.umirc.ts` 中 `proxy['/api'] → http://localhost:8001` 为历史遗留配置，当前无对应后端，可忽略。
 
 ### Service 层
+
 `src/services/` 是唯一的 API 边界，按业务域拆分：
+
 - `tagSystem.ts` —— 知识点树、题型树、属性标签分类、教材版本与章节的完整 CRUD。
 - `uploadTask.ts` —— 上传任务 CRUD、8 阶段状态机推进、阶段数据读写、分发配置。
 
 ### 业务页面
+
 - `QuestionTagging/` —— 三栏全屏打标工作区，是本仓库最复杂的页面，详见下节。
 - `ContentCenter/` —— TagManage（标签体系，含知识树/题型树/属性面板）、AnswerManage、ProductList、SubjectManage。
 - `UploadTask/` —— 试题上传 8 阶段流水线，含列表页（`List/`）和阶段工作区（`Stage/`，按阶段分派到 `stages/Quality|Dedupe|Parse|ParseReview|Tag|TagReview|Publish|Distribute`）。
@@ -85,6 +91,7 @@ CLI 命令示例：`codegraph impact sanitizeHtml --depth 2 --json`、`codegraph
 ### 试题上传流水线（UploadTask）
 
 8 阶段状态机：`quality → dedupe → parse → parse-review → tag → tag-review → publish → distribute`。
+
 - **3 个人工阶段**（quality / parse-review / tag-review）：`state='processing'` 时阻塞等待人工操作。
 - **5 个系统阶段**：mock 中模拟自动推进（`advanceSystemStage` 拒绝推进人工阶段）。
 - 类型在 `UploadTask/types.ts`，常量/派生函数在 `UploadTask/constants.ts`（`STAGE_KEYS`、`deriveStatus`、`HUMAN_STAGES` 等）。
@@ -93,14 +100,18 @@ CLI 命令示例：`codegraph impact sanitizeHtml --depth 2 --json`、`codegraph
 - 共享键盘导航 hook：`src/hooks/useQuestionNavKeyboard.ts`（QuestionTagging 和审核阶段复用）。
 
 ### 试题打标页（QuestionTagging）
+
 三栏布局：左（筛选 + 试卷/题目列表）/ 中（题目详情）/ 右（打标表单）。组件在 `components/`，类型集中在 `types.ts`。
+
 - 键盘流：`↑↓←→` 题间导航，`Ctrl/Cmd+Enter` 存当前题并跳下一题。
 - 单题 / 批量两种模式（批量用 Switch 控制每个字段是否写入）。
 - **存疑标记**：打标人不确定时标记题目待复查。数据上是 `Question.doubtful?: boolean` 与 `Paper.doubtfulCount`；UI 上有橙色角标/Tag、列表统计（`3/10 · 2存疑`）、筛选器 `tagStatus` 的"存疑"选项。
 - `tagStatus`（未打标/部分打标/已打标）由知识点、题型、难度、章节等字段是否填充自动推导，不要手动散落判断逻辑。
 
 ### HTML 内容处理（安全敏感）
+
 试题题干/答案/解析都是 HTML，且常含数学公式（MathML）和图片：
+
 - 渲染前**必须**经 `src/utils/sanitize.ts` 的 `sanitizeHtml()` 过滤——它白名单放行了 MathML 标签与表格/图片，禁用 data 属性。任何 `dangerouslySetInnerHTML` 都应先 sanitize（`QuestionTagging/components/QuestionDetail.tsx` 在用）。
 - ⚠️ `src/utils/parseStem.ts` 与 `src/components/RichTextEditor/` 原仅服务于已删除的 PaperUpload，现为**孤儿代码**（全仓库无引用），新功能需要时可复用，否则可清理。
 

@@ -1,6 +1,6 @@
-import React from 'react';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { List, Pagination, Space, Tag } from 'antd';
+import React from 'react';
 import type { Paper } from '../types';
 import styles from './PaperList.less';
 
@@ -210,8 +210,15 @@ const PaperList: React.FC<PaperListProps> = ({
                     >
                       {paper.taggedCount}/{paper.questionCount}
                       {paper.doubtfulCount > 0 && (
-                        <span style={{ color: '#fa8c16', fontWeight: 400, fontSize: 12 }}>
-                          {' '}· {paper.doubtfulCount}存疑
+                        <span
+                          style={{
+                            color: '#fa8c16',
+                            fontWeight: 400,
+                            fontSize: 12,
+                          }}
+                        >
+                          {' '}
+                          · {paper.doubtfulCount}存疑
                         </span>
                       )}
                     </span>

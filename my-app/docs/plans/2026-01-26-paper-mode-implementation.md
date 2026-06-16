@@ -13,6 +13,7 @@
 ## Task 1: 新增 Paper 类型定义
 
 **Files:**
+
 - Modify: `src/pages/QuestionTagging/types.ts`
 - Test: 手动验证 TypeScript 编译通过
 
@@ -26,10 +27,10 @@
  */
 export interface Paper {
   id: string;
-  name: string;           // 试卷名称
-  subject: string;        // 学科
-  questionCount: number;  // 题目总数
-  taggedCount: number;    // 已打标数量
+  name: string; // 试卷名称
+  subject: string; // 学科
+  questionCount: number; // 题目总数
+  taggedCount: number; // 已打标数量
   year?: string;
   region?: string;
 }
@@ -37,8 +38,7 @@ export interface Paper {
 
 **Step 2: 验证 TypeScript 编译**
 
-Run: `npx tsc --noEmit`
-Expected: 无错误输出
+Run: `npx tsc --noEmit` Expected: 无错误输出
 
 **Step 3: Commit**
 
@@ -52,6 +52,7 @@ git commit -m "feat(types): add Paper interface for paper mode"
 ## Task 2: 创建 PaperList 组件
 
 **Files:**
+
 - Create: `src/pages/QuestionTagging/components/PaperList.tsx`
 - Create: `src/pages/QuestionTagging/components/PaperList.less`
 - Test: 手动验证组件渲染
@@ -160,14 +161,17 @@ const PaperList: React.FC<PaperListProps> = ({
     <div className={styles.paperList}>
       <div className={styles.listContainer}>
         {papers.map((paper) => {
-          const progress = paper.questionCount > 0
-            ? (paper.taggedCount / paper.questionCount) * 100
-            : 0;
+          const progress =
+            paper.questionCount > 0
+              ? (paper.taggedCount / paper.questionCount) * 100
+              : 0;
 
           return (
             <div
               key={paper.id}
-              className={`${styles.paperItem} ${paper.id === currentPaperId ? styles.active : ''}`}
+              className={`${styles.paperItem} ${
+                paper.id === currentPaperId ? styles.active : ''
+              }`}
               onClick={() => onPaperClick(paper.id)}
             >
               <div className={styles.paperName} title={paper.name}>
@@ -207,8 +211,7 @@ export default PaperList;
 
 **Step 3: 验证 TypeScript 编译**
 
-Run: `npx tsc --noEmit`
-Expected: 无错误输出
+Run: `npx tsc --noEmit` Expected: 无错误输出
 
 **Step 4: Commit**
 
@@ -222,6 +225,7 @@ git commit -m "feat(PaperList): add paper list component with progress bar"
 ## Task 3: 创建 PaperQuestionNav 组件
 
 **Files:**
+
 - Create: `src/pages/QuestionTagging/components/PaperQuestionNav.tsx`
 - Create: `src/pages/QuestionTagging/components/PaperQuestionNav.less`
 - Test: 手动验证组件渲染
@@ -345,8 +349,11 @@ const PaperQuestionNav: React.FC<PaperQuestionNavProps> = ({
   onQuestionClick,
   onSelectionChange,
 }) => {
-  const allSelected = questions.length > 0 && selectedQuestionIds.length === questions.length;
-  const indeterminate = selectedQuestionIds.length > 0 && selectedQuestionIds.length < questions.length;
+  const allSelected =
+    questions.length > 0 && selectedQuestionIds.length === questions.length;
+  const indeterminate =
+    selectedQuestionIds.length > 0 &&
+    selectedQuestionIds.length < questions.length;
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -393,7 +400,9 @@ const PaperQuestionNav: React.FC<PaperQuestionNavProps> = ({
             isTagged ? styles.tagged : styles.untagged,
             isCurrent ? styles.current : '',
             isSelected ? styles.selected : '',
-          ].filter(Boolean).join(' ');
+          ]
+            .filter(Boolean)
+            .join(' ');
 
           return (
             <div
@@ -426,8 +435,7 @@ export default PaperQuestionNav;
 
 **Step 3: 验证 TypeScript 编译**
 
-Run: `npx tsc --noEmit`
-Expected: 无错误输出
+Run: `npx tsc --noEmit` Expected: 无错误输出
 
 **Step 4: Commit**
 
@@ -441,6 +449,7 @@ git commit -m "feat(PaperQuestionNav): add question navigation grid with multi-s
 ## Task 4: 修改 FilterPanel 支持模式切换
 
 **Files:**
+
 - Modify: `src/pages/QuestionTagging/components/FilterPanel.tsx`
 - Test: 手动验证两种模式下的筛选面板
 
@@ -450,7 +459,7 @@ git commit -m "feat(PaperQuestionNav): add question navigation grid with multi-s
 
 ```typescript
 interface FilterPanelProps {
-  mode?: 'question' | 'paper';  // 新增
+  mode?: 'question' | 'paper'; // 新增
   onFilterChange: (filters: Partial<FilterParams>) => void;
 }
 ```
@@ -460,22 +469,23 @@ interface FilterPanelProps {
 在 JSX 中，将关键词搜索字段包裹在条件渲染中：
 
 ```tsx
-{mode !== 'paper' && (
-  <ProFormText
-    name="keyword"
-    label="关键词"
-    placeholder="搜索试卷名称或题干"
-    fieldProps={{
-      allowClear: true,
-    }}
-  />
-)}
+{
+  mode !== 'paper' && (
+    <ProFormText
+      name="keyword"
+      label="关键词"
+      placeholder="搜索试卷名称或题干"
+      fieldProps={{
+        allowClear: true,
+      }}
+    />
+  );
+}
 ```
 
 **Step 3: 验证 TypeScript 编译**
 
-Run: `npx tsc --noEmit`
-Expected: 无错误输出
+Run: `npx tsc --noEmit` Expected: 无错误输出
 
 **Step 4: Commit**
 
@@ -489,6 +499,7 @@ git commit -m "feat(FilterPanel): add mode prop to hide keyword search in paper 
 ## Task 5: 主页面添加 viewMode 状态和 Tab 切换
 
 **Files:**
+
 - Modify: `src/pages/QuestionTagging/index.tsx`
 - Test: 手动验证 Tab 切换功能
 
@@ -549,8 +560,7 @@ const paperQuestions = useMemo(() => {
 
 **Step 5: 验证 TypeScript 编译**
 
-Run: `npx tsc --noEmit`
-Expected: 无错误输出
+Run: `npx tsc --noEmit` Expected: 无错误输出
 
 **Step 6: Commit**
 
@@ -564,6 +574,7 @@ git commit -m "feat(QuestionTagging): add viewMode state and papers aggregation"
 ## Task 6: 主页面实现左栏 Tab 切换和条件渲染
 
 **Files:**
+
 - Modify: `src/pages/QuestionTagging/index.tsx`
 - Test: 手动验证左栏切换
 
@@ -591,49 +602,50 @@ git commit -m "feat(QuestionTagging): add viewMode state and papers aggregation"
 **Step 3: 条件渲染左栏列表**
 
 ```tsx
-{viewMode === 'question' ? (
-  <QuestionList
-    questions={filteredQuestions}
-    currentQuestionId={currentQuestionId}
-    selectedQuestionIds={selectedQuestionIds}
-    onQuestionClick={handleQuestionClick}
-    onSelectionChange={handleSelectionChange}
-    pagination={{
-      current: filters.page || 1,
-      pageSize: filters.pageSize || 15,
-      total: filteredQuestions.length,
-      onChange: (page, pageSize) => {
-        setFilters((prev) => ({ ...prev, page, pageSize }));
-      },
-    }}
-  />
-) : (
-  <PaperList
-    papers={papers}
-    currentPaperId={currentPaperId}
-    onPaperClick={(paperId) => {
-      setCurrentPaperId(paperId);
-      // 选中试卷后，自动选中第一道题
-      const firstQuestion = questions.find((q) => q.paperId === paperId);
-      if (firstQuestion) {
-        setCurrentQuestionId(firstQuestion.id);
-        setSelectedQuestionIds([]);
-      }
-    }}
-    pagination={{
-      current: 1,
-      pageSize: 15,
-      total: papers.length,
-      onChange: () => {},
-    }}
-  />
-)}
+{
+  viewMode === 'question' ? (
+    <QuestionList
+      questions={filteredQuestions}
+      currentQuestionId={currentQuestionId}
+      selectedQuestionIds={selectedQuestionIds}
+      onQuestionClick={handleQuestionClick}
+      onSelectionChange={handleSelectionChange}
+      pagination={{
+        current: filters.page || 1,
+        pageSize: filters.pageSize || 15,
+        total: filteredQuestions.length,
+        onChange: (page, pageSize) => {
+          setFilters((prev) => ({ ...prev, page, pageSize }));
+        },
+      }}
+    />
+  ) : (
+    <PaperList
+      papers={papers}
+      currentPaperId={currentPaperId}
+      onPaperClick={(paperId) => {
+        setCurrentPaperId(paperId);
+        // 选中试卷后，自动选中第一道题
+        const firstQuestion = questions.find((q) => q.paperId === paperId);
+        if (firstQuestion) {
+          setCurrentQuestionId(firstQuestion.id);
+          setSelectedQuestionIds([]);
+        }
+      }}
+      pagination={{
+        current: 1,
+        pageSize: 15,
+        total: papers.length,
+        onChange: () => {},
+      }}
+    />
+  );
+}
 ```
 
 **Step 4: 验证 TypeScript 编译**
 
-Run: `npx tsc --noEmit`
-Expected: 无错误输出
+Run: `npx tsc --noEmit` Expected: 无错误输出
 
 **Step 5: Commit**
 
@@ -647,6 +659,7 @@ git commit -m "feat(QuestionTagging): implement left panel tab switching"
 ## Task 7: 主页面实现中间栏条件渲染
 
 **Files:**
+
 - Modify: `src/pages/QuestionTagging/index.tsx`
 - Test: 手动验证中间栏布局
 
@@ -655,45 +668,46 @@ git commit -m "feat(QuestionTagging): implement left panel tab switching"
 将中间栏内容修改为条件渲染：
 
 ```tsx
-{viewMode === 'question' ? (
-  <QuestionDetail
-    question={currentQuestion}
-    questions={filteredQuestions}
-    selectedQuestions={selectedQuestions}
-    isBatchMode={isBatchMode}
-    onPrevious={handlePrevious}
-    onNext={handleNext}
-  />
-) : (
-  <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-    <div style={{ flex: 1, overflow: 'auto' }}>
-      <QuestionDetail
-        question={currentQuestion}
+{
+  viewMode === 'question' ? (
+    <QuestionDetail
+      question={currentQuestion}
+      questions={filteredQuestions}
+      selectedQuestions={selectedQuestions}
+      isBatchMode={isBatchMode}
+      onPrevious={handlePrevious}
+      onNext={handleNext}
+    />
+  ) : (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        <QuestionDetail
+          question={currentQuestion}
+          questions={paperQuestions}
+          selectedQuestions={selectedQuestions}
+          isBatchMode={isBatchMode}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+        />
+      </div>
+      <PaperQuestionNav
         questions={paperQuestions}
-        selectedQuestions={selectedQuestions}
-        isBatchMode={isBatchMode}
-        onPrevious={handlePrevious}
-        onNext={handleNext}
+        currentQuestionId={currentQuestionId}
+        selectedQuestionIds={selectedQuestionIds}
+        onQuestionClick={(id) => {
+          setCurrentQuestionId(id);
+          setSelectedQuestionIds([]);
+        }}
+        onSelectionChange={setSelectedQuestionIds}
       />
     </div>
-    <PaperQuestionNav
-      questions={paperQuestions}
-      currentQuestionId={currentQuestionId}
-      selectedQuestionIds={selectedQuestionIds}
-      onQuestionClick={(id) => {
-        setCurrentQuestionId(id);
-        setSelectedQuestionIds([]);
-      }}
-      onSelectionChange={setSelectedQuestionIds}
-    />
-  </div>
-)}
+  );
+}
 ```
 
 **Step 2: 验证 TypeScript 编译**
 
-Run: `npx tsc --noEmit`
-Expected: 无错误输出
+Run: `npx tsc --noEmit` Expected: 无错误输出
 
 **Step 3: Commit**
 
@@ -707,6 +721,7 @@ git commit -m "feat(QuestionTagging): implement middle panel with question navig
 ## Task 8: 修复试卷模式下的导航逻辑
 
 **Files:**
+
 - Modify: `src/pages/QuestionTagging/index.tsx`
 - Test: 手动验证上下题导航
 
@@ -716,8 +731,11 @@ git commit -m "feat(QuestionTagging): implement middle panel with question navig
 
 ```typescript
 const handlePrevious = () => {
-  const questionList = viewMode === 'paper' ? paperQuestions : filteredQuestions;
-  const currentIndex = questionList.findIndex((q) => q.id === currentQuestionId);
+  const questionList =
+    viewMode === 'paper' ? paperQuestions : filteredQuestions;
+  const currentIndex = questionList.findIndex(
+    (q) => q.id === currentQuestionId,
+  );
   if (currentIndex > 0) {
     setCurrentQuestionId(questionList[currentIndex - 1].id);
     setSelectedQuestionIds([]);
@@ -725,8 +743,11 @@ const handlePrevious = () => {
 };
 
 const handleNext = () => {
-  const questionList = viewMode === 'paper' ? paperQuestions : filteredQuestions;
-  const currentIndex = questionList.findIndex((q) => q.id === currentQuestionId);
+  const questionList =
+    viewMode === 'paper' ? paperQuestions : filteredQuestions;
+  const currentIndex = questionList.findIndex(
+    (q) => q.id === currentQuestionId,
+  );
   if (currentIndex < questionList.length - 1) {
     setCurrentQuestionId(questionList[currentIndex + 1].id);
     setSelectedQuestionIds([]);
@@ -736,8 +757,7 @@ const handleNext = () => {
 
 **Step 2: 验证 TypeScript 编译**
 
-Run: `npx tsc --noEmit`
-Expected: 无错误输出
+Run: `npx tsc --noEmit` Expected: 无错误输出
 
 **Step 3: Commit**
 
@@ -751,12 +771,12 @@ git commit -m "fix(QuestionTagging): update navigation to support paper mode"
 ## Task 9: 端到端功能验证
 
 **Files:**
+
 - Test: 手动测试完整流程
 
 **Step 1: 启动开发服务器**
 
-Run: `npm run dev`
-Expected: 服务器启动成功
+Run: `npm run dev` Expected: 服务器启动成功
 
 **Step 2: 验证试题模式**
 
@@ -791,17 +811,16 @@ git commit -m "fix: address issues found during e2e testing"
 ## Task 10: 最终代码审查和清理
 
 **Files:**
+
 - Review: 所有修改的文件
 
 **Step 1: 检查代码风格**
 
-Run: `npm run lint`
-Expected: 无错误
+Run: `npm run lint` Expected: 无错误
 
 **Step 2: 检查 TypeScript 类型**
 
-Run: `npx tsc --noEmit`
-Expected: 无错误
+Run: `npx tsc --noEmit` Expected: 无错误
 
 **Step 3: 清理未使用的导入**
 
@@ -819,12 +838,14 @@ git commit -m "chore: code cleanup and lint fixes"
 ## 文件变更总结
 
 ### 新增文件
+
 - `src/pages/QuestionTagging/components/PaperList.tsx`
 - `src/pages/QuestionTagging/components/PaperList.less`
 - `src/pages/QuestionTagging/components/PaperQuestionNav.tsx`
 - `src/pages/QuestionTagging/components/PaperQuestionNav.less`
 
 ### 修改文件
+
 - `src/pages/QuestionTagging/types.ts` - 新增 Paper 接口
 - `src/pages/QuestionTagging/index.tsx` - 新增 viewMode 状态、Tab 切换、条件渲染
 - `src/pages/QuestionTagging/components/FilterPanel.tsx` - 新增 mode 属性

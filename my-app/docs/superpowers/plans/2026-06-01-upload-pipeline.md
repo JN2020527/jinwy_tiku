@@ -24,15 +24,14 @@
 
 ---
 
-
 ## Phase 1 — 地基契约（必须先落地）
 
 > 这一阶段把类型 / 枚举 / service 函数签名 / 路由配置 / 老代码清理全部冻结。后面所有任务都会引用这里定下的精确名字、文件路径和方法签名——读到不一致请回这里查证。
 
-
 ### Task 1: 新建 `types.ts`（数据模型集中所在）
 
 **Files:**
+
 - Create: `src/pages/UploadTask/types.ts`
 
 - [ ] **Step 1: 创建文件 `src/pages/UploadTask/types.ts`**
@@ -58,8 +57,15 @@ export type TaskStatus =
   | 'rejected';
 
 export type Subject =
-  | '语文' | '数学' | '英语' | '物理' | '化学'
-  | '生物' | '历史' | '地理' | '政治';
+  | '语文'
+  | '数学'
+  | '英语'
+  | '物理'
+  | '化学'
+  | '生物'
+  | '历史'
+  | '地理'
+  | '政治';
 
 export type Grade = '小学' | '初中' | '高中';
 
@@ -178,8 +184,7 @@ export interface CreateUploadTaskBody {
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS（仅本文件无任何引用方，应直接通过）
+Run: `npx tsc --noEmit` Expected: PASS（仅本文件无任何引用方，应直接通过）
 
 - [ ] **Step 3: 提交**
 
@@ -193,17 +198,13 @@ git commit -m "feat(UploadTask): add upload pipeline type definitions"
 ### Task 2: 新建 `constants.ts`（阶段枚举 + 派生函数 + 桶定义）
 
 **Files:**
+
 - Create: `src/pages/UploadTask/constants.ts`
 
 - [ ] **Step 1: 创建文件 `src/pages/UploadTask/constants.ts`**
 
 ```typescript
-import type {
-  BucketKey,
-  StageKey,
-  TaskStatus,
-  UploadTask,
-} from './types';
+import type { BucketKey, StageKey, TaskStatus, UploadTask } from './types';
 
 // 8 个阶段的固定顺序，状态机推进依赖它
 export const STAGE_KEYS: readonly StageKey[] = [
@@ -300,8 +301,7 @@ export const STAGE_STATE_COLORS = {
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS
+Run: `npx tsc --noEmit` Expected: PASS
 
 - [ ] **Step 3: 提交**
 
@@ -317,6 +317,7 @@ git commit -m "feat(UploadTask): add stage constants and deriveStatus"
 > service 函数签名在这里冻结，所有 Phase 2+ 都按这套调用。
 
 **Files:**
+
 - Create: `src/services/uploadTask.ts`
 
 - [ ] **Step 1: 创建文件 `src/services/uploadTask.ts`**
@@ -342,10 +343,10 @@ export interface UploadTaskQueryParams {
 // ----- 任务列表 / 详情 / 创建 -----
 
 export async function getUploadTasks(params: UploadTaskQueryParams) {
-  return request<ApiResponse<UploadTaskListResponse>>(
-    '/api/upload-task/list',
-    { method: 'GET', params },
-  );
+  return request<ApiResponse<UploadTaskListResponse>>('/api/upload-task/list', {
+    method: 'GET',
+    params,
+  });
 }
 
 export async function getUploadTask(id: string) {
@@ -372,7 +373,10 @@ export async function getStageQuestions(taskId: string, stage: StageKey) {
 
 // ----- 质量检测 -----
 
-export async function confirmQualityKeep(taskId: string, questionIds: string[]) {
+export async function confirmQualityKeep(
+  taskId: string,
+  questionIds: string[],
+) {
   return request<ApiResponse<void>>('/api/upload-task/quality/keep', {
     method: 'POST',
     data: { taskId, questionIds },
@@ -410,11 +414,14 @@ export async function regenerateParse(taskId: string, questionId: string) {
   );
 }
 
-export async function confirmParseReview(taskId: string, questionIds: string[]) {
-  return request<ApiResponse<void>>(
-    '/api/upload-task/parse-review/confirm',
-    { method: 'POST', data: { taskId, questionIds } },
-  );
+export async function confirmParseReview(
+  taskId: string,
+  questionIds: string[],
+) {
+  return request<ApiResponse<void>>('/api/upload-task/parse-review/confirm', {
+    method: 'POST',
+    data: { taskId, questionIds },
+  });
 }
 
 // ----- 打标审核 -----
@@ -438,10 +445,10 @@ export async function regenerateTags(taskId: string, questionId: string) {
 }
 
 export async function confirmTagReview(taskId: string, questionIds: string[]) {
-  return request<ApiResponse<void>>(
-    '/api/upload-task/tag-review/confirm',
-    { method: 'POST', data: { taskId, questionIds } },
-  );
+  return request<ApiResponse<void>>('/api/upload-task/tag-review/confirm', {
+    method: 'POST',
+    data: { taskId, questionIds },
+  });
 }
 
 // ----- 系统态阶段 -----
@@ -463,17 +470,16 @@ export async function getDistributeConfig(taskId: string) {
 }
 
 export async function saveDistributeConfig(config: DistributeConfig) {
-  return request<ApiResponse<UploadTask>>(
-    '/api/upload-task/distribute/save',
-    { method: 'POST', data: config },
-  );
+  return request<ApiResponse<UploadTask>>('/api/upload-task/distribute/save', {
+    method: 'POST',
+    data: config,
+  });
 }
 ```
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS
+Run: `npx tsc --noEmit` Expected: PASS
 
 - [ ] **Step 3: 提交**
 
@@ -487,6 +493,7 @@ git commit -m "feat(uploadTask): scaffold service layer for 8-stage pipeline"
 ### Task 4: 路由切换 + 删除老模块
 
 **Files:**
+
 - Modify: `config/routes.ts`
 - Delete: `src/pages/ContentCenter/QuestionBankTask/` 整个目录
 - Delete: `mock/questionBankTask.ts`
@@ -566,24 +573,20 @@ export default UploadTaskList;
 ```typescript
 import React from 'react';
 
-const UploadTaskStage: React.FC = () => <div>试题上传 - 阶段子页（待实现）</div>;
+const UploadTaskStage: React.FC = () => (
+  <div>试题上传 - 阶段子页（待实现）</div>
+);
 
 export default UploadTaskStage;
 ```
 
 - [ ] **Step 5: 启动 dev server 烟雾测试**
 
-Run: `npm run dev`
-打开 `http://localhost:8000/question-bank/upload`
-Expected: 看到 "试题上传 - 列表（待实现）"，左侧菜单显示"试题上传"项。
-访问 `http://localhost:8000/question-bank/task`
-Expected: 自动重定向到 `/question-bank/upload`。
-按 Ctrl+C 停止 dev server。
+Run: `npm run dev` 打开 `http://localhost:8000/question-bank/upload` Expected: 看到 "试题上传 - 列表（待实现）"，左侧菜单显示"试题上传"项。访问 `http://localhost:8000/question-bank/task` Expected: 自动重定向到 `/question-bank/upload`。按 Ctrl+C 停止 dev server。
 
 - [ ] **Step 6: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS
+Run: `npx tsc --noEmit` Expected: PASS
 
 - [ ] **Step 7: 提交**
 
@@ -600,10 +603,10 @@ git commit -m "refactor(routes): replace 题库任务 with 试题上传 entry"
 ### Task 5: mock 文件骨架 + helper（`mock/uploadTask.ts` 第 1 部分）
 
 **Files:**
+
 - Create: `mock/uploadTask.ts`
 
-> 这一 Task 只把骨架与 helper 落地：模块级状态容器、ok/fail/now/genId 工具、`initialStageProgress()` 工厂、空的 `export default {}`。
-> 后续 Task 6/7/8 在同一文件**追加**实现，避免一次提交超过 600 行。
+> 这一 Task 只把骨架与 helper 落地：模块级状态容器、ok/fail/now/genId 工具、`initialStageProgress()` 工厂、空的 `export default {}`。后续 Task 6/7/8 在同一文件**追加**实现，避免一次提交超过 600 行。
 
 - [ ] **Step 1: 创建文件 `mock/uploadTask.ts`（仅骨架与 helper）**
 
@@ -674,18 +677,15 @@ export default {};
 
 - [ ] **Step 2: 类型检查（GREEN：签名应已对齐 Phase 1 常量）**
 
-Run: `npx tsc --noEmit`
-Expected: PASS。如果有 "Cannot find module '../src/pages/UploadTask/constants'" 或常量名错，回 Phase 1 Task 2 校对。
+Run: `npx tsc --noEmit` Expected: PASS。如果有 "Cannot find module '../src/pages/UploadTask/constants'" 或常量名错，回 Phase 1 Task 2 校对。
 
 - [ ] **Step 3: dev server 启动烟雾测试**
 
-Run: `npm run dev`
-打开 `http://localhost:8000/question-bank/upload`
-Expected:
+Run: `npm run dev` 打开 `http://localhost:8000/question-bank/upload` Expected:
+
 - 仍然显示 "试题上传 - 列表（待实现）" 占位（Phase 1 Task 4 创建的）
 - **终端没有 mock 加载错误**（Umi 启动时会扫 `mock/` 下所有 `.ts`）
-- 终端不出现 `Failed to compile` 或 `mock/uploadTask.ts` 相关报错
-按 Ctrl+C 停止。
+- 终端不出现 `Failed to compile` 或 `mock/uploadTask.ts` 相关报错按 Ctrl+C 停止。
 
 - [ ] **Step 4: 提交**
 
@@ -699,14 +699,12 @@ git commit -m "feat(uploadTask): add mock skeleton with helpers and state contai
 ### Task 6: 状态机推进 + 样本数据生成（同文件，第 2 部分）
 
 **Files:**
+
 - Modify: `mock/uploadTask.ts`（在 `export default {}` 之前追加大段实现）
 
-> 这一 Task 把"状态机推进 + 题目生成 + 10 条样本任务"全部落地，但**不**新增任何路由。
-> 状态推进只在两处发生：`maybeAdvance`（人工审完时）和 `lazyAdvance`（GET 读取时）。
-> 全部用 immutable map，绝不 push / 字段赋值。
+> 这一 Task 把"状态机推进 + 题目生成 + 10 条样本任务"全部落地，但**不**新增任何路由。状态推进只在两处发生：`maybeAdvance`（人工审完时）和 `lazyAdvance`（GET 读取时）。全部用 immutable map，绝不 push / 字段赋值。
 >
-> 注：`lazyAdvance` 在原型阶段**最多递归一次**——如果一次 GET 跨越了多个系统态阶段
-> （罕见：用户关掉浏览器 10s 后再回来），只前进一段，下次 GET 再推进。简化实现，可接受。
+> 注：`lazyAdvance` 在原型阶段**最多递归一次**——如果一次 GET 跨越了多个系统态阶段（罕见：用户关掉浏览器 10s 后再回来），只前进一段，下次 GET 再推进。简化实现，可接受。
 
 - [ ] **Step 1: 在 `mock/uploadTask.ts` 的 `export default {}` 之前追加以下代码**
 
@@ -777,7 +775,10 @@ function advanceToNext(
   };
 }
 
-function genStageSummary(stage: StageKey, qs: TaskQuestion[] | undefined): string {
+function genStageSummary(
+  stage: StageKey,
+  qs: TaskQuestion[] | undefined,
+): string {
   const list = qs ?? [];
   switch (stage) {
     case 'quality': {
@@ -797,13 +798,17 @@ function genStageSummary(stage: StageKey, qs: TaskQuestion[] | undefined): strin
       return `解析准确率 96% · 低置信字段 ${lowConf} 处`;
     }
     case 'parse-review':
-      return `解析审核完成 · 已确认 ${list.filter((q) => q.parseReviewed).length} 题`;
+      return `解析审核完成 · 已确认 ${
+        list.filter((q) => q.parseReviewed).length
+      } 题`;
     case 'tag': {
       const needReview = list.filter((q) => !q.tagReviewed).length;
       return `打标完成 · 待复核 ${needReview} 题`;
     }
     case 'tag-review':
-      return `打标审核完成 · 已确认 ${list.filter((q) => q.tagReviewed).length} 题`;
+      return `打标审核完成 · 已确认 ${
+        list.filter((q) => q.tagReviewed).length
+      } 题`;
     case 'publish':
       return '已发布至题库';
     case 'distribute':
@@ -929,7 +934,8 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
         base.analysis = '<p>代入公式直接得到结果。</p>';
       } else {
         base.answer = '<p>解：由题意可得 ...（详见解析）</p>';
-        base.analysis = '<p>本题考查综合应用能力，解题步骤分三步：① ... ② ... ③ ...</p>';
+        base.analysis =
+          '<p>本题考查综合应用能力，解题步骤分三步：① ... ② ... ③ ...</p>';
       }
 
       // AI 质量评分 + 自动判定：currentStage 在或晚于 quality 时即生成
@@ -981,7 +987,9 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
       // 解析产物：已过 parse 的任务
       if (passedParse) {
         // 每题至少 1 个字段 < 0.8（用 i%4 选）
-        const lowField = (['stem', 'options', 'answer', 'analysis'] as const)[i % 4];
+        const lowField = (['stem', 'options', 'answer', 'analysis'] as const)[
+          i % 4
+        ];
         const conf: Partial<
           Record<'stem' | 'options' | 'answer' | 'analysis', number>
         > = {
@@ -1009,10 +1017,10 @@ function genQuestionsForTasks(seedTasks: UploadTask[]): void {
             qType === 'single'
               ? '单选题'
               : qType === 'multi'
-                ? '多选题'
-                : qType === 'fill'
-                  ? '填空题'
-                  : '解答题',
+              ? '多选题'
+              : qType === 'fill'
+              ? '填空题'
+              : '解答题',
           difficulty: ((i % 5) + 1) as 1 | 2 | 3 | 4 | 5,
           cognitionLevel: i % 2 === 0 ? '理解' : '应用',
         };
@@ -1237,20 +1245,18 @@ seedInitialTasks();
 
 - [ ] **Step 2: 类型检查（GREEN：函数签名 + Phase 1 类型应已对齐）**
 
-Run: `npx tsc --noEmit`
-Expected: PASS。常见错误：
+Run: `npx tsc --noEmit` Expected: PASS。常见错误：
+
 - `Property 'X' does not exist on type 'TaskQuestion'` → 回 Phase 1 Task 1 确认字段。
 - `Type '"single"' is not assignable to ...` → 检查 qType 联合类型字面量是否拼错。
 
 - [ ] **Step 3: dev server 烟雾测试（无路由，看不到效果，只看启动是否成功）**
 
-Run: `npm run dev`
-打开 `http://localhost:8000/question-bank/upload`
-Expected:
+Run: `npm run dev` 打开 `http://localhost:8000/question-bank/upload` Expected:
+
 - 终端无 mock 模块编译错误
 - 占位页正常显示
-- 终端不出现 `seedInitialTasks` 相关报错
-按 Ctrl+C 停止。
+- 终端不出现 `seedInitialTasks` 相关报错按 Ctrl+C 停止。
 
 - [ ] **Step 4: 提交**
 
@@ -1264,10 +1270,10 @@ git commit -m "feat(uploadTask): add state machine, seed data and stage advancem
 ### Task 7: 列表与详情路由（mock 第 3 部分）
 
 **Files:**
+
 - Modify: `mock/uploadTask.ts`（替换 Task 5 的空 `export default {}` 为完整路由对象）
 
-> Task 5 留下了空的 `export default {}`，本 Task 把它替换为含 4 条 GET/POST 路由的对象。
-> Task 8 会进一步扩展同一个 default 导出。
+> Task 5 留下了空的 `export default {}`，本 Task 把它替换为含 4 条 GET/POST 路由的对象。 Task 8 会进一步扩展同一个 default 导出。
 
 - [ ] **Step 1: 删除文件末尾的 `export default {};`，替换为以下内容**
 
@@ -1394,25 +1400,28 @@ export default {
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS。如果出现 `Property 'params' does not exist on type 'Request'`，说明 express 类型缺失——回 Task 5 确认 `import { Request, Response } from 'express'` 已加在顶部。
+Run: `npx tsc --noEmit` Expected: PASS。如果出现 `Property 'params' does not exist on type 'Request'`，说明 express 类型缺失——回 Task 5 确认 `import { Request, Response } from 'express'` 已加在顶部。
 
 - [ ] **Step 3: dev server 行为烟雾测试（用浏览器 devtools 直接调 fetch）**
 
-Run: `npm run dev`
-打开 `http://localhost:8000/question-bank/upload`，按 F12 打开 Console，执行：
+Run: `npm run dev` 打开 `http://localhost:8000/question-bank/upload`，按 F12 打开 Console，执行：
 
 ```javascript
-fetch('/api/upload-task/list').then(r => r.json()).then(console.log)
+fetch('/api/upload-task/list')
+  .then((r) => r.json())
+  .then(console.log);
 ```
 
 Expected: 返回 `{ success: true, message: '', data: { data: [...10 tasks...], total: 10, bucketCounts: { all: 10, 'pending-human': 3, processing: 2, published: 5, rejected: 0 } } }`。
+
 - bucketCounts 数值可能因 lazyAdvance 略有变化（参考：3 个 pending-human = 2 quality + 1 parse-review；2 processing = 2 个 tag 处理中；5 published = 3 published + 2 distributed），核心是 5 个桶都有值，total = 10。
 
 继续测试 status 过滤：
 
 ```javascript
-fetch('/api/upload-task/list?status=published').then(r => r.json()).then(console.log)
+fetch('/api/upload-task/list?status=published')
+  .then((r) => r.json())
+  .then(console.log);
 ```
 
 Expected: `data` 数组 5 项，`total: 5`，`bucketCounts.published === 5`。
@@ -1420,7 +1429,11 @@ Expected: `data` 数组 5 项，`total: 5`，`bucketCounts.published === 5`。
 继续测试详情：
 
 ```javascript
-fetch('/api/upload-task/list').then(r=>r.json()).then(j => fetch(`/api/upload-task/${j.data.data[0].id}`)).then(r=>r.json()).then(console.log)
+fetch('/api/upload-task/list')
+  .then((r) => r.json())
+  .then((j) => fetch(`/api/upload-task/${j.data.data[0].id}`))
+  .then((r) => r.json())
+  .then(console.log);
 ```
 
 Expected: 单个 task 对象，包含 `stageProgress` 8 阶段，`status` 已派生。
@@ -1439,10 +1452,10 @@ git commit -m "feat(uploadTask): add list/detail/create/stage-questions mock rou
 ### Task 8: 写操作路由（mock 第 4 部分）
 
 **Files:**
+
 - Modify: `mock/uploadTask.ts`（在 Task 7 的 `export default { ... }` 对象内追加路由）
 
-> 把 8 阶段所有写操作 + advance + distribute 配置补齐。
-> 每个写操作都先验证入参，状态机推进统一走 `maybeAdvance` 或 `advanceToNext`。
+> 把 8 阶段所有写操作 + advance + distribute 配置补齐。每个写操作都先验证入参，状态机推进统一走 `maybeAdvance` 或 `advanceToNext`。
 
 - [ ] **Step 1: 把 Task 7 的 `export default { ... }` 扩展为下面这版（替换整个 default 导出对象）**
 
@@ -1501,7 +1514,14 @@ export default {
 
   'POST /api/upload-task/create': (req: Request, res: Response) => {
     const body = req.body ?? {};
-    const required = ['name', 'fileName', 'subject', 'grade', 'source', 'batch'];
+    const required = [
+      'name',
+      'fileName',
+      'subject',
+      'grade',
+      'source',
+      'batch',
+    ];
     for (const k of required) {
       if (!body[k] || String(body[k]).trim() === '') {
         fail(res, `字段 ${k} 不能为空`);
@@ -1598,7 +1618,10 @@ export default {
 
   // ----- 解析审核 -----
 
-  'POST /api/upload-task/parse-review/update': (req: Request, res: Response) => {
+  'POST /api/upload-task/parse-review/update': (
+    req: Request,
+    res: Response,
+  ) => {
     const { taskId, questionId, patch } = req.body ?? {};
     if (!taskId || !questionId) {
       fail(res, 'taskId 与 questionId 必填');
@@ -1855,17 +1878,23 @@ export default {
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS。
+Run: `npx tsc --noEmit` Expected: PASS。
 
 - [ ] **Step 3: dev server 行为烟雾测试（状态机推进）**
 
-Run: `npm run dev`
-打开 `http://localhost:8000/question-bank/upload`，F12 Console 执行：
+Run: `npm run dev` 打开 `http://localhost:8000/question-bank/upload`，F12 Console 执行：
 
 ```javascript
 // 1) 先看 task-1（quality 阶段 processing） 当前状态
-fetch('/api/upload-task/task-1').then(r=>r.json()).then(j => console.log('before:', j.data.currentStage, j.data.stageProgress.quality.state))
+fetch('/api/upload-task/task-1')
+  .then((r) => r.json())
+  .then((j) =>
+    console.log(
+      'before:',
+      j.data.currentStage,
+      j.data.stageProgress.quality.state,
+    ),
+  );
 ```
 
 Expected: `before: quality processing`。同时 q1-q5 的 `qualityKept=true`（auto-pass）、q8 的 `qualityKept=false`（auto-reject）已由 seed 写入；q6+q7（mid-need-review）的 `qualityKept` 是 undefined，正等待人工决策。
@@ -1874,19 +1903,31 @@ Expected: `before: quality processing`。同时 q1-q5 的 `qualityKept=true`（a
 // 2) 对 q6+q7（mid 段）调 keep —— maybeAdvance 应当推进 quality
 fetch('/api/upload-task/quality/keep', {
   method: 'POST',
-  headers: {'Content-Type': 'application/json'},
+  headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     taskId: 'task-1',
-    questionIds: ['task-1-q-6','task-1-q-7']
-  })
-}).then(r=>r.json()).then(console.log)
+    questionIds: ['task-1-q-6', 'task-1-q-7'],
+  }),
+})
+  .then((r) => r.json())
+  .then(console.log);
 ```
 
 Expected: `{ success: true, message: '', data: undefined }`。此时全部 8 题都有 qualityKept（5 true + 2 true + 1 false），`isStageReviewed('quality')` 对所有题返回 true，`maybeAdvance` 把 currentStage 推到 dedupe。
 
 ```javascript
 // 3) 再查 task-1
-fetch('/api/upload-task/task-1').then(r=>r.json()).then(j => console.log('after:', j.data.currentStage, j.data.stageProgress.quality.state, '→', j.data.stageProgress.dedupe.state))
+fetch('/api/upload-task/task-1')
+  .then((r) => r.json())
+  .then((j) =>
+    console.log(
+      'after:',
+      j.data.currentStage,
+      j.data.stageProgress.quality.state,
+      '→',
+      j.data.stageProgress.dedupe.state,
+    ),
+  );
 ```
 
 Expected: `after: dedupe processing → undefined`（currentStage 已推到 dedupe，dedupe 是系统态自动 stamp processing；quality.state === 'done'）。或者：如果在第 3 步之前 dedupe 已模拟完成，会进一步推到 parse。任一是合法状态。
@@ -1896,9 +1937,15 @@ Expected: `after: dedupe processing → undefined`（currentStage 已推到 dedu
 //    （task-2 当前阶段也是 quality processing，q6+q7 同样是 mid）
 fetch('/api/upload-task/quality/reject', {
   method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({ taskId: 'task-2', questionIds: ['task-2-q-6','task-2-q-7'], reason: '格式不规范' })
-}).then(r=>r.json()).then(console.log)
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    taskId: 'task-2',
+    questionIds: ['task-2-q-6', 'task-2-q-7'],
+    reason: '格式不规范',
+  }),
+})
+  .then((r) => r.json())
+  .then(console.log);
 ```
 
 Expected: `{ success: true, ... }`，task-2 同样推进到 dedupe。
@@ -1907,11 +1954,17 @@ Expected: `{ success: true, ... }`，task-2 同样推进到 dedupe。
 
 ```javascript
 // 5) 强制完成 task-1 当前的系统态阶段
-fetch('/api/upload-task/task-1').then(r=>r.json()).then(j => {
-  const s = j.data.currentStage;
-  return fetch('/api/upload-task/advance', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ taskId:'task-1', stage: s }) }).then(r=>r.json())
-}).then(console.log)
+fetch('/api/upload-task/task-1')
+  .then((r) => r.json())
+  .then((j) => {
+    const s = j.data.currentStage;
+    return fetch('/api/upload-task/advance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: 'task-1', stage: s }),
+    }).then((r) => r.json());
+  })
+  .then(console.log);
 ```
 
 Expected: 返回 `{ success: true, data: <task with currentStage advanced one step> }`。
@@ -1920,13 +1973,22 @@ Expected: 返回 `{ success: true, data: <task with currentStage advanced one st
 // 6) 验证 distribute save
 fetch('/api/upload-task/distribute/save', {
   method: 'POST',
-  headers: {'Content-Type': 'application/json'},
+  headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     taskId: 'task-6',
-    scope: { institutions: 'all', grades: ['小学'], subjects: ['语文'], roles: ['teacher'] },
-    channels: ['paper-bank']
-  })
-}).then(r=>r.json()).then(j => console.log(j.data.status, j.data.stageProgress.distribute.state))
+    scope: {
+      institutions: 'all',
+      grades: ['小学'],
+      subjects: ['语文'],
+      roles: ['teacher'],
+    },
+    channels: ['paper-bank'],
+  }),
+})
+  .then((r) => r.json())
+  .then((j) =>
+    console.log(j.data.status, j.data.stageProgress.distribute.state),
+  );
 ```
 
 Expected: `distributed done`
@@ -1945,11 +2007,10 @@ git commit -m "feat(uploadTask): add 8-stage write routes and distribute config"
 ### Task 9: Service 错误冒泡（unwrap helper）+ 类型校验
 
 **Files:**
+
 - Modify: `src/services/uploadTask.ts`
 
-> Phase 1 service 返回的是 `ApiResponse<T>`，业务组件每次都得手写 `if (!resp.success) throw ...; const data = resp.data`，啰嗦且容易漏。
-> 这一 Task 在 service 内**统一 unwrap**：失败时 throw 中文 Error，成功时直接返回 `T`，组件层只关心数据。
-> 组件层的 `message.error()` 由 Phase 3 加。
+> Phase 1 service 返回的是 `ApiResponse<T>`，业务组件每次都得手写 `if (!resp.success) throw ...; const data = resp.data`，啰嗦且容易漏。这一 Task 在 service 内**统一 unwrap**：失败时 throw 中文 Error，成功时直接返回 `T`，组件层只关心数据。组件层的 `message.error()` 由 Phase 3 加。
 >
 > 注：dev server 烟雾测试需要业务页面真正调 service 才能验证；Phase 3 才会有页面挂上。本 Task 仅保证类型对齐，运行时验证延后。
 
@@ -1986,10 +2047,10 @@ function unwrap<T>(resp: ApiResponse<T>): T {
 export async function getUploadTasks(
   params: UploadTaskQueryParams,
 ): Promise<UploadTaskListResponse> {
-  return request<ApiResponse<UploadTaskListResponse>>(
-    '/api/upload-task/list',
-    { method: 'GET', params },
-  ).then(unwrap);
+  return request<ApiResponse<UploadTaskListResponse>>('/api/upload-task/list', {
+    method: 'GET',
+    params,
+  }).then(unwrap);
 }
 
 export async function getUploadTask(id: string): Promise<UploadTask> {
@@ -2069,10 +2130,10 @@ export async function confirmParseReview(
   taskId: string,
   questionIds: string[],
 ): Promise<void> {
-  return request<ApiResponse<void>>(
-    '/api/upload-task/parse-review/confirm',
-    { method: 'POST', data: { taskId, questionIds } },
-  ).then(unwrap);
+  return request<ApiResponse<void>>('/api/upload-task/parse-review/confirm', {
+    method: 'POST',
+    data: { taskId, questionIds },
+  }).then(unwrap);
 }
 
 // ----- 打标审核 -----
@@ -2102,10 +2163,10 @@ export async function confirmTagReview(
   taskId: string,
   questionIds: string[],
 ): Promise<void> {
-  return request<ApiResponse<void>>(
-    '/api/upload-task/tag-review/confirm',
-    { method: 'POST', data: { taskId, questionIds } },
-  ).then(unwrap);
+  return request<ApiResponse<void>>('/api/upload-task/tag-review/confirm', {
+    method: 'POST',
+    data: { taskId, questionIds },
+  }).then(unwrap);
 }
 
 // ----- 系统态阶段 -----
@@ -2134,25 +2195,23 @@ export async function getDistributeConfig(
 export async function saveDistributeConfig(
   config: DistributeConfig,
 ): Promise<UploadTask> {
-  return request<ApiResponse<UploadTask>>(
-    '/api/upload-task/distribute/save',
-    { method: 'POST', data: config },
-  ).then(unwrap);
+  return request<ApiResponse<UploadTask>>('/api/upload-task/distribute/save', {
+    method: 'POST',
+    data: config,
+  }).then(unwrap);
 }
 ```
 
 - [ ] **Step 2: 类型检查（GREEN：所有调用方都改为 `T` 返回值）**
 
-Run: `npx tsc --noEmit`
-Expected: PASS。
+Run: `npx tsc --noEmit` Expected: PASS。
 
 注意：Phase 1 占位页 `src/pages/UploadTask/List/index.tsx` 与 `Stage/index.tsx` 都没有调 service，所以不会有 caller 类型不匹配。如果你在 Phase 1 之外手动加了调用代码，需要相应去掉 `.data` 解构（service 已直接返回 `T`）。
 
 - [ ] **Step 3: dev server 启动确认（service 文件改动是否破坏构建）**
 
-Run: `npm run dev`
-打开 `http://localhost:8000/question-bank/upload`
-Expected:
+Run: `npm run dev` 打开 `http://localhost:8000/question-bank/upload` Expected:
+
 - 占位页正常渲染
 - 终端无编译错误
 - F12 Console 仍可手动 `fetch('/api/upload-task/list')` 验证 mock 工作（service 层不影响裸 fetch）
@@ -2187,11 +2246,10 @@ Phase 3 将基于 Phase 2 的 service 完成列表页、阶段子页、3 套工�
 ### Task 10: 5 张状态桶汇总卡（`SummaryCards.tsx`）
 
 **Files:**
+
 - Create: `src/pages/UploadTask/List/SummaryCards.tsx`
 
-纯展示组件，无 API 调用：把 5 个桶（`all / pending-human / processing / published / rejected`）
-渲染成可点击的卡片。点中的桶用 2px 彩色边框高亮，其余卡片用浅灰 1px 边框。计数从
-父组件的 `bucketCounts` 透传过来，由 Task 13 的列表 `request` 同步写入。
+纯展示组件，无 API 调用：把 5 个桶（`all / pending-human / processing / published / rejected`）渲染成可点击的卡片。点中的桶用 2px 彩色边框高亮，其余卡片用浅灰 1px 边框。计数从父组件的 `bucketCounts` 透传过来，由 Task 13 的列表 `request` 同步写入。
 
 - [ ] **Step 1: 创建文件 `src/pages/UploadTask/List/SummaryCards.tsx`**
 
@@ -2267,7 +2325,9 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
                     {bucket.label}
                   </div>
                 </div>
-                <div style={{ fontSize: 24, color: bucket.color, opacity: 0.6 }}>
+                <div
+                  style={{ fontSize: 24, color: bucket.color, opacity: 0.6 }}
+                >
                   {ICONS[bucket.key]}
                 </div>
               </div>
@@ -2284,8 +2344,7 @@ export default SummaryCards;
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS。该组件只引用了 Phase 1 已落地的 `BUCKET_DEFS` 与 `BucketKey`。
+Run: `npx tsc --noEmit` Expected: PASS。该组件只引用了 Phase 1 已落地的 `BUCKET_DEFS` 与 `BucketKey`。
 
 > 注：本组件还没被任何页面挂载，dev-server 跑了也看不到画面；视觉验证统一推到 Task 13。
 
@@ -2301,22 +2360,17 @@ git commit -m "feat(UploadTask): add SummaryCards for 5 status buckets"
 ### Task 11: 8 段流水线进度条（`ProgressBar.tsx`）
 
 **Files:**
+
 - Create: `src/pages/UploadTask/List/ProgressBar.tsx`
 
-把 `task.stageProgress` 在列表里以"8 个 4px 高小段 + 一行 summary 文案"展示。
-颜色映射来自 Phase 1 的 `STAGE_STATE_COLORS`，每段挂 Tooltip 显示阶段中文名 +
-中文状态。
+把 `task.stageProgress` 在列表里以"8 个 4px 高小段 + 一行 summary 文案"展示。颜色映射来自 Phase 1 的 `STAGE_STATE_COLORS`，每段挂 Tooltip 显示阶段中文名 + 中文状态。
 
 - [ ] **Step 1: 创建文件 `src/pages/UploadTask/List/ProgressBar.tsx`**
 
 ```tsx
 import { Tooltip, Typography } from 'antd';
 import React from 'react';
-import {
-  STAGE_KEYS,
-  STAGE_LABELS,
-  STAGE_STATE_COLORS,
-} from '../constants';
+import { STAGE_KEYS, STAGE_LABELS, STAGE_STATE_COLORS } from '../constants';
 import type { StageState, UploadTask } from '../types';
 
 interface ProgressBarProps {
@@ -2371,8 +2425,7 @@ export default ProgressBar;
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS。
+Run: `npx tsc --noEmit` Expected: PASS。
 
 - [ ] **Step 3: 提交**
 
@@ -2386,12 +2439,10 @@ git commit -m "feat(UploadTask): add 8-segment pipeline ProgressBar"
 ### Task 12: 新建任务弹窗（`NewTaskModal.tsx`）
 
 **Files:**
+
 - Create: `src/pages/UploadTask/List/NewTaskModal.tsx`
 
-单步表单，5 字段（任务名 / Word 文件 / 科目 / 年级段 / 来源类型 / 批次）。
-Word 文件用 `<Upload beforeUpload={() => false}>` 拦截真上传，只把文件名读出来塞进
-form state（提交时一并传给 `createUploadTask`）。来源为"改编 / 引用"时联动出现
-`sourceNote` 输入框。
+单步表单，5 字段（任务名 / Word 文件 / 科目 / 年级段 / 来源类型 / 批次）。 Word 文件用 `<Upload beforeUpload={() => false}>` 拦截真上传，只把文件名读出来塞进 form state（提交时一并传给 `createUploadTask`）。来源为"改编 / 引用"时联动出现 `sourceNote` 输入框。
 
 - [ ] **Step 1: 创建文件 `src/pages/UploadTask/List/NewTaskModal.tsx`**
 
@@ -2429,8 +2480,15 @@ interface FormValues {
 }
 
 const SUBJECT_OPTIONS: Subject[] = [
-  '语文', '数学', '英语', '物理', '化学',
-  '生物', '历史', '地理', '政治',
+  '语文',
+  '数学',
+  '英语',
+  '物理',
+  '化学',
+  '生物',
+  '历史',
+  '地理',
+  '政治',
 ];
 const GRADE_OPTIONS: Grade[] = ['小学', '初中', '高中'];
 const SOURCE_OPTIONS: Source[] = ['原创', '改编', '引用'];
@@ -2592,9 +2650,7 @@ export default NewTaskModal;
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS。`createUploadTask` 在 Phase 2 已经解封装为返回 `UploadTask`，
-本组件不需要再读 `.data`。
+Run: `npx tsc --noEmit` Expected: PASS。`createUploadTask` 在 Phase 2 已经解封装为返回 `UploadTask`，本组件不需要再读 `.data`。
 
 - [ ] **Step 3: 提交**
 
@@ -2608,12 +2664,10 @@ git commit -m "feat(UploadTask): add NewTaskModal for upload task creation"
 ### Task 13: 列表主页（`List/index.tsx`）—— dev-server 第一次能跑完整页面
 
 **Files:**
+
 - Modify: `src/pages/UploadTask/List/index.tsx`（替换 Phase 1 Task 4 的占位）
 
-把 SummaryCards / ProgressBar / NewTaskModal 装配到 ProTable 上。请求驱动桶切换：
-`params.status = filterStatus`（'all' 时传 undefined），ProTable 监听到 params 变化
-自动 reload。`bucketCounts` 跟着列表响应一起拿，写回 state 喂给 SummaryCards。
-操作列严格按 §6 操作矩阵覆盖全部 5 种 status。
+把 SummaryCards / ProgressBar / NewTaskModal 装配到 ProTable 上。请求驱动桶切换： `params.status = filterStatus`（'all' 时传 undefined），ProTable 监听到 params 变化自动 reload。`bucketCounts` 跟着列表响应一起拿，写回 state 喂给 SummaryCards。操作列严格按 §6 操作矩阵覆盖全部 5 种 status。
 
 - [ ] **Step 1: 替换 `src/pages/UploadTask/List/index.tsx` 为完整实现**
 
@@ -2624,10 +2678,7 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, Space, Tag, message } from 'antd';
 import React, { useRef, useState } from 'react';
-import {
-  advanceSystemStage,
-  getUploadTasks,
-} from '@/services/uploadTask';
+import { advanceSystemStage, getUploadTasks } from '@/services/uploadTask';
 import { STAGE_LABELS } from '../constants';
 import type { BucketKey, TaskStatus, UploadTask } from '../types';
 import NewTaskModal from './NewTaskModal';
@@ -2823,26 +2874,20 @@ export default UploadTaskList;
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS。
+Run: `npx tsc --noEmit` Expected: PASS。
 
 - [ ] **Step 3: 启动 dev server 验证**
 
-Run: `npm run dev`
-打开 `http://localhost:8000/question-bank/upload`
+Run: `npm run dev` 打开 `http://localhost:8000/question-bank/upload`
 
 Expected:
-1. 顶部 5 张汇总卡，"全部任务"卡显示 10（Phase 2 mock 初始 10 个任务），其余 4 张
-   按桶分布有非零计数（例如 待人工 3、处理中 2、已发布 5、拒绝 0）。
-2. 下面 ProTable 显示第一页 10 行，每行包含：任务名 + 副标题、当前阶段 Tag、
-   8 段进度条（绿/橙/灰组合）、状态 Tag、更新时间、操作列。
+
+1. 顶部 5 张汇总卡，"全部任务"卡显示 10（Phase 2 mock 初始 10 个任务），其余 4 张按桶分布有非零计数（例如 待人工 3、处理中 2、已发布 5、拒绝 0）。
+2. 下面 ProTable 显示第一页 10 行，每行包含：任务名 + 副标题、当前阶段 Tag、 8 段进度条（绿/橙/灰组合）、状态 Tag、更新时间、操作列。
 3. 点"待人工处理"卡 → 表格自动 reload，只剩状态为待人工处理的行；卡片高亮变橙边。
 4. 点"全部任务"卡回到全集。
-5. 点右上"新建上传任务" → 弹窗打开。填入：任务名"测试任务"、选一个 .docx 文件、
-   科目"数学"、年级"高中"、来源"原创"、批次"2024-12-T" → 点"创建" → message
-   提示"任务创建成功"，弹窗关闭，列表 reload，新行出现在"待人工处理"桶顶部。
-6. 找一行 status='系统处理中' 的任务，点操作列"立即完成（演示）" → message 提示
-   "已推进到下一阶段"，该行进度条向后推进一段，状态可能切到其它桶。
+5. 点右上"新建上传任务" → 弹窗打开。填入：任务名"测试任务"、选一个 .docx 文件、科目"数学"、年级"高中"、来源"原创"、批次"2024-12-T" → 点"创建" → message 提示"任务创建成功"，弹窗关闭，列表 reload，新行出现在"待人工处理"桶顶部。
+6. 找一行 status='系统处理中' 的任务，点操作列"立即完成（演示）" → message 提示 "已推进到下一阶段"，该行进度条向后推进一段，状态可能切到其它桶。
 7. 按 Ctrl+C 停止 dev server。
 
 - [ ] **Step 4: 提交**
@@ -2859,12 +2904,11 @@ git commit -m "feat(UploadTask): wire up list page with cards, table and modal"
 ### Task 14: 抽取共享键盘导航 hook + 改造 QuestionTagging
 
 **Files:**
+
 - Create: `src/hooks/useQuestionNavKeyboard.ts`
 - Modify: `src/pages/QuestionTagging/index.tsx`
 
-抽出 `QuestionTagging/index.tsx` 里写死的键盘 `useEffect`（`↑↓` 切题、`Ctrl/Cmd+Enter`
-保存并跳下一题）到独立 hook，新页面 `QuestionAudit` 可直接复用，避免复制粘贴。同时改造
-`QuestionTagging` 让它也用同一个 hook，保证只有一份键盘逻辑实现。
+抽出 `QuestionTagging/index.tsx` 里写死的键盘 `useEffect`（`↑↓` 切题、`Ctrl/Cmd+Enter` 保存并跳下一题）到独立 hook，新页面 `QuestionAudit` 可直接复用，避免复制粘贴。同时改造 `QuestionTagging` 让它也用同一个 hook，保证只有一份键盘逻辑实现。
 
 - [ ] **Step 1: 创建 `src/hooks/useQuestionNavKeyboard.ts`**
 
@@ -2936,8 +2980,8 @@ export function useQuestionNavKeyboard({
 
 - [ ] **Step 2: 读 `src/pages/QuestionTagging/index.tsx` 确认目标行**
 
-Run: 用 Read 工具读 `src/pages/QuestionTagging/index.tsx` 行 1–10 和 行 210–240，
-确认：
+Run: 用 Read 工具读 `src/pages/QuestionTagging/index.tsx` 行 1–10 和 行 210–240，确认：
+
 - 第 3 行：`import React, { useEffect, useMemo, useRef, useState } from 'react';`
 - 第 215–235 行附近：以 `// 键盘快捷键` 注释开头、紧接 `useEffect(() => { ... }, [currentQuestionId, paperQuestions]);` 的整段代码块。
 - 同时用 `grep -n "useEffect" src/pages/QuestionTagging/index.tsx` 确认文件里**至少**还有 1 处其他 `useEffect`（应该有：行 108 的"初始化默认选中"那段）。如有 → 保留 `useEffect` import；若没有其他 `useEffect` → 把第 3 行 import 里的 `useEffect,` 删掉。**预期：保留（行 108 还在用）。**
@@ -2949,39 +2993,39 @@ Edit `src/pages/QuestionTagging/index.tsx`：
 `old_string`（保留前后注释作为锚点，从"// 键盘快捷键"到 `useEffect` 闭合行的 `}, [...]);`，包含尾部空行，**注意：缩进就是文件里的实际缩进，请按 Read 的结果原样复制；下面块内为示意**）：
 
 ```typescript
-  // 键盘快捷键
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // 上下键切换试题
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        handlePrevious();
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        handleNext();
-      }
-      // Ctrl+Enter 保存并下一题（通过 ref 调用表单验证）
-      else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        taggingFormRef.current?.saveAndNext();
-      }
-    };
+// 键盘快捷键
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    // 上下键切换试题
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      handlePrevious();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      handleNext();
+    }
+    // Ctrl+Enter 保存并下一题（通过 ref 调用表单验证）
+    else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      taggingFormRef.current?.saveAndNext();
+    }
+  };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentQuestionId, paperQuestions]);
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, [currentQuestionId, paperQuestions]);
 ```
 
 `new_string`：
 
 ```typescript
-  // 键盘快捷键（抽到 useQuestionNavKeyboard 统一处理）
-  useQuestionNavKeyboard({
-    enabled: true,
-    onPrev: handlePrevious,
-    onNext: handleNext,
-    onSaveNext: () => taggingFormRef.current?.saveAndNext(),
-  });
+// 键盘快捷键（抽到 useQuestionNavKeyboard 统一处理）
+useQuestionNavKeyboard({
+  enabled: true,
+  onPrev: handlePrevious,
+  onNext: handleNext,
+  onSaveNext: () => taggingFormRef.current?.saveAndNext(),
+});
 ```
 
 - [ ] **Step 4: 在 import 区追加新 hook**
@@ -3013,17 +3057,16 @@ import './index.less';
 
 - [ ] **Step 5: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS
+Run: `npx tsc --noEmit` Expected: PASS
 
 - [ ] **Step 6: dev server 烟雾测试（可选，但推荐）**
 
 Run: `npm run dev`，浏览器打开 `http://localhost:8000/question-bank/tagging-fullscreen`。
+
 - 在题目列表区按 ↑/↓ → 当前题应正常切换。
 - 在右栏字段外按 Ctrl+Enter（macOS Cmd+Enter）→ 触发 `saveAndNext()`，跳到下一题。
 - 焦点放在 `<Input>` 里按 ↑/↓ → **不应**切题（按方向键调光标）。
-- 焦点放在 `<Input>` 里按 Cmd+Enter → 仍触发 saveAndNext。
-Ctrl+C 停止。
+- 焦点放在 `<Input>` 里按 Cmd+Enter → 仍触发 saveAndNext。 Ctrl+C 停止。
 
 - [ ] **Step 7: 提交**
 
@@ -3034,13 +3077,13 @@ git commit -m "refactor(QuestionTagging): extract keyboard nav into shared hook"
 
 ---
 
-### Task 15: 工作区模板①——批量审核 `workspaces/BatchReview.tsx`
+### Task 15: 工作区模板 ①——批量审核 `workspaces/BatchReview.tsx`
 
 **Files:**
+
 - Create: `src/pages/UploadTask/Stage/workspaces/BatchReview.tsx`
 
-用于**质量检测**阶段，展示 "中间分段（mid-need-review）" 题目集，编辑可批量/单条
-保留或删除，删除需填原因。所有 HTML 题干渲染必经 `sanitizeHtml()`。
+用于**质量检测**阶段，展示 "中间分段（mid-need-review）" 题目集，编辑可批量/单条保留或删除，删除需填原因。所有 HTML 题干渲染必经 `sanitizeHtml()`。
 
 - [ ] **Step 1: 确认 workspaces 目录存在**
 
@@ -3118,7 +3161,9 @@ const BatchReview: React.FC<BatchReviewProps> = ({
     setSubmitting(true);
     try {
       await onKeep(ids);
-      setSelectedRowKeys((prev) => prev.filter((k) => !ids.includes(String(k))));
+      setSelectedRowKeys((prev) =>
+        prev.filter((k) => !ids.includes(String(k))),
+      );
       message.success(`已保留 ${ids.length} 题`);
     } catch (e) {
       message.error((e as Error).message || '保留失败');
@@ -3219,7 +3264,9 @@ const BatchReview: React.FC<BatchReviewProps> = ({
   const selectedIds = selectedRowKeys.map((k) => String(k));
 
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div
+      style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}
+    >
       <Alert
         type="info"
         showIcon
@@ -3338,8 +3385,7 @@ export default BatchReview;
 
 - [ ] **Step 3: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS
+Run: `npx tsc --noEmit` Expected: PASS
 
 - [ ] **Step 4: 提交**
 
@@ -3350,19 +3396,17 @@ git commit -m "feat(UploadTask): add BatchReview workspace template"
 
 ---
 
-### Task 16: 工作区模板②——三栏精审 `workspaces/QuestionAudit.tsx`
+### Task 16: 工作区模板 ②——三栏精审 `workspaces/QuestionAudit.tsx`
 
 **Files:**
+
 - Create: `src/pages/UploadTask/Stage/workspaces/QuestionAudit.tsx`
 
-用于**解析审核**（`mode='parse'`）和**打标审核**（`mode='tag'`）两个阶段。三栏布局：
-左 280px（题目列表 + 筛选）/ 中 1fr（题目原文 + 低置信红框）/ 右 380px（编辑表单
-+ 操作按钮）。键盘流接 Task 14 新建的 `useQuestionNavKeyboard`。
+用于**解析审核**（`mode='parse'`）和**打标审核**（`mode='tag'`）两个阶段。三栏布局：左 280px（题目列表 + 筛选）/ 中 1fr（题目原文 + 低置信红框）/ 右 380px（编辑表单
 
-> 知识点 TreeSelect 数据源是 `getKnowledgeTree()`（`src/services/tagSystem.ts:52`），
-> 它**没有**经过 Phase 2 拆包，回调拿到的是 `ApiResponse<KnowledgeNode[]>`，要 `.data`
-> 取真实树。`KnowledgeNode` 字段是 `{ id, name, parentId, children? }`，需要映射成
-> Antd TreeSelect 期望的 `{ title, value, key, children }`。
+- 操作按钮）。键盘流接 Task 14 新建的 `useQuestionNavKeyboard`。
+
+> 知识点 TreeSelect 数据源是 `getKnowledgeTree()`（`src/services/tagSystem.ts:52`），它**没有**经过 Phase 2 拆包，回调拿到的是 `ApiResponse<KnowledgeNode[]>`，要 `.data` 取真实树。`KnowledgeNode` 字段是 `{ id, name, parentId, children? }`，需要映射成 Antd TreeSelect 期望的 `{ title, value, key, children }`。
 
 - [ ] **Step 1: 创建 `QuestionAudit.tsx`**
 
@@ -3656,9 +3700,7 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
           margin: '0 8px',
         }}
       >
-        {!current && (
-          <div style={{ color: '#9ca3af' }}>请选择左侧题目</div>
-        )}
+        {!current && <div style={{ color: '#9ca3af' }}>请选择左侧题目</div>}
         {current && (
           <>
             <div style={{ marginBottom: 12, fontWeight: 600 }}>
@@ -3715,9 +3757,7 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
         }}
       >
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-          {!draft && (
-            <div style={{ color: '#9ca3af' }}>请选择左侧题目</div>
-          )}
+          {!draft && <div style={{ color: '#9ca3af' }}>请选择左侧题目</div>}
           {draft && mode === 'parse' && (
             <Form layout="vertical" disabled={readOnly}>
               {PARSE_FIELDS.map((field) => {
@@ -3757,12 +3797,9 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
                               prev
                                 ? {
                                     ...prev,
-                                    options: (prev.options ?? [
-                                      '',
-                                      '',
-                                      '',
-                                      '',
-                                    ]).map((v, j) =>
+                                    options: (
+                                      prev.options ?? ['', '', '', '']
+                                    ).map((v, j) =>
                                       j === i ? e.target.value : v,
                                     ),
                                   }
@@ -3948,8 +3985,8 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
         }}
       >
         <span>
-          已审 {reviewedCount} / {questions.length} ·
-          全部通过后自动推进。↑↓ 切题，Ctrl+Enter 保存下一题
+          已审 {reviewedCount} / {questions.length} · 全部通过后自动推进。↑↓
+          切题，Ctrl+Enter 保存下一题
           {readOnly && (
             <Tag color="default" style={{ marginLeft: 8 }}>
               只读
@@ -3973,21 +4010,16 @@ const QuestionAudit: React.FC<QuestionAuditProps> = ({
 export default QuestionAudit;
 ```
 
-> 不可变模式：所有 `setDraft` / `setSelectedIds` 都用 `prev => ({...prev, ...})` 或
-> `[...prev, x]` / `prev.filter(...)` 生成新引用。`tags` 字段用嵌套展开
-> `{ ...(prev.tags ?? { knowledgePoints: [] }), questionType: val }` 保证不破坏旧字段。
+> 不可变模式：所有 `setDraft` / `setSelectedIds` 都用 `prev => ({...prev, ...})` 或 `[...prev, x]` / `prev.filter(...)` 生成新引用。`tags` 字段用嵌套展开 `{ ...(prev.tags ?? { knowledgePoints: [] }), questionType: val }` 保证不破坏旧字段。
 
-> 行数：此文件约 470 行，超过 spec 中"~250 行"的建议但落在 §10 允许的"400 行典型"范围内；
-> 三列布局与多种字段组合在一处确实压缩不到 250 行。如果后续 reviewer 要求拆分，可把右栏
-> 的 ParseEditor / TagEditor 抽到 `QuestionAuditPanels/` 子文件，但本阶段为减少新文件
-> 数量先合在一起。
+> 行数：此文件约 470 行，超过 spec 中"~250 行"的建议但落在 §10 允许的"400 行典型"范围内；三列布局与多种字段组合在一处确实压缩不到 250 行。如果后续 reviewer 要求拆分，可把右栏的 ParseEditor / TagEditor 抽到 `QuestionAuditPanels/` 子文件，但本阶段为减少新文件数量先合在一起。
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS
+Run: `npx tsc --noEmit` Expected: PASS
 
 潜在报错及处理：
+
 - 若提示 `getKnowledgeTree` 返回类型不匹配：检查实际签名 `request<ApiResponse<KnowledgeNode[]>>(...)` 返回 `Promise<ApiResponse<KnowledgeNode[]>>`，与代码里 `res.data` 用法一致。
 - 若提示 `KnowledgeNode` 不存在：`@/services/tagSystem` 已 export，确认 import 路径。
 
@@ -4000,13 +4032,13 @@ git commit -m "feat(UploadTask): add QuestionAudit three-column workspace"
 
 ---
 
-### Task 17: 工作区模板③——分发配置 `workspaces/DistributeForm.tsx`
+### Task 17: 工作区模板 ③——分发配置 `workspaces/DistributeForm.tsx`
 
 **Files:**
+
 - Create: `src/pages/UploadTask/Stage/workspaces/DistributeForm.tsx`
 
-用于**渠道分发**（终态）阶段。两段式表单：分发范围 + 分发渠道。保存即视为终态，已配置
-可点"修改"重新进入编辑态。`readOnly=true` 时全表单 disabled，按钮隐藏，仅展示当前配置。
+用于**渠道分发**（终态）阶段。两段式表单：分发范围 + 分发渠道。保存即视为终态，已配置可点"修改"重新进入编辑态。`readOnly=true` 时全表单 disabled，按钮隐藏，仅展示当前配置。
 
 - [ ] **Step 1: 创建 `DistributeForm.tsx`**
 
@@ -4024,12 +4056,7 @@ import {
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import React, { useState } from 'react';
-import type {
-  DistributeConfig,
-  Grade,
-  Subject,
-  UploadTask,
-} from '../../types';
+import type { DistributeConfig, Grade, Subject, UploadTask } from '../../types';
 
 export interface DistributeFormProps {
   task: UploadTask;
@@ -4265,17 +4292,10 @@ const DistributeForm: React.FC<DistributeFormProps> = ({
 
         {!readOnly && editing && (
           <Space>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={submitting}
-            >
+            <Button type="primary" htmlType="submit" loading={submitting}>
               保存分发配置
             </Button>
-            <Button
-              disabled
-              title="原型不支持草稿"
-            >
+            <Button disabled title="原型不支持草稿">
               仅保存草稿
             </Button>
           </Space>
@@ -4288,22 +4308,18 @@ const DistributeForm: React.FC<DistributeFormProps> = ({
 export default DistributeForm;
 ```
 
-> 不可变模式：`Form` 内部自管表单状态，组件层不直接 mutate；`handleSubmit` 里 `config`
-> 是新建对象。`dayjs` 已在仓库依赖中（Antd 5 默认使用 dayjs），无需新增。
+> 不可变模式：`Form` 内部自管表单状态，组件层不直接 mutate；`handleSubmit` 里 `config` 是新建对象。`dayjs` 已在仓库依赖中（Antd 5 默认使用 dayjs），无需新增。
 
-> readOnly 时整个 Form 都 `disabled`，按钮区块整段不渲染；如果有 `initial`，依然渲染顶部
-> Alert 摘要供查看。
+> readOnly 时整个 Form 都 `disabled`，按钮区块整段不渲染；如果有 `initial`，依然渲染顶部 Alert 摘要供查看。
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS
+Run: `npx tsc --noEmit` Expected: PASS
 
 潜在报错及处理：
-- 若提示 `dayjs` 找不到：先 `npm ls dayjs`，Antd 5 默认依赖应已存在；缺失则
-  `npm i dayjs` 后再 tsc。
-- `Form<FormValues>` 泛型在某些 Antd 版本可能要求 `name`，本表单未给 `name`，
-  形态正常无 warning，无需调整。
+
+- 若提示 `dayjs` 找不到：先 `npm ls dayjs`，Antd 5 默认依赖应已存在；缺失则 `npm i dayjs` 后再 tsc。
+- `Form<FormValues>` 泛型在某些 Antd 版本可能要求 `name`，本表单未给 `name`，形态正常无 warning，无需调整。
 
 - [ ] **Step 3: 提交**
 
@@ -4317,21 +4333,27 @@ git commit -m "feat(UploadTask): add DistributeForm workspace template"
 ### Task 18: 系统态展示卡 `workspaces/SystemStatus.tsx`
 
 **Files:**
+
 - Create: `src/pages/UploadTask/Stage/workspaces/SystemStatus.tsx`
 
-用于 **重复检测 / AI 解析 / AI 打标 / 自动发布** 4 个系统态阶段。三种主显示模式：
-处理中（Spin + 模拟立即完成按钮）/ 已完成（摘要 + 进入下一阶段按钮）/ 拒绝（错误条）。
-`dedupe` 完成态额外列出重复题清单，"查看原题"弹 Modal 展示 sanitize 过的题干。
+用于 **重复检测 / AI 解析 / AI 打标 / 自动发布** 4 个系统态阶段。三种主显示模式：处理中（Spin + 模拟立即完成按钮）/ 已完成（摘要 + 进入下一阶段按钮）/ 拒绝（错误条）。 `dedupe` 完成态额外列出重复题清单，"查看原题"弹 Modal 展示 sanitize 过的题干。
 
 - [ ] **Step 1: 创建 `SystemStatus.tsx`**
 
 ```typescript
-import { Alert, Button, Card, List, Modal, Space, Spin, Tag, message } from 'antd';
-import React, { useMemo, useState } from 'react';
 import {
-  STAGE_LABELS,
-  nextStageOf,
-} from '../../constants';
+  Alert,
+  Button,
+  Card,
+  List,
+  Modal,
+  Space,
+  Spin,
+  Tag,
+  message,
+} from 'antd';
+import React, { useMemo, useState } from 'react';
+import { STAGE_LABELS, nextStageOf } from '../../constants';
 import { sanitizeHtml } from '@/utils/sanitize';
 import type { StageKey, StageProgress, TaskQuestion } from '../../types';
 
@@ -4376,7 +4398,12 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
   };
 
   const renderProcessing = () => (
-    <Space direction="vertical" align="center" size={16} style={{ width: '100%' }}>
+    <Space
+      direction="vertical"
+      align="center"
+      size={16}
+      style={{ width: '100%' }}
+    >
       <h3 style={{ margin: 0 }}>{stageLabel} · 系统处理中…</h3>
       <Spin size="large" />
       <div style={{ color: '#6b7280' }}>共 {questions.length} 题待处理</div>
@@ -4389,7 +4416,9 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
   const renderDone = () => {
     const nextLabel = nextStage ? STAGE_LABELS[nextStage] : null;
     const nextButtonText =
-      nextStage === 'distribute' ? '→ 配置分发渠道' : `→ 进入下一阶段：${nextLabel ?? ''}`;
+      nextStage === 'distribute'
+        ? '→ 配置分发渠道'
+        : `→ 进入下一阶段：${nextLabel ?? ''}`;
     return (
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <h3 style={{ margin: 0 }}>
@@ -4479,13 +4508,11 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
 export default SystemStatus;
 ```
 
-> 不可变模式：所有 state setter 都是新值直接传入，无字段 mutate。
-> readOnly：`onAdvance` 按钮 disabled，`onNext` 按钮 disabled；其余仅展示，无写动作。
+> 不可变模式：所有 state setter 都是新值直接传入，无字段 mutate。 readOnly：`onAdvance` 按钮 disabled，`onNext` 按钮 disabled；其余仅展示，无写动作。
 
 - [ ] **Step 2: 类型检查**
 
-Run: `npx tsc --noEmit`
-Expected: PASS
+Run: `npx tsc --noEmit` Expected: PASS
 
 - [ ] **Step 3: 提交**
 
@@ -4511,25 +4538,13 @@ git commit -m "feat(UploadTask): add SystemStatus workspace template"
 
 ## 已识别的歧义 / 后续 Phase 需注意的点
 
-1. **`getKnowledgeTree()` 未拆包**：Phase 2 spec 只解封装 `uploadTask.ts` 的 service；
-   `tagSystem.ts` 的 `getKnowledgeTree()` 仍返回 `Promise<ApiResponse<KnowledgeNode[]>>`。
-   QuestionAudit 内手动 `.data` 取值。若 Phase 2 也连带拆了 `tagSystem.ts`，需要把
-   QuestionAudit 里 `res?.success && res.data` 那段改成直接 `setKpTree(mapKnowledgeNodes(res))`。
-2. **QuestionAudit.tsx ≈ 470 行**：超过 spec hard rule 提到的"~250 行"上限。三栏 + 两 mode
-   的右栏表单一起写在单文件里确实压不下来；若 reviewer 要求严格 ≤ 250 行，需要后续把右栏
-   `ParseEditor` / `TagEditor` 各自抽到子文件（`QuestionAudit/ParseEditor.tsx` 等），
-   并把当前文件改成 < 200 行的容器。本阶段保留单文件结构以减少新增文件数。
-3. **批量"批量确认通过"按钮**：放在底部状态条右侧。spec §9 提到"左栏勾选多题"也是批量
-   入口，已通过左栏 Checkbox 选中后底部按钮可见的方式实现，无独立"批量"开关。
-4. **`mode='tag'` 编辑表单**：spec 列出"课标 / 适用年级"两个字段，但 Phase 1 TaskQuestion
-   类型里 `tags` 只声明了 `{ knowledgePoints, questionType, difficulty, cognitionLevel }`。
-   为保持类型契约不破，本阶段只渲染这 4 个字段；课标/适用年级若要补需要先扩 `TaskQuestion.tags`
-   类型（不在 Phase 4 范围）。
-5. **dev-server 烟雾验证延后**：除 Task 14 的 QuestionTagging 回归外，3 套新模板的可视验证
-   必须等 Phase 5 把它们接入路由后才能做；本阶段以 tsc 为准。
+1. **`getKnowledgeTree()` 未拆包**：Phase 2 spec 只解封装 `uploadTask.ts` 的 service； `tagSystem.ts` 的 `getKnowledgeTree()` 仍返回 `Promise<ApiResponse<KnowledgeNode[]>>`。 QuestionAudit 内手动 `.data` 取值。若 Phase 2 也连带拆了 `tagSystem.ts`，需要把 QuestionAudit 里 `res?.success && res.data` 那段改成直接 `setKpTree(mapKnowledgeNodes(res))`。
+2. **QuestionAudit.tsx ≈ 470 行**：超过 spec hard rule 提到的"~250 行"上限。三栏 + 两 mode 的右栏表单一起写在单文件里确实压不下来；若 reviewer 要求严格 ≤ 250 行，需要后续把右栏 `ParseEditor` / `TagEditor` 各自抽到子文件（`QuestionAudit/ParseEditor.tsx` 等），并把当前文件改成 < 200 行的容器。本阶段保留单文件结构以减少新增文件数。
+3. **批量"批量确认通过"按钮**：放在底部状态条右侧。spec §9 提到"左栏勾选多题"也是批量入口，已通过左栏 Checkbox 选中后底部按钮可见的方式实现，无独立"批量"开关。
+4. **`mode='tag'` 编辑表单**：spec 列出"课标 / 适用年级"两个字段，但 Phase 1 TaskQuestion 类型里 `tags` 只声明了 `{ knowledgePoints, questionType, difficulty, cognitionLevel }`。为保持类型契约不破，本阶段只渲染这 4 个字段；课标/适用年级若要补需要先扩 `TaskQuestion.tags` 类型（不在 Phase 4 范围）。
+5. **dev-server 烟雾验证延后**：除 Task 14 的 QuestionTagging 回归外，3 套新模板的可视验证必须等 Phase 5 把它们接入路由后才能做；本阶段以 tsc 为准。
 6. **质检 seed 数据契约（Task 6 已修订）**：
-   - `currentStage === 'quality'` 的任务：AI 评分 + verdict 已生成；auto-pass → `qualityKept=true`，
-     auto-reject → `qualityKept=false`，mid-need-review → `qualityKept=undefined`（等用户在 BatchReview 操作）。
+   - `currentStage === 'quality'` 的任务：AI 评分 + verdict 已生成；auto-pass → `qualityKept=true`， auto-reject → `qualityKept=false`，mid-need-review → `qualityKept=undefined`（等用户在 BatchReview 操作）。
    - `currentStage > 'quality'` 的任务：所有题都已落决策（中段题视为已人工通过）。
    - 因此 BatchReview 的"待编辑确认"队列在 quality 阶段直接非空，无需先 reject 才能演示批量保留/拒绝。
 
@@ -4539,8 +4554,7 @@ git commit -m "feat(UploadTask): add SystemStatus workspace template"
 
 Create the persistent header rendered on every stage page. It shows the back button, task identity, and an 8-step `<Steps>` indicator that reflects `task.stageProgress` and lets users jump to any already-visited stage.
 
-- [ ] **Step 19.1 — Create the file**
-**File:** `src/pages/UploadTask/Stage/StageHeader.tsx`
+- [ ] **Step 19.1 — Create the file** **File:** `src/pages/UploadTask/Stage/StageHeader.tsx`
 
 ```typescript
 import { ArrowLeftOutlined } from '@ant-design/icons';
@@ -4625,6 +4639,7 @@ export default StageHeader;
 ```
 
 - [ ] **Step 19.2 — TS check**
+
 ```bash
 cd /Users/jinwenyuan/my-repo/jinwy_tiku/my-app
 npx tsc --noEmit
@@ -4633,6 +4648,7 @@ npx tsc --noEmit
 **Expected:** PASS. `StageHeader` only depends on Phase 1 types/constants and Ant Design — both already exist.
 
 - [ ] **Step 19.3 — Commit**
+
 ```bash
 git add src/pages/UploadTask/Stage/StageHeader.tsx
 git commit -m "feat(upload): add StageHeader with 8-step progress bar"
@@ -4646,8 +4662,7 @@ Replace the placeholder `Stage/index.tsx` with the real router-driven page. It r
 
 **Approach (compile-clean):** To keep every commit compilable, this task first scaffolds 8 stub stage files (`export default () => null`) before rewriting `Stage/index.tsx`. Task 21 then fills in each stub. This avoids the "expected fail" tsc situation.
 
-- [ ] **Step 20.1 — Create 8 stub stage files**
-Create directory `src/pages/UploadTask/Stage/stages/` and the 8 stub files inside. Each is the same shape:
+- [ ] **Step 20.1 — Create 8 stub stage files** Create directory `src/pages/UploadTask/Stage/stages/` and the 8 stub files inside. Each is the same shape:
 
 **File:** `src/pages/UploadTask/Stage/stages/Quality.tsx`
 
@@ -4769,8 +4784,7 @@ const Distribute: React.FC<{
 export default Distribute;
 ```
 
-- [ ] **Step 20.2 — Replace `Stage/index.tsx` with the real router page**
-**File:** `src/pages/UploadTask/Stage/index.tsx` (replace the existing placeholder content entirely)
+- [ ] **Step 20.2 — Replace `Stage/index.tsx` with the real router page** **File:** `src/pages/UploadTask/Stage/index.tsx` (replace the existing placeholder content entirely)
 
 ```typescript
 import { history, useParams, useRequest, useSearchParams } from '@umijs/max';
@@ -4828,10 +4842,11 @@ const StagePage: React.FC = () => {
   }>();
   const [searchParams] = useSearchParams();
 
-  const { data: task, loading, refresh } = useRequest(
-    () => getUploadTask(taskId!),
-    { refreshDeps: [taskId] },
-  );
+  const {
+    data: task,
+    loading,
+    refresh,
+  } = useRequest(() => getUploadTask(taskId!), { refreshDeps: [taskId] });
 
   const readOnly = useMemo(() => {
     if (searchParams.get('readOnly') === '1') return true;
@@ -4880,6 +4895,7 @@ export default StagePage;
 ```
 
 - [ ] **Step 20.3 — TS check**
+
 ```bash
 cd /Users/jinwenyuan/my-repo/jinwy_tiku/my-app
 npx tsc --noEmit
@@ -4888,6 +4904,7 @@ npx tsc --noEmit
 **Expected:** PASS. All 8 stub stage files exist; `StageHeader` exists; `getUploadTask` / `STAGE_KEYS` / `isValidStage` exist from Phase 1 + Phase 2.
 
 - [ ] **Step 20.4 — Dev-server smoke**
+
 ```bash
 npm run dev
 ```
@@ -4905,6 +4922,7 @@ In the browser:
 7. Try `/question-bank/upload/nonexistent-id/quality` → renders `<Empty description="任务不存在" />` with a back button.
 
 - [ ] **Step 20.5 — Commit**
+
 ```bash
 git add src/pages/UploadTask/Stage/index.tsx \
         src/pages/UploadTask/Stage/stages/
@@ -4917,8 +4935,7 @@ git commit -m "feat(upload): add Stage router entry and 8 stage stubs"
 
 Replace each of the 8 stubs created in Task 20 with the real thin wiring layer. Each file stays under 50 lines and does only: `useRequest` for the stage's questions, then forward props + service callbacks into the matching workspace component from Phase 4.
 
-- [ ] **Step 21.1 — `Quality.tsx` (BatchReview)**
-**File:** `src/pages/UploadTask/Stage/stages/Quality.tsx` (replace stub)
+- [ ] **Step 21.1 — `Quality.tsx` (BatchReview)** **File:** `src/pages/UploadTask/Stage/stages/Quality.tsx` (replace stub)
 
 ```typescript
 import { useRequest } from '@umijs/max';
@@ -4972,17 +4989,13 @@ const Quality: React.FC<{
 export default Quality;
 ```
 
-- [ ] **Step 21.2 — `Dedupe.tsx` (SystemStatus, stage='dedupe')**
-**File:** `src/pages/UploadTask/Stage/stages/Dedupe.tsx` (replace stub)
+- [ ] **Step 21.2 — `Dedupe.tsx` (SystemStatus, stage='dedupe')** **File:** `src/pages/UploadTask/Stage/stages/Dedupe.tsx` (replace stub)
 
 ```typescript
 import { useRequest } from '@umijs/max';
 import React from 'react';
 import { history } from '@umijs/max';
-import {
-  advanceSystemStage,
-  getStageQuestions,
-} from '@/services/uploadTask';
+import { advanceSystemStage, getStageQuestions } from '@/services/uploadTask';
 import { nextStageOf } from '../../constants';
 import SystemStatus from '../workspaces/SystemStatus';
 import type { UploadTask } from '../../types';
@@ -5017,17 +5030,13 @@ const Dedupe: React.FC<{
 export default Dedupe;
 ```
 
-- [ ] **Step 21.3 — `Parse.tsx` (SystemStatus, stage='parse')**
-**File:** `src/pages/UploadTask/Stage/stages/Parse.tsx` (replace stub)
+- [ ] **Step 21.3 — `Parse.tsx` (SystemStatus, stage='parse')** **File:** `src/pages/UploadTask/Stage/stages/Parse.tsx` (replace stub)
 
 ```typescript
 import { useRequest } from '@umijs/max';
 import React from 'react';
 import { history } from '@umijs/max';
-import {
-  advanceSystemStage,
-  getStageQuestions,
-} from '@/services/uploadTask';
+import { advanceSystemStage, getStageQuestions } from '@/services/uploadTask';
 import { nextStageOf } from '../../constants';
 import SystemStatus from '../workspaces/SystemStatus';
 import type { UploadTask } from '../../types';
@@ -5062,8 +5071,7 @@ const Parse: React.FC<{
 export default Parse;
 ```
 
-- [ ] **Step 21.4 — `ParseReview.tsx` (QuestionAudit, mode='parse')**
-**File:** `src/pages/UploadTask/Stage/stages/ParseReview.tsx` (replace stub)
+- [ ] **Step 21.4 — `ParseReview.tsx` (QuestionAudit, mode='parse')** **File:** `src/pages/UploadTask/Stage/stages/ParseReview.tsx` (replace stub)
 
 ```typescript
 import { useRequest } from '@umijs/max';
@@ -5111,17 +5119,13 @@ const ParseReview: React.FC<{
 export default ParseReview;
 ```
 
-- [ ] **Step 21.5 — `Tag.tsx` (SystemStatus, stage='tag')**
-**File:** `src/pages/UploadTask/Stage/stages/Tag.tsx` (replace stub)
+- [ ] **Step 21.5 — `Tag.tsx` (SystemStatus, stage='tag')** **File:** `src/pages/UploadTask/Stage/stages/Tag.tsx` (replace stub)
 
 ```typescript
 import { useRequest } from '@umijs/max';
 import React from 'react';
 import { history } from '@umijs/max';
-import {
-  advanceSystemStage,
-  getStageQuestions,
-} from '@/services/uploadTask';
+import { advanceSystemStage, getStageQuestions } from '@/services/uploadTask';
 import { nextStageOf } from '../../constants';
 import SystemStatus from '../workspaces/SystemStatus';
 import type { UploadTask } from '../../types';
@@ -5156,8 +5160,7 @@ const Tag: React.FC<{
 export default Tag;
 ```
 
-- [ ] **Step 21.6 — `TagReview.tsx` (QuestionAudit, mode='tag')**
-**File:** `src/pages/UploadTask/Stage/stages/TagReview.tsx` (replace stub)
+- [ ] **Step 21.6 — `TagReview.tsx` (QuestionAudit, mode='tag')** **File:** `src/pages/UploadTask/Stage/stages/TagReview.tsx` (replace stub)
 
 ```typescript
 import { useRequest } from '@umijs/max';
@@ -5205,17 +5208,13 @@ const TagReview: React.FC<{
 export default TagReview;
 ```
 
-- [ ] **Step 21.7 — `Publish.tsx` (SystemStatus, stage='publish')**
-**File:** `src/pages/UploadTask/Stage/stages/Publish.tsx` (replace stub)
+- [ ] **Step 21.7 — `Publish.tsx` (SystemStatus, stage='publish')** **File:** `src/pages/UploadTask/Stage/stages/Publish.tsx` (replace stub)
 
 ```typescript
 import { useRequest } from '@umijs/max';
 import React from 'react';
 import { history } from '@umijs/max';
-import {
-  advanceSystemStage,
-  getStageQuestions,
-} from '@/services/uploadTask';
+import { advanceSystemStage, getStageQuestions } from '@/services/uploadTask';
 import { nextStageOf } from '../../constants';
 import SystemStatus from '../workspaces/SystemStatus';
 import type { UploadTask } from '../../types';
@@ -5250,8 +5249,7 @@ const Publish: React.FC<{
 export default Publish;
 ```
 
-- [ ] **Step 21.8 — `Distribute.tsx` (DistributeForm)**
-**File:** `src/pages/UploadTask/Stage/stages/Distribute.tsx` (replace stub)
+- [ ] **Step 21.8 — `Distribute.tsx` (DistributeForm)** **File:** `src/pages/UploadTask/Stage/stages/Distribute.tsx` (replace stub)
 
 ```typescript
 import { useRequest } from '@umijs/max';
@@ -5290,6 +5288,7 @@ export default Distribute;
 ```
 
 - [ ] **Step 21.9 — TS check**
+
 ```bash
 cd /Users/jinwenyuan/my-repo/jinwy_tiku/my-app
 npx tsc --noEmit
@@ -5298,6 +5297,7 @@ npx tsc --noEmit
 **Expected:** PASS. Every service function referenced (`getStageQuestions`, `confirmQualityKeep/Reject`, `updateParsedFields`, `regenerateParse`, `confirmParseReview`, `updateTags`, `regenerateTags`, `confirmTagReview`, `advanceSystemStage`, `getDistributeConfig`, `saveDistributeConfig`) is in the Phase 1 frozen service surface; every workspace component is from Phase 4; `nextStageOf` is from Phase 1 constants.
 
 - [ ] **Step 21.10 — Dev-server smoke**
+
 ```bash
 npm run dev
 ```
@@ -5358,6 +5358,7 @@ Run through the following sequence in the browser. Pick task IDs from the mock d
 - `/question-bank/upload/nonexistent-id/quality` → `<Empty description="任务不存在" />` + 返回 button.
 
 - [ ] **Step 21.11 — Commit**
+
 ```bash
 git add src/pages/UploadTask/Stage/stages/
 git commit -m "feat(upload): fill in 8 stage shells wiring services to workspaces"

@@ -1,12 +1,11 @@
-import { useRequest } from '@umijs/max';
-import React from 'react';
 import {
   getDistributeConfig,
   saveDistributeConfig,
 } from '@/services/uploadTask';
-import type { DistributeConfig } from '../../types';
+import { useRequest } from '@umijs/max';
+import React from 'react';
+import type { DistributeConfig, UploadTask } from '../../types';
 import DistributeForm from '../workspaces/DistributeForm';
-import type { UploadTask } from '../../types';
 
 const Distribute: React.FC<{
   task: UploadTask;

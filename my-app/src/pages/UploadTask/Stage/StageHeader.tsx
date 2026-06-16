@@ -1,8 +1,8 @@
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { history } from 'umi';
 import { Button, Steps } from 'antd';
 import React from 'react';
-import { STAGE_LABELS, STAGE_KEYS } from '../constants';
+import { history } from 'umi';
+import { STAGE_KEYS, STAGE_LABELS } from '../constants';
 import type { StageKey, UploadTask } from '../types';
 import styles from './StageHeader.less';
 

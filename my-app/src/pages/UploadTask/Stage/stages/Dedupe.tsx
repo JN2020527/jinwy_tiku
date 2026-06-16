@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import { Alert, Button, Card, Spin, Tag, message } from 'antd';
 import { history } from '@umijs/max';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -11,6 +12,15 @@ import type { TaskQuestion } from '../../types';
 import DedupeSummary from './dedupe/DedupeSummary';
 import DuplicatePairCard from './dedupe/DuplicatePairCard';
 import styles from './dedupe/dedupe.less';
+=======
+import { advanceSystemStage, getStageQuestions } from '@/services/uploadTask';
+import { useRequest } from '@umijs/max';
+import React from 'react';
+import { history } from 'umi';
+import { nextStageOf } from '../../constants';
+import type { TaskQuestion, UploadTask } from '../../types';
+import SystemStatus from '../workspaces/SystemStatus';
+>>>>>>> Stashed changes
 
 interface DedupeProps {
   task: {

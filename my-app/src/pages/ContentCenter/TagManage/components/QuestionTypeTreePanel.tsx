@@ -1,11 +1,15 @@
+import type { QuestionTypeNode } from '@/services/tagSystem';
 import {
   addQuestionTypeNode,
   deleteQuestionTypeNode,
   updateQuestionTypeNode,
 } from '@/services/tagSystem';
-import type { QuestionTypeNode } from '@/services/tagSystem';
+import {
+  ModalForm,
+  ProFormText,
+  ProFormTextArea,
+} from '@ant-design/pro-components';
 import { Button, Card, Form, message, Modal, Tree } from 'antd';
-import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import React, { useState } from 'react';
 import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
@@ -19,7 +23,9 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   questionTypeTree,
   onRefresh,
 }) => {
-  const [selectedQtNode, setSelectedQtNode] = useState<TreeNodeData | null>(null);
+  const [selectedQtNode, setSelectedQtNode] = useState<TreeNodeData | null>(
+    null,
+  );
   const [qtModalVisible, setQtModalVisible] = useState<boolean>(false);
   const [qtModalType, setQtModalType] = useState<'add' | 'edit'>('add');
   const [qtForm] = Form.useForm();

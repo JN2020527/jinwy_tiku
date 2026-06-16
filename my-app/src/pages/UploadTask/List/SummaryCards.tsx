@@ -50,10 +50,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
                 </div>
                 <div className={styles.cardLabel}>{bucket.label}</div>
               </div>
-              <div
-                className={styles.cardIcon}
-                style={{ color: bucket.color }}
-              >
+              <div className={styles.cardIcon} style={{ color: bucket.color }}>
                 {ICONS[bucket.key]}
               </div>
             </div>

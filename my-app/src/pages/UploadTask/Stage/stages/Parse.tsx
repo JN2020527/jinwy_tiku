@@ -1,14 +1,10 @@
+import { advanceSystemStage, getStageQuestions } from '@/services/uploadTask';
 import { useRequest } from '@umijs/max';
 import React from 'react';
 import { history } from 'umi';
-import {
-  advanceSystemStage,
-  getStageQuestions,
-} from '@/services/uploadTask';
-import type { TaskQuestion } from '../../types';
 import { nextStageOf } from '../../constants';
+import type { TaskQuestion, UploadTask } from '../../types';
 import SystemStatus from '../workspaces/SystemStatus';
-import type { UploadTask } from '../../types';
 
 const Parse: React.FC<{
   task: UploadTask;

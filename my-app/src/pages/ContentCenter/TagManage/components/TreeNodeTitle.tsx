@@ -1,8 +1,4 @@
-import {
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-} from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { Space, Tooltip } from 'antd';
 import React from 'react';
 import type { TreeNodeData } from './treeHelpers';
@@ -27,7 +23,12 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
       <span>
         {nodeData.title.split(searchValue).map((part, i, parts) =>
           i < parts.length - 1
-            ? [part, <span key={i} style={{ color: '#f50' }}>{searchValue}</span>]
+            ? [
+                part,
+                <span key={i} style={{ color: '#f50' }}>
+                  {searchValue}
+                </span>,
+              ]
             : part,
         )}
       </span>
@@ -36,7 +37,14 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
     );
 
   return (
-    <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div
+      style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}
+    >
       <span>{title}</span>
       <Space style={{ marginLeft: 12 }}>
         <Tooltip title="添加子节点">

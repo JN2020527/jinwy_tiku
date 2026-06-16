@@ -1,9 +1,4 @@
-import type {
-  BucketKey,
-  StageKey,
-  TaskStatus,
-  UploadTask,
-} from './types';
+import type { BucketKey, StageKey, TaskStatus, UploadTask } from './types';
 
 // 8 个阶段的固定顺序，状态机推进依赖它
 export const STAGE_KEYS: readonly StageKey[] = [

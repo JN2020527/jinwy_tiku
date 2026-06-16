@@ -1,5 +1,3 @@
-import { request } from '@umijs/max';
-import type { ApiResponse } from './tagSystem';
 import type {
   CreateUploadTaskBody,
   DistributeConfig,
@@ -8,6 +6,8 @@ import type {
   UploadTask,
   UploadTaskListResponse,
 } from '@/pages/UploadTask/types';
+import { request } from '@umijs/max';
+import type { ApiResponse } from './tagSystem';
 
 export interface UploadTaskQueryParams {
   current?: number;
@@ -28,10 +28,10 @@ function unwrap<T>(resp: ApiResponse<T>): T {
 export async function getUploadTasks(
   params: UploadTaskQueryParams,
 ): Promise<UploadTaskListResponse> {
-  return request<ApiResponse<UploadTaskListResponse>>(
-    '/api/upload-task/list',
-    { method: 'GET', params },
-  ).then(unwrap);
+  return request<ApiResponse<UploadTaskListResponse>>('/api/upload-task/list', {
+    method: 'GET',
+    params,
+  }).then(unwrap);
 }
 
 export async function getUploadTask(id: string): Promise<UploadTask> {
@@ -124,10 +124,10 @@ export async function confirmParseReview(
   taskId: string,
   questionIds: string[],
 ): Promise<void> {
-  return request<ApiResponse<void>>(
-    '/api/upload-task/parse-review/confirm',
-    { method: 'POST', data: { taskId, questionIds } },
-  ).then(unwrap);
+  return request<ApiResponse<void>>('/api/upload-task/parse-review/confirm', {
+    method: 'POST',
+    data: { taskId, questionIds },
+  }).then(unwrap);
 }
 
 // ----- 打标审核 -----
@@ -157,10 +157,10 @@ export async function confirmTagReview(
   taskId: string,
   questionIds: string[],
 ): Promise<void> {
-  return request<ApiResponse<void>>(
-    '/api/upload-task/tag-review/confirm',
-    { method: 'POST', data: { taskId, questionIds } },
-  ).then(unwrap);
+  return request<ApiResponse<void>>('/api/upload-task/tag-review/confirm', {
+    method: 'POST',
+    data: { taskId, questionIds },
+  }).then(unwrap);
 }
 
 // ----- 系统态阶段 -----
@@ -189,8 +189,8 @@ export async function getDistributeConfig(
 export async function saveDistributeConfig(
   config: DistributeConfig,
 ): Promise<UploadTask> {
-  return request<ApiResponse<UploadTask>>(
-    '/api/upload-task/distribute/save',
-    { method: 'POST', data: config },
-  ).then(unwrap);
+  return request<ApiResponse<UploadTask>>('/api/upload-task/distribute/save', {
+    method: 'POST',
+    data: config,
+  }).then(unwrap);
 }

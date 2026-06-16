@@ -1,7 +1,15 @@
-import { getKnowledgeTree, getQuestionTypeTree, getTagCategories } from '@/services/tagSystem';
-import type { KnowledgeNode, QuestionTypeNode, TagCategory } from '@/services/tagSystem';
-import { Card, message, Select, Space, Spin, Tabs } from 'antd';
+import type {
+  KnowledgeNode,
+  QuestionTypeNode,
+  TagCategory,
+} from '@/services/tagSystem';
+import {
+  getKnowledgeTree,
+  getQuestionTypeTree,
+  getTagCategories,
+} from '@/services/tagSystem';
 import { PageContainer } from '@ant-design/pro-components';
+import { Card, message, Select, Space, Spin, Tabs } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
 import AttributeTagsPanel from './components/AttributeTagsPanel';
 import KnowledgeTreePanel from './components/KnowledgeTreePanel';
@@ -9,7 +17,9 @@ import QuestionTypeTreePanel from './components/QuestionTypeTreePanel';
 
 const TagManage: React.FC = () => {
   const [knowledgeTree, setKnowledgeTree] = useState<KnowledgeNode[]>([]);
-  const [questionTypeTree, setQuestionTypeTree] = useState<QuestionTypeNode[]>([]);
+  const [questionTypeTree, setQuestionTypeTree] = useState<QuestionTypeNode[]>(
+    [],
+  );
   const [tagCategories, setTagCategories] = useState<TagCategory[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 

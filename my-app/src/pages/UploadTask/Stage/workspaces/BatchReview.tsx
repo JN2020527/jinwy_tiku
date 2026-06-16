@@ -1,21 +1,12 @@
+import { sanitizeHtml } from '@/utils/sanitize';
 import {
   CheckCircleFilled,
   CloseCircleFilled,
   ExclamationCircleFilled,
 } from '@ant-design/icons';
-import {
-  Button,
-  Input,
-  Modal,
-  Space,
-  Switch,
-  Table,
-  Tag,
-  message,
-} from 'antd';
+import { Button, Input, Modal, Space, Switch, Table, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import React, { useEffect, useMemo, useState } from 'react';
-import { sanitizeHtml } from '@/utils/sanitize';
 import type { TaskQuestion } from '../../types';
 import styles from './BatchReview.less';
 
@@ -101,7 +92,9 @@ const BatchReview: React.FC<BatchReviewProps> = ({
     setSubmitting(true);
     try {
       await onKeep(ids);
-      setSelectedRowKeys((prev) => prev.filter((k) => !ids.includes(String(k))));
+      setSelectedRowKeys((prev) =>
+        prev.filter((k) => !ids.includes(String(k))),
+      );
       message.success(`已保留 ${ids.length} 题`);
       setUndoAction({ type: 'keep', ids });
     } catch (e) {
@@ -221,7 +214,9 @@ const BatchReview: React.FC<BatchReviewProps> = ({
     <div className={styles.batchReview}>
       <div className={styles.summaryRow}>
         <div className={styles.summaryCard}>
-          <CheckCircleFilled className={`${styles.summaryDot} ${styles.pass}`} />
+          <CheckCircleFilled
+            className={`${styles.summaryDot} ${styles.pass}`}
+          />
           <div className={styles.summaryInfo}>
             <span className={styles.summaryLabel}>自动通过</span>
             <span className={styles.summaryValue}>{summary.autoPass}</span>
@@ -253,7 +248,9 @@ const BatchReview: React.FC<BatchReviewProps> = ({
           checked={showAll}
           onChange={setShowAll}
         />
-        <span className={styles.visibleCount}>当前展示 {visible.length} 题</span>
+        <span className={styles.visibleCount}>
+          当前展示 {visible.length} 题
+        </span>
       </div>
 
       <Table<TaskQuestion>

@@ -58,10 +58,10 @@
 // types.ts 新增
 export interface Paper {
   id: string;
-  name: string;           // 试卷名称
-  subject: string;        // 学科
-  questionCount: number;  // 题目总数
-  taggedCount: number;    // 已打标数量
+  name: string; // 试卷名称
+  subject: string; // 学科
+  questionCount: number; // 题目总数
+  taggedCount: number; // 已打标数量
   year?: string;
   region?: string;
 }
@@ -82,7 +82,7 @@ const [currentPaperId, setCurrentPaperId] = useState<string>('');
 ```typescript
 const papers = useMemo(() => {
   const paperMap = new Map<string, Paper>();
-  questions.forEach(q => {
+  questions.forEach((q) => {
     if (!q.paperId) return;
     if (!paperMap.has(q.paperId)) {
       paperMap.set(q.paperId, {
@@ -106,7 +106,7 @@ const papers = useMemo(() => {
 ### 新增组件
 
 | 组件 | 文件 | 职责 |
-|------|------|------|
+| --- | --- | --- |
 | `PaperList` | `components/PaperList.tsx` | 试卷列表，显示试卷名称、进度条 |
 | `PaperQuestionNav` | `components/PaperQuestionNav.tsx` | 题号方块导航，显示在中间栏底部 |
 
@@ -127,6 +127,7 @@ interface PaperListProps {
 ```
 
 列表项展示：
+
 ```
 ┌────────────────────────────────┐
 │ 2023年高考数学全国卷I          │  ← 试卷名称
@@ -150,6 +151,7 @@ interface PaperQuestionNavProps {
 ```
 
 方块布局：
+
 ```
 ┌──────────────────────────────────────┐
 │  试题导航                    全选 ☐  │
@@ -167,11 +169,11 @@ interface PaperQuestionNavProps {
 
 ### 组件复用
 
-| 现有组件 | 复用方式 |
-|----------|----------|
-| `FilterPanel` | 新增 `mode` 属性，试卷模式下隐藏关键词搜索 |
-| `QuestionDetail` | 完全复用，无需修改 |
-| `TaggingForm` | 完全复用，无需修改 |
+| 现有组件         | 复用方式                                   |
+| ---------------- | ------------------------------------------ |
+| `FilterPanel`    | 新增 `mode` 属性，试卷模式下隐藏关键词搜索 |
+| `QuestionDetail` | 完全复用，无需修改                         |
+| `TaggingForm`    | 完全复用，无需修改                         |
 
 ## 主页面条件渲染
 
@@ -214,11 +216,11 @@ interface PaperQuestionNavProps {
 
 ### 键盘快捷键（复用现有）
 
-| 快捷键 | 功能 |
-|--------|------|
-| `←` `→` | 上一题 / 下一题 |
-| `↑` `↓` | 上一题 / 下一题 |
-| `Ctrl+Enter` | 保存并下一题 |
+| 快捷键       | 功能            |
+| ------------ | --------------- |
+| `←` `→`      | 上一题 / 下一题 |
+| `↑` `↓`      | 上一题 / 下一题 |
+| `Ctrl+Enter` | 保存并下一题    |
 
 ## 文件变更清单
 

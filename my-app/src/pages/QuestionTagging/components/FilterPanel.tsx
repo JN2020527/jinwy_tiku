@@ -9,7 +9,10 @@ interface FilterPanelProps {
   onFilterChange: (filters: Partial<FilterParams>) => void;
 }
 
-const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterChange }) => {
+const FilterPanel: React.FC<FilterPanelProps> = ({
+  mode = 'question',
+  onFilterChange,
+}) => {
   const [form] = ProForm.useForm();
 
   const handleValuesChange = (_: any, allValues: any) => {
@@ -17,10 +20,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
   };
 
   // 学科选项（添加"全部"选项）
-  const subjectOptions = [
-    { label: '全部', value: '' },
-    ...mockSubjects,
-  ];
+  const subjectOptions = [{ label: '全部', value: '' }, ...mockSubjects];
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -37,7 +37,9 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ mode = 'question', onFilterCh
         {/* 关键字搜索框 */}
         <ProForm.Item name="keyword" style={{ marginBottom: 12 }}>
           <Input.Search
-            placeholder={mode === 'paper' ? '搜索试卷名称' : '搜索试卷/题干内容'}
+            placeholder={
+              mode === 'paper' ? '搜索试卷名称' : '搜索试卷/题干内容'
+            }
             allowClear
             onSearch={(value) => {
               form.setFieldsValue({ keyword: value });

@@ -450,7 +450,8 @@ export const mockQuestions: Question[] = [
     stem: '<p>下列化学符号中，既能表示一种元素，又能表示一个原子，还能表示一种单质的是（）</p>',
     options: ['A. O', 'B. H₂', 'C. N', 'D. C'],
     answer: 'D',
-    analysis: '<p>碳元素符号C可以表示碳元素、一个碳原子、碳单质（金刚石、石墨等）。</p>',
+    analysis:
+      '<p>碳元素符号C可以表示碳元素、一个碳原子、碳单质（金刚石、石墨等）。</p>',
     subject: 'chemistry',
     paperId: 'paper8',
     paperName: '2024年中考化学模拟卷',
@@ -486,7 +487,10 @@ export const mockSubjects = [
 ];
 
 // Mock 试卷列表（按学科分类）
-export const mockPapersBySubject: Record<string, { label: string; value: string }[]> = {
+export const mockPapersBySubject: Record<
+  string,
+  { label: string; value: string }[]
+> = {
   math: [
     { label: '2023年高考数学全国卷I', value: 'paper1' },
     { label: '2023年高考数学全国卷II', value: 'paper2' },
@@ -495,15 +499,9 @@ export const mockPapersBySubject: Record<string, { label: string; value: string 
     { label: '2023年中考语文模拟卷', value: 'paper3' },
     { label: '2023年高考语文全国卷', value: 'paper4' },
   ],
-  english: [
-    { label: '2023年中考英语模拟卷', value: 'paper5' },
-  ],
-  physics: [
-    { label: '2023年中考物理模拟卷', value: 'paper6' },
-  ],
-  chemistry: [
-    { label: '2023年中考化学模拟卷', value: 'paper7' },
-  ],
+  english: [{ label: '2023年中考英语模拟卷', value: 'paper5' }],
+  physics: [{ label: '2023年中考物理模拟卷', value: 'paper6' }],
+  chemistry: [{ label: '2023年中考化学模拟卷', value: 'paper7' }],
 };
 
 // Mock 试卷列表（兼容旧代码）
@@ -870,7 +868,10 @@ export const chaptersBySubject: Record<string, KnowledgeNode[]> = {
 };
 
 // 中考特色标签（按学科）
-export const featuresBySubject: Record<string, { label: string; value: string }[]> = {
+export const featuresBySubject: Record<
+  string,
+  { label: string; value: string }[]
+> = {
   math: [
     { label: '教材母题', value: 'textbook-origin' },
     { label: '跨学科', value: 'cross-subject' },
@@ -903,7 +904,10 @@ export const featuresBySubject: Record<string, { label: string; value: string }[
 };
 
 // 学科考法标签（按学科）
-export const examMethodsBySubject: Record<string, { label: string; value: string }[]> = {
+export const examMethodsBySubject: Record<
+  string,
+  { label: string; value: string }[]
+> = {
   math: [
     { label: '求解化简', value: 'solve-simplify' },
     { label: '方案判断', value: 'scheme-judge' },
@@ -938,7 +942,10 @@ export const examMethodsBySubject: Record<string, { label: string; value: string
 };
 
 // 学科能力标签（按学科）
-export const abilitiesBySubject: Record<string, { label: string; value: string }[]> = {
+export const abilitiesBySubject: Record<
+  string,
+  { label: string; value: string }[]
+> = {
   math: [
     { label: '运算能力', value: 'calculation' },
     { label: '逻辑推理', value: 'logic-reasoning' },

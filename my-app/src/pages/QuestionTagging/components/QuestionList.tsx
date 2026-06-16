@@ -40,7 +40,10 @@ const QuestionList: React.FC<QuestionListProps> = ({
 
   // 计算每个试卷的统计信息
   const paperStats = React.useMemo(() => {
-    const statsMap = new Map<string, { total: number; tagged: number; untagged: number }>();
+    const statsMap = new Map<
+      string,
+      { total: number; tagged: number; untagged: number }
+    >();
     allFilteredQuestions.forEach((q) => {
       if (!q.paperId) return;
       if (!statsMap.has(q.paperId)) {

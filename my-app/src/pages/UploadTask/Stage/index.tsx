@@ -1,19 +1,19 @@
+import { getUploadTask } from '@/services/uploadTask';
 import { useRequest } from '@umijs/max';
 import { Button, Empty, Spin } from 'antd';
 import React, { useMemo } from 'react';
 import { history, useParams, useSearchParams } from 'umi';
 import { STAGE_KEYS, isValidStage } from '../constants';
-import { getUploadTask } from '@/services/uploadTask';
 import type { StageKey, UploadTask } from '../types';
 import StageHeader from './StageHeader';
-import Quality from './stages/Quality';
 import Dedupe from './stages/Dedupe';
+import Distribute from './stages/Distribute';
 import Parse from './stages/Parse';
 import ParseReview from './stages/ParseReview';
+import Publish from './stages/Publish';
+import Quality from './stages/Quality';
 import Tag from './stages/Tag';
 import TagReview from './stages/TagReview';
-import Publish from './stages/Publish';
-import Distribute from './stages/Distribute';
 
 const renderStage = (
   stage: StageKey,
@@ -58,13 +58,10 @@ const StagePage: React.FC = () => {
     data: task,
     loading,
     refresh,
-  } = useRequest(
-    () => getUploadTask(taskId!),
-    {
-      refreshDeps: [taskId],
-      formatResult: (res: UploadTask) => res,
-    },
-  );
+  } = useRequest(() => getUploadTask(taskId!), {
+    refreshDeps: [taskId],
+    formatResult: (res: UploadTask) => res,
+  });
 
   const readOnly = useMemo(() => {
     if (searchParams.get('readOnly') === '1') return true;
@@ -100,7 +97,9 @@ const StagePage: React.FC = () => {
   }
 
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}
+    >
       <StageHeader task={task} currentStage={rawStage} onRefresh={refresh} />
       <div style={{ flex: 1, overflow: 'hidden' }}>
         {renderStage(rawStage, task, refresh, readOnly)}

@@ -1,7 +1,5 @@
-import {
-  DownloadOutlined,
-  PlusOutlined,
-} from '@ant-design/icons';
+import { DownloadOutlined, PlusOutlined } from '@ant-design/icons';
+import type { ProColumns } from '@ant-design/pro-components';
 import {
   DragSortTable,
   ModalForm,
@@ -12,11 +10,10 @@ import {
   ProFormTreeSelect,
   ProFormUploadButton,
 } from '@ant-design/pro-components';
-import type { ProColumns } from '@ant-design/pro-components';
 import { Button, Form, Space, Tag, message } from 'antd';
 import React, { useMemo, useState } from 'react';
-import type { AnswerItem, DirectoryItem } from './types';
 import { buildTreeData } from './DirectoryPanel';
+import type { AnswerItem, DirectoryItem } from './types';
 
 const uploadTypeConfig = {
   file: {
@@ -65,7 +62,9 @@ const downloadMockFile = (filename: string, content: string) => {
 
 interface AnswerTableProps {
   answerList: AnswerItem[];
-  onAnswerListChange: (updater: AnswerItem[] | ((prev: AnswerItem[]) => AnswerItem[])) => void;
+  onAnswerListChange: (
+    updater: AnswerItem[] | ((prev: AnswerItem[]) => AnswerItem[]),
+  ) => void;
   directoryList: DirectoryItem[];
   isDirectoryEnabled: boolean;
   selectedRowKeys: React.Key[];
@@ -248,7 +247,10 @@ const AnswerTable: React.FC<AnswerTableProps> = ({
     </Button>,
   ];
 
-  const tableAlertRender = ({ selectedRowKeys: keys, onCleanSelected }: any) => (
+  const tableAlertRender = ({
+    selectedRowKeys: keys,
+    onCleanSelected,
+  }: any) => (
     <Space size={24}>
       <span>已选 {keys.length} 项</span>
       <a onClick={onCleanSelected}>取消选择</a>
@@ -275,7 +277,9 @@ const AnswerTable: React.FC<AnswerTableProps> = ({
           onChange: (keys) => onSelectedRowKeysChange(keys),
         }}
         tableAlertRender={isDirectoryEnabled ? tableAlertRender : undefined}
-        tableAlertOptionRender={isDirectoryEnabled ? tableAlertOptionRender : undefined}
+        tableAlertOptionRender={
+          isDirectoryEnabled ? tableAlertOptionRender : undefined
+        }
         columns={answerColumns}
         dragSortKey="sort"
         onDragSortEnd={handleDragSortEnd}
@@ -291,7 +295,6 @@ const AnswerTable: React.FC<AnswerTableProps> = ({
         layout="horizontal"
         labelCol={{ flex: '120px' }}
         onFinish={async (values) => {
-
           const mockQrCodeUrl =
             'https://gw.alipayobjects.com/zos/antfincdn/aPkFc8Sj7n/method-draw-image.svg';
 

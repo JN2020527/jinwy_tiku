@@ -47,7 +47,10 @@ const VideoConfigDrawer: React.FC<VideoConfigDrawerProps> = ({
     if (open && currentVideoItem) {
       setLocalVideoItem({ ...currentVideoItem });
       setShowVideoSummary(
-        !!(currentVideoItem.videoSummary && currentVideoItem.videoSummary.length > 0),
+        !!(
+          currentVideoItem.videoSummary &&
+          currentVideoItem.videoSummary.length > 0
+        ),
       );
     }
   }, [open, currentVideoItem]);
@@ -56,7 +59,9 @@ const VideoConfigDrawer: React.FC<VideoConfigDrawerProps> = ({
     setAiGenerating(true);
     setShowVideoSummary(true);
     try {
-      await new Promise<void>((resolve) => { setTimeout(resolve, 1500); });
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 1500);
+      });
 
       const mockSummary: VideoSummaryItem[] = [
         {
@@ -100,9 +105,7 @@ const VideoConfigDrawer: React.FC<VideoConfigDrawerProps> = ({
     let newQuestions = [...(localVideoItem.questions || [])];
     if (currentEditingQuestion) {
       newQuestions = newQuestions.map((q) =>
-        q.id === currentEditingQuestion.id
-          ? { ...q, ...values, id: q.id }
-          : q,
+        q.id === currentEditingQuestion.id ? { ...q, ...values, id: q.id } : q,
       );
     } else {
       newQuestions.push({
@@ -348,10 +351,7 @@ const VideoConfigDrawer: React.FC<VideoConfigDrawerProps> = ({
                   >
                     编辑
                   </a>,
-                  <a
-                    key="delete"
-                    onClick={() => handleQuestionDelete(record)}
-                  >
+                  <a key="delete" onClick={() => handleQuestionDelete(record)}>
                     删除
                   </a>,
                 ],

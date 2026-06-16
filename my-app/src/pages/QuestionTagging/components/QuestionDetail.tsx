@@ -1,5 +1,5 @@
-import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { sanitizeHtml } from '@/utils/sanitize';
+import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { Button, Collapse, Empty, Tag } from 'antd';
 import React from 'react';
 import { Question } from '../types';
@@ -109,7 +109,9 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
           {question.year && <Tag color="blue">{question.year}</Tag>}
           {question.region && <Tag color="green">{question.region}</Tag>}
           {question.source && <Tag color="purple">{question.source}</Tag>}
-          {question.paperName && <Tag color="default">{question.paperName}</Tag>}
+          {question.paperName && (
+            <Tag color="default">{question.paperName}</Tag>
+          )}
         </div>
       </div>
 
@@ -150,7 +152,9 @@ const QuestionDetail: React.FC<QuestionDetailProps> = ({
                   label: '解析',
                   children: (
                     <div
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(question.analysis) }}
+                      dangerouslySetInnerHTML={{
+                        __html: sanitizeHtml(question.analysis),
+                      }}
                     />
                   ),
                 },

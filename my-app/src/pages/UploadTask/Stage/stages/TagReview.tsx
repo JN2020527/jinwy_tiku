@@ -1,14 +1,13 @@
-import { useRequest } from '@umijs/max';
-import React from 'react';
 import {
   confirmTagReview,
   getStageQuestions,
   regenerateTags,
   updateTags,
 } from '@/services/uploadTask';
-import type { TaskQuestion } from '../../types';
+import { useRequest } from '@umijs/max';
+import React from 'react';
+import type { TaskQuestion, UploadTask } from '../../types';
 import QuestionAudit from '../workspaces/QuestionAudit';
-import type { UploadTask } from '../../types';
 
 const TagReview: React.FC<{
   task: UploadTask;

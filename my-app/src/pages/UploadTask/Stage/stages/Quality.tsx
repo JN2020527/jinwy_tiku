@@ -1,13 +1,12 @@
-import { useRequest } from '@umijs/max';
-import React, { useMemo } from 'react';
 import {
   confirmQualityKeep,
   confirmQualityReject,
   getStageQuestions,
 } from '@/services/uploadTask';
-import type { TaskQuestion } from '../../types';
+import { useRequest } from '@umijs/max';
+import React, { useMemo } from 'react';
+import type { TaskQuestion, UploadTask } from '../../types';
 import BatchReview from '../workspaces/BatchReview';
-import type { UploadTask } from '../../types';
 
 const Quality: React.FC<{
   task: UploadTask;

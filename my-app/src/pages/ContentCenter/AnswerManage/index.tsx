@@ -1,4 +1,8 @@
-import { ModalForm, PageContainer, ProFormTreeSelect } from '@ant-design/pro-components';
+import {
+  ModalForm,
+  PageContainer,
+  ProFormTreeSelect,
+} from '@ant-design/pro-components';
 import { useSearchParams } from '@umijs/max';
 import {
   Button,
@@ -11,7 +15,6 @@ import {
   Switch,
   message,
 } from 'antd';
-import type { AnswerItem, DirectoryItem } from './components/types';
 import React, { useMemo, useState } from 'react';
 import AnswerTable from './components/AnswerTable';
 import DirectoryPanel, {
@@ -19,6 +22,7 @@ import DirectoryPanel, {
   UNASSIGNED_DIRECTORY_KEY,
   buildTreeData,
 } from './components/DirectoryPanel';
+import type { AnswerItem, DirectoryItem } from './components/types';
 import VideoConfigDrawer from './components/VideoConfigDrawer';
 
 const AnswerManage: React.FC = () => {
@@ -223,9 +227,7 @@ const AnswerManage: React.FC = () => {
     });
   };
 
-  const handleQrCodeOpen = (
-    item: { name: string; qrCodeUrl?: string },
-  ) => {
+  const handleQrCodeOpen = (item: { name: string; qrCodeUrl?: string }) => {
     setCurrentQrCodeItem(item);
     setQrCodeModalVisible(true);
   };

@@ -1,3 +1,4 @@
+import { createUploadTask } from '@/services/uploadTask';
 import { UploadOutlined } from '@ant-design/icons';
 import {
   Button,
@@ -11,7 +12,6 @@ import {
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import React, { useState } from 'react';
-import { createUploadTask } from '@/services/uploadTask';
 import type { Grade, Source, Subject } from '../types';
 
 interface NewTaskModalProps {

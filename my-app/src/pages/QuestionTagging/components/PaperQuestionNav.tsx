@@ -57,7 +57,9 @@ const PaperQuestionNav: React.FC<PaperQuestionNavProps> = ({
               key={question.id}
               className={classNames}
               onClick={(e) => handleBlockClick(question.id, e)}
-              title={`第${index + 1}题 - ${isTagged ? '已打标' : '未打标'}${isDoubtful ? ' (存疑)' : ''}`}
+              title={`第${index + 1}题 - ${isTagged ? '已打标' : '未打标'}${
+                isDoubtful ? ' (存疑)' : ''
+              }`}
             >
               {index + 1}
               {isDoubtful && <span className={styles.doubtfulDot} />}

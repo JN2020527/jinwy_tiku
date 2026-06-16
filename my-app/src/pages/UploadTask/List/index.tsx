@@ -1,13 +1,10 @@
+import { advanceSystemStage, getUploadTasks } from '@/services/uploadTask';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Button, Space, Tag, message } from 'antd';
 import React, { useRef, useState } from 'react';
-import {
-  advanceSystemStage,
-  getUploadTasks,
-} from '@/services/uploadTask';
 import { STAGE_LABELS } from '../constants';
 import type { BucketKey, TaskStatus, UploadTask } from '../types';
 import NewTaskModal from './NewTaskModal';
@@ -56,10 +53,16 @@ const UploadTaskList: React.FC = () => {
       case 'pending-human':
         return (
           <Space size="middle">
-            <span className={styles.actionLink} onClick={() => history.push(stagePath)}>
+            <span
+              className={styles.actionLink}
+              onClick={() => history.push(stagePath)}
+            >
               进入处理
             </span>
-            <span className={styles.actionLink} onClick={() => history.push(`${stagePath}?readOnly=1`)}>
+            <span
+              className={styles.actionLink}
+              onClick={() => history.push(`${stagePath}?readOnly=1`)}
+            >
               详情
             </span>
           </Space>
@@ -67,10 +70,16 @@ const UploadTaskList: React.FC = () => {
       case 'processing':
         return (
           <Space size="middle">
-            <span className={styles.actionLink} onClick={() => history.push(stagePath)}>
+            <span
+              className={styles.actionLink}
+              onClick={() => history.push(stagePath)}
+            >
               查看进度
             </span>
-            <span className={styles.actionLinkDanger} onClick={() => handleAdvance(record)}>
+            <span
+              className={styles.actionLinkDanger}
+              onClick={() => handleAdvance(record)}
+            >
               立即完成（演示）
             </span>
           </Space>
@@ -78,10 +87,16 @@ const UploadTaskList: React.FC = () => {
       case 'published':
         return (
           <Space size="middle">
-            <span className={styles.actionLink} onClick={() => history.push(distributePath)}>
+            <span
+              className={styles.actionLink}
+              onClick={() => history.push(distributePath)}
+            >
               配置分发
             </span>
-            <span className={styles.actionLink} onClick={() => history.push(`${stagePath}?readOnly=1`)}>
+            <span
+              className={styles.actionLink}
+              onClick={() => history.push(`${stagePath}?readOnly=1`)}
+            >
               详情
             </span>
           </Space>
@@ -89,10 +104,16 @@ const UploadTaskList: React.FC = () => {
       case 'distributed':
         return (
           <Space size="middle">
-            <span className={styles.actionLink} onClick={() => history.push(`${distributePath}?readOnly=1`)}>
+            <span
+              className={styles.actionLink}
+              onClick={() => history.push(`${distributePath}?readOnly=1`)}
+            >
               查看分发
             </span>
-            <span className={styles.actionLink} onClick={() => history.push(`${stagePath}?readOnly=1`)}>
+            <span
+              className={styles.actionLink}
+              onClick={() => history.push(`${stagePath}?readOnly=1`)}
+            >
               详情
             </span>
           </Space>
@@ -100,7 +121,10 @@ const UploadTaskList: React.FC = () => {
       case 'rejected':
         return (
           <Space size="middle">
-            <span className={styles.actionLink} onClick={() => history.push(`${stagePath}?readOnly=1`)}>
+            <span
+              className={styles.actionLink}
+              onClick={() => history.push(`${stagePath}?readOnly=1`)}
+            >
               查看原因
             </span>
           </Space>

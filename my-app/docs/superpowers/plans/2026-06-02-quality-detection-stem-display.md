@@ -13,7 +13,7 @@
 ## File Structure
 
 | File | Action | Responsibility |
-|------|--------|----------------|
+| --- | --- | --- |
 | `src/pages/UploadTask/Stage/workspaces/BatchReview.tsx` | Modify | 题干列改为 HTML 行内渲染，删除截断函数和预览弹窗 |
 | `src/pages/UploadTask/Stage/workspaces/BatchReview.less` | Modify | 新增 `.stemCell` 样式 |
 
@@ -22,6 +22,7 @@
 ### Task 1: 添加 `.stemCell` 样式
 
 **Files:**
+
 - Modify: `src/pages/UploadTask/Stage/workspaces/BatchReview.less`
 
 - [ ] **Step 1: 在 `BatchReview.less` 末尾添加 `.stemCell` 样式**
@@ -50,8 +51,7 @@
 
 - [ ] **Step 2: 验证 LESS 编译通过**
 
-Run: `cd /Users/jinwenyuan/my-repo/jinwy_tiku/my-app && npx max lint src/pages/UploadTask/Stage/workspaces/BatchReview.less`
-Expected: 无报错
+Run: `cd /Users/jinwenyuan/my-repo/jinwy_tiku/my-app && npx max lint src/pages/UploadTask/Stage/workspaces/BatchReview.less` Expected: 无报错
 
 - [ ] **Step 3: Commit**
 
@@ -65,6 +65,7 @@ git commit -m "style(upload): add stemCell styles for inline HTML rendering"
 ### Task 2: 改造题干列渲染，移除弹窗预览
 
 **Files:**
+
 - Modify: `src/pages/UploadTask/Stage/workspaces/BatchReview.tsx`
 
 - [ ] **Step 1: 删除 `stemToPlainText` 函数**
@@ -152,6 +153,7 @@ const [previewQ, setPreviewQ] = useState<TaskQuestion | null>(null);
 检查 import 区域，如果 `Button` 和 `Space` 在文件其他位置仍有使用（批量操作栏、扣分明细列等），则保留。`Modal` 仍在"删除原因"弹窗中使用，保留。`Input` 仍在删除原因输入框中使用，保留。
 
 确认以下 import 仍然需要：
+
 - `Button` — ✅ 操作列、批量操作栏仍在用
 - `Space` — ✅ 扣分明细列、操作列仍在用
 - `Modal` — ✅ 删除原因弹窗仍在用
@@ -161,14 +163,14 @@ const [previewQ, setPreviewQ] = useState<TaskQuestion | null>(null);
 
 - [ ] **Step 6: 验证编译通过**
 
-Run: `cd /Users/jinwenyuan/my-repo/jinwy_tiku/my-app && npx max lint src/pages/UploadTask/Stage/workspaces/BatchReview.tsx`
-Expected: 无报错（可能有 eslint-disable 注释相关的 warning，可忽略）
+Run: `cd /Users/jinwenyuan/my-repo/jinwy_tiku/my-app && npx max lint src/pages/UploadTask/Stage/workspaces/BatchReview.tsx` Expected: 无报错（可能有 eslint-disable 注释相关的 warning，可忽略）
 
 - [ ] **Step 7: 启动 dev server 验证页面**
 
 Run: `cd /Users/jinwenyuan/my-repo/jinwy_tiku/my-app && npm run dev`
 
 访问 http://localhost:8000，进入质量检测阶段页面，验证：
+
 1. 题干列直接显示完整 HTML 内容（含公式、图片）
 2. 无"查看全文"按钮和弹窗
 3. 列标题显示为"题干"

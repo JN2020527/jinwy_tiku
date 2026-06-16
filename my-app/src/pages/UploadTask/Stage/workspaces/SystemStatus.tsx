@@ -1,9 +1,16 @@
+<<<<<<< Updated upstream
 import { Alert, Button, Card, Spin, Tag, message } from 'antd';
 import React, { useState } from 'react';
 import {
   STAGE_LABELS,
   nextStageOf,
 } from '../../constants';
+=======
+import { sanitizeHtml } from '@/utils/sanitize';
+import { Alert, Button, Card, List, Modal, Spin, Tag, message } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { STAGE_LABELS, nextStageOf } from '../../constants';
+>>>>>>> Stashed changes
 import type { StageKey, StageProgress, TaskQuestion } from '../../types';
 import styles from './SystemStatus.less';
 
@@ -45,7 +52,9 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
     <div className={styles.processing}>
       <h3 className={styles.processingTitle}>{stageLabel} · 系统处理中…</h3>
       <Spin size="large" />
-      <div className={styles.processingCount}>共 {questions.length} 题待处理</div>
+      <div className={styles.processingCount}>
+        共 {questions.length} 题待处理
+      </div>
       <Button onClick={handleAdvance} loading={advancing} disabled={readOnly}>
         ⏵ 模拟立即完成（演示）
       </Button>
@@ -55,7 +64,9 @@ const SystemStatus: React.FC<SystemStatusProps> = ({
   const renderDone = () => {
     const nextLabel = nextStage ? STAGE_LABELS[nextStage] : null;
     const nextButtonText =
-      nextStage === 'distribute' ? '→ 配置分发渠道' : `→ 进入下一阶段：${nextLabel ?? ''}`;
+      nextStage === 'distribute'
+        ? '→ 配置分发渠道'
+        : `→ 进入下一阶段：${nextLabel ?? ''}`;
     return (
       <div className={styles.done}>
         <h3 className={styles.doneTitle}>

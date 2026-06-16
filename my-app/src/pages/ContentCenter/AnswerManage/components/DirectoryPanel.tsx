@@ -14,7 +14,9 @@ import type { DirectoryItem } from './types';
 
 interface DirectoryPanelProps {
   directoryList: DirectoryItem[];
-  onDirectoryListChange: (updater: (prev: DirectoryItem[]) => DirectoryItem[]) => void;
+  onDirectoryListChange: (
+    updater: (prev: DirectoryItem[]) => DirectoryItem[],
+  ) => void;
   selectedDirectoryKey: string;
   onSelectedDirectoryKeyChange: (key: string) => void;
   onQrCodeOpen: (item: { name: string; qrCodeUrl?: string }) => void;
@@ -373,11 +375,7 @@ const DirectoryPanel: React.FC<DirectoryPanelProps> = ({
             <Button
               type="text"
               icon={
-                isDirectoryManaging ? (
-                  <CheckOutlined />
-                ) : (
-                  <SettingOutlined />
-                )
+                isDirectoryManaging ? <CheckOutlined /> : <SettingOutlined />
               }
               onClick={() => setIsDirectoryManaging(!isDirectoryManaging)}
             >
@@ -418,10 +416,7 @@ const DirectoryPanel: React.FC<DirectoryPanelProps> = ({
         layout="horizontal"
         labelCol={{ flex: '80px' }}
         onFinish={async (values) => {
-          if (
-            currentDirectoryAction === 'edit' &&
-            currentOperatingDirectory
-          ) {
+          if (currentDirectoryAction === 'edit' && currentOperatingDirectory) {
             onDirectoryListChange((prev) =>
               prev.map((item) => {
                 if (item.id === currentOperatingDirectory.id) {
@@ -434,8 +429,7 @@ const DirectoryPanel: React.FC<DirectoryPanelProps> = ({
           } else {
             const newId = Date.now().toString();
             const parentId =
-              currentDirectoryAction === 'addSub' &&
-              currentOperatingDirectory
+              currentDirectoryAction === 'addSub' && currentOperatingDirectory
                 ? currentOperatingDirectory.id
                 : undefined;
             const newRecord: DirectoryItem = {
@@ -470,5 +464,10 @@ const DirectoryPanel: React.FC<DirectoryPanelProps> = ({
   );
 };
 
-export { ALL_DIRECTORY_KEY, UNASSIGNED_DIRECTORY_KEY, buildTreeData, getDescendantIds };
+export {
+  ALL_DIRECTORY_KEY,
+  UNASSIGNED_DIRECTORY_KEY,
+  buildTreeData,
+  getDescendantIds,
+};
 export default DirectoryPanel;

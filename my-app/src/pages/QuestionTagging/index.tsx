@@ -1,3 +1,4 @@
+import { useQuestionNavKeyboard } from '@/hooks/useQuestionNavKeyboard';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Button, Col, Row } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -7,11 +8,10 @@ import PaperList from './components/PaperList';
 import PaperQuestionNav from './components/PaperQuestionNav';
 import QuestionDetail from './components/QuestionDetail';
 import TaggingForm, { TaggingFormRef } from './components/TaggingForm';
+import './index.less';
 import { mockQuestions, mockSubjects } from './mockData';
 import type { Paper } from './types';
 import { FilterParams, Question } from './types';
-import { useQuestionNavKeyboard } from '@/hooks/useQuestionNavKeyboard';
-import './index.less';
 
 const QuestionTagging: React.FC = () => {
   const taggingFormRef = useRef<TaggingFormRef>(null);
@@ -187,7 +187,9 @@ const QuestionTagging: React.FC = () => {
 
   // 上一题
   const handlePrevious = () => {
-    const currentIndex = paperQuestions.findIndex((q) => q.id === currentQuestionId);
+    const currentIndex = paperQuestions.findIndex(
+      (q) => q.id === currentQuestionId,
+    );
     if (currentIndex > 0) {
       setCurrentQuestionId(paperQuestions[currentIndex - 1].id);
       setSelectedQuestionIds([]);
@@ -196,7 +198,9 @@ const QuestionTagging: React.FC = () => {
 
   // 下一题
   const handleNext = () => {
-    const currentIndex = paperQuestions.findIndex((q) => q.id === currentQuestionId);
+    const currentIndex = paperQuestions.findIndex(
+      (q) => q.id === currentQuestionId,
+    );
     if (currentIndex < paperQuestions.length - 1) {
       setCurrentQuestionId(paperQuestions[currentIndex + 1].id);
       setSelectedQuestionIds([]);
@@ -313,7 +317,9 @@ const QuestionTagging: React.FC = () => {
                   onPaperClick={(paperId) => {
                     setCurrentPaperId(paperId);
                     // 选中试卷后，自动选中第一道题
-                    const firstQuestion = questions.find((q) => q.paperId === paperId);
+                    const firstQuestion = questions.find(
+                      (q) => q.paperId === paperId,
+                    );
                     if (firstQuestion) {
                       setCurrentQuestionId(firstQuestion.id);
                       setSelectedQuestionIds([]);
@@ -357,7 +363,14 @@ const QuestionTagging: React.FC = () => {
                 ? `已选择 ${selectedQuestionIds.length} 道试题`
                 : '试题详情'}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+                overflow: 'hidden',
+              }}
+            >
               <PaperQuestionNav
                 questions={paperQuestions}
                 currentQuestionId={currentQuestionId}
@@ -368,15 +381,27 @@ const QuestionTagging: React.FC = () => {
                 }}
                 onSelectionChange={setSelectedQuestionIds}
               />
-              <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+              <div
+                className="hideScrollbar"
+                style={{ flex: 1, overflowY: 'auto', padding: '16px' }}
+              >
                 <QuestionDetail
                   question={currentQuestion}
                   selectedQuestions={selectedQuestions}
                   isBatchMode={isBatchMode}
                   onPrevious={handlePrevious}
                   onNext={handleNext}
-                  hasPrevious={paperQuestions.findIndex((q) => q.id === currentQuestionId) > 0}
-                  hasNext={paperQuestions.findIndex((q) => q.id === currentQuestionId) < paperQuestions.length - 1}
+                  hasPrevious={
+                    paperQuestions.findIndex(
+                      (q) => q.id === currentQuestionId,
+                    ) > 0
+                  }
+                  hasNext={
+                    paperQuestions.findIndex(
+                      (q) => q.id === currentQuestionId,
+                    ) <
+                    paperQuestions.length - 1
+                  }
                 />
               </div>
             </div>
@@ -406,7 +431,10 @@ const QuestionTagging: React.FC = () => {
             >
               {isBatchMode ? '批量打标' : '标签标注'}
             </div>
-            <div className="hideScrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+            <div
+              className="hideScrollbar"
+              style={{ flex: 1, overflowY: 'auto', padding: '16px' }}
+            >
               <TaggingForm
                 ref={taggingFormRef}
                 question={currentQuestion}

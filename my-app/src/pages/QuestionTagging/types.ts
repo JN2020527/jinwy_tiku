@@ -59,12 +59,12 @@ export interface ChapterNode {
  */
 export interface Paper {
   id: string;
-  name: string;           // 试卷名称
-  subject: string;        // 学科
-  questionCount: number;  // 题目总数
-  taggedCount: number;    // 已打标数量
-  doubtfulCount: number;  // 存疑数量
-  year?: string;          // 年份
-  region?: string;        // 地区
-  source?: string;        // 试题来源（中考模拟、名校试题等）
+  name: string; // 试卷名称
+  subject: string; // 学科
+  questionCount: number; // 题目总数
+  taggedCount: number; // 已打标数量
+  doubtfulCount: number; // 存疑数量
+  year?: string; // 年份
+  region?: string; // 地区
+  source?: string; // 试题来源（中考模拟、名校试题等）
 }

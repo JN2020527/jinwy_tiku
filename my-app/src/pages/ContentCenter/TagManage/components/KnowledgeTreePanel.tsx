@@ -1,3 +1,8 @@
+import type {
+  KnowledgeNode,
+  TextbookChapter,
+  TextbookVersion,
+} from '@/services/tagSystem';
 import {
   addKnowledgeNode,
   addTextbookChapter,
@@ -8,12 +13,12 @@ import {
   updateKnowledgeNode,
   updateTextbookChapter,
 } from '@/services/tagSystem';
-import type {
-  KnowledgeNode,
-  TextbookVersion,
-  TextbookChapter,
-} from '@/services/tagSystem';
 import { SearchOutlined } from '@ant-design/icons';
+import {
+  ModalForm,
+  ProFormText,
+  ProFormTextArea,
+} from '@ant-design/pro-components';
 import {
   Button,
   Card,
@@ -27,11 +32,10 @@ import {
   Space,
   Tree,
 } from 'antd';
-import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import React, { useCallback, useEffect, useState } from 'react';
 import TreeNodeTitle from './TreeNodeTitle';
-import { useTreeSearch } from './treeHelpers';
 import type { TreeNodeData } from './treeHelpers';
+import { useTreeSearch } from './treeHelpers';
 
 interface KnowledgeTreePanelProps {
   knowledgeTree: KnowledgeNode[];
@@ -75,7 +79,9 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   const [form] = Form.useForm();
 
   // Textbook State
-  const [textbookVersions, setTextbookVersions] = useState<TextbookVersion[]>([]);
+  const [textbookVersions, setTextbookVersions] = useState<TextbookVersion[]>(
+    [],
+  );
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const [chapterTree, setChapterTree] = useState<TextbookChapter[]>([]);
 
@@ -268,8 +274,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     return false;
   };
 
-  const subjectLabel =
-    SUBJECT_MAP[selectedSubject] || selectedSubject;
+  const subjectLabel = SUBJECT_MAP[selectedSubject] || selectedSubject;
   const stageLabel = STAGE_MAP[selectedStage] || selectedStage;
 
   return (
