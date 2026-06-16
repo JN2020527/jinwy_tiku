@@ -97,6 +97,8 @@ interface MockQuestionTypeNode {
   children?: MockQuestionTypeNode[];
 }
 
+type QuestionTypeDropPosition = 'before' | 'after' | 'inside';
+
 // Mock Data for Knowledge Points (Tree Structure)
 const defaultKnowledgePointTemplates: KnowledgeSeedNode[] = [
   {
@@ -797,6 +799,84 @@ const getQuestionTypeTreeByContext = (context: QuestionTypeContext) => {
   return questionTypeTreeStore[contextKey];
 };
 
+const findQuestionTypeNode = (
+  nodes: MockQuestionTypeNode[],
+  id: string,
+): MockQuestionTypeNode | null => {
+  for (const node of nodes) {
+    if (node.key === id) {
+      return node;
+    }
+    if (node.children?.length) {
+      const found = findQuestionTypeNode(node.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const hasQuestionTypeDescendant = (
+  node: MockQuestionTypeNode,
+  targetId: string,
+): boolean =>
+  Boolean(
+    node.children?.some(
+      (child) =>
+        child.key === targetId || hasQuestionTypeDescendant(child, targetId),
+    ),
+  );
+
+const removeQuestionTypeNode = (
+  nodes: MockQuestionTypeNode[],
+  id: string,
+): MockQuestionTypeNode | null => {
+  for (let index = 0; index < nodes.length; index++) {
+    const node = nodes[index];
+    if (!node) continue;
+    if (node.key === id) {
+      return nodes.splice(index, 1)[0] || null;
+    }
+    if (node.children?.length) {
+      const removed = removeQuestionTypeNode(node.children, id);
+      if (removed) return removed;
+    }
+  }
+  return null;
+};
+
+const insertQuestionTypeNode = (
+  nodes: MockQuestionTypeNode[],
+  targetId: string,
+  position: QuestionTypeDropPosition,
+  nodeToInsert: MockQuestionTypeNode,
+): boolean => {
+  for (let index = 0; index < nodes.length; index++) {
+    const node = nodes[index];
+    if (!node) continue;
+
+    if (node.key === targetId) {
+      if (position === 'inside') {
+        if (!node.children) node.children = [];
+        node.children.push(nodeToInsert);
+      } else {
+        nodes.splice(position === 'before' ? index : index + 1, 0, nodeToInsert);
+      }
+      return true;
+    }
+
+    if (node.children?.length) {
+      const inserted = insertQuestionTypeNode(
+        node.children,
+        targetId,
+        position,
+        nodeToInsert,
+      );
+      if (inserted) return true;
+    }
+  }
+  return false;
+};
+
 const normalizeTagOrder = (category: MockTagCategory) => {
   category.tags = category.tags.map((tag, index) => ({
     ...tag,
@@ -1183,6 +1263,52 @@ export default {
       message: deleted
         ? 'Question Type deleted successfully'
         : 'Question Type not found',
+    });
+  },
+  'PUT /api/tags/question-type-node/move': (req: Request, res: Response) => {
+    const { id, targetId, position } = req.body;
+    const context = getQuestionTypeContext(req);
+    const scopedTree = getQuestionTypeTreeByContext(context);
+    const nodeToMove = findQuestionTypeNode(scopedTree, id);
+
+    if (!nodeToMove) {
+      res.send({ success: false, message: 'Question Type not found' });
+      return;
+    }
+
+    if (id === targetId || hasQuestionTypeDescendant(nodeToMove, targetId)) {
+      res.send({ success: false, message: 'Cannot move node into itself' });
+      return;
+    }
+
+    const targetNode = findQuestionTypeNode(scopedTree, targetId);
+    if (!targetNode) {
+      res.send({ success: false, message: 'Target question type not found' });
+      return;
+    }
+
+    const removedNode = removeQuestionTypeNode(scopedTree, id);
+    if (!removedNode) {
+      res.send({ success: false, message: 'Question Type not found' });
+      return;
+    }
+
+    const inserted = insertQuestionTypeNode(
+      scopedTree,
+      targetId,
+      position as QuestionTypeDropPosition,
+      removedNode,
+    );
+
+    if (!inserted) {
+      scopedTree.push(removedNode);
+    }
+
+    res.send({
+      success: inserted,
+      message: inserted
+        ? 'Question Type moved successfully'
+        : 'Target question type not found',
     });
   },
 

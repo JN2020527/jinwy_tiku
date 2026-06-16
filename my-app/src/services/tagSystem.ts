@@ -90,6 +90,8 @@ export interface QuestionTypeNode {
   children?: QuestionTypeNode[];
 }
 
+export type QuestionTypeDropPosition = 'before' | 'after' | 'inside';
+
 export interface TextbookVersion {
   label: string;
   value: string;
@@ -246,6 +248,18 @@ export async function deleteQuestionTypeNode(
   return request<ApiResponse<void>>('/api/tags/question-type-node', {
     method: 'DELETE',
     params: { id, ...params },
+  });
+}
+
+export async function moveQuestionTypeNode(data: {
+  id: string;
+  targetId: string;
+  position: QuestionTypeDropPosition;
+  subject: string;
+}) {
+  return request<ApiResponse<void>>('/api/tags/question-type-node/move', {
+    method: 'PUT',
+    data,
   });
 }
 

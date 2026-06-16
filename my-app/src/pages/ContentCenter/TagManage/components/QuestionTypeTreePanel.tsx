@@ -2,6 +2,7 @@ import type { QuestionTypeNode } from '@/services/tagSystem';
 import {
   addQuestionTypeNode,
   deleteQuestionTypeNode,
+  moveQuestionTypeNode,
   updateQuestionTypeNode,
 } from '@/services/tagSystem';
 import {
@@ -12,6 +13,7 @@ import {
 } from '@ant-design/pro-components';
 import { SearchOutlined } from '@ant-design/icons';
 import { Button, Card, Form, Input, message, Modal, Tree } from 'antd';
+import type { TreeProps } from 'antd';
 import React, { useState } from 'react';
 import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
@@ -102,6 +104,38 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     });
   };
 
+  const handleDropQuestionType: TreeProps['onDrop'] = async (info) => {
+    const dragKey = String(info.dragNode.key);
+    const dropKey = String(info.node.key);
+
+    if (dragKey === dropKey) {
+      return;
+    }
+
+    const dropPos = info.node.pos.split('-');
+    const dropPosition =
+      info.dropPosition - Number(dropPos[dropPos.length - 1]);
+    const position = info.dropToGap
+      ? dropPosition < 0
+        ? 'before'
+        : 'after'
+      : 'inside';
+
+    const res = await moveQuestionTypeNode({
+      id: dragKey,
+      targetId: dropKey,
+      position,
+      subject: selectedSubject,
+    });
+
+    if (res.success) {
+      message.success('移动成功');
+      onRefresh();
+    } else {
+      message.error(res.message || '移动失败');
+    }
+  };
+
   const handleQtModalFinish = async (values: Record<string, unknown>) => {
     const payload = {
       ...values,
@@ -152,6 +186,8 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
             onExpand={questionTypeSearch.onExpand}
             expandedKeys={questionTypeSearch.expandedKeys}
             autoExpandParent={questionTypeSearch.autoExpandParent}
+            draggable
+            onDrop={handleDropQuestionType}
             showLine
             blockNode
             titleRender={(node: TreeNodeData) => (
