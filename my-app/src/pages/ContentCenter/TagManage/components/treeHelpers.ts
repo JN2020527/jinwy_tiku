@@ -8,8 +8,8 @@ import { useRef, useState } from 'react';
 export interface TreeNodeData {
   key: React.Key;
   title: string;
+  description?: string;
   children?: TreeNodeData[];
-  [extra: string]: unknown;
 }
 
 /**

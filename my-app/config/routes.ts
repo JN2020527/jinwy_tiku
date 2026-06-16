@@ -58,12 +58,37 @@ export default [
     routes: [
       {
         path: '/question-bank',
-        redirect: '/question-bank/tag-system',
+        redirect: '/question-bank/task',
       },
       {
         path: '/question-bank/tag-system',
-        name: '标签体系',
-        component: './ContentCenter/TagManage',
+        redirect: '/tag-system/knowledge',
+        hideInMenu: true,
+      },
+      {
+        path: '/question-bank/tag-system/knowledge',
+        redirect: '/tag-system/knowledge',
+        hideInMenu: true,
+      },
+      {
+        path: '/question-bank/tag-system/question-type',
+        redirect: '/tag-system/question-type',
+        hideInMenu: true,
+      },
+      {
+        path: '/question-bank/tag-system/attributes',
+        redirect: '/tag-system/attributes',
+        hideInMenu: true,
+      },
+      {
+        path: '/question-bank/task',
+        name: '题库任务',
+        component: './ContentCenter/QuestionBankTask',
+      },
+      {
+        path: '/question-bank/word-upload',
+        name: '试题上传',
+        component: './PaperUpload',
       },
       {
         path: '/question-bank/tagging',
@@ -74,11 +99,44 @@ export default [
     ],
   },
   {
+    path: '/tag-system',
+    name: '标签设定',
+    icon: 'tags',
+    routes: [
+      {
+        path: '/tag-system',
+        redirect: '/tag-system/knowledge',
+      },
+      {
+        path: '/tag-system/knowledge',
+        name: '知识体系',
+        component: './ContentCenter/TagManage/Knowledge',
+      },
+      {
+        path: '/tag-system/question-type',
+        name: '题型管理',
+        component: './ContentCenter/TagManage/QuestionType',
+      },
+      {
+        path: '/tag-system/attributes',
+        name: '属性标签',
+        component: './ContentCenter/TagManage/Attributes',
+      },
+    ],
+  },
+  {
     path: '/',
     redirect: '/content/product-list',
   },
   {
     component: './404',
+  },
+  {
+    path: '/question-bank/word-upload/edit',
+    name: '在线校对',
+    component: './PaperUpload/Edit',
+    hideInMenu: true,
+    layout: false,
   },
   {
     path: '/question-bank/tagging-fullscreen',

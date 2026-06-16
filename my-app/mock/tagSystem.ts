@@ -1,5 +1,18 @@
 import { Request, Response } from 'express';
 
+interface MockAttributeItem {
+  id: string;
+  name: string;
+  color: string;
+  star?: number;
+}
+
+interface MockTagCategory {
+  id: string;
+  name: string;
+  tags: MockAttributeItem[];
+}
+
 // Mock Data for Knowledge Points (Tree Structure)
 let knowledgePoints = [
   {
@@ -101,7 +114,7 @@ let questionTypeTree = [
 ];
 
 // Mock Data for Tag Categories (Dynamic List) [Refactored]
-let tagCategories = [
+let tagCategories: MockTagCategory[] = [
   {
     id: 'cat-1',
     name: '难度',

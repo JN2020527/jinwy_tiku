@@ -120,7 +120,7 @@ const AnswerTable: React.FC<AnswerTableProps> = ({
       {
         title: '文件类型',
         dataIndex: 'type',
-        render: (text: string) => <Tag>{text}</Tag>,
+        render: (text: React.ReactNode) => <Tag>{text}</Tag>,
       },
       { title: '大小', dataIndex: 'size' },
       { title: '更新时间', dataIndex: 'updateTime' },

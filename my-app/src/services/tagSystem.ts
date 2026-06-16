@@ -21,29 +21,30 @@ export interface TagCategory {
 }
 
 export interface KnowledgeNode {
-  id: string;
-  name: string;
-  parentId: string | null;
+  id?: string;
+  title: string;
+  key: string;
+  value?: string;
+  description?: string;
   children?: KnowledgeNode[];
 }
 
 export interface QuestionTypeNode {
-  id: string;
-  name: string;
-  parentId: string | null;
+  title: string;
+  key: string;
+  description?: string;
   children?: QuestionTypeNode[];
 }
 
 export interface TextbookVersion {
-  id: string;
-  name: string;
+  label: string;
+  value: string;
 }
 
 export interface TextbookChapter {
-  id: string;
-  name: string;
-  parentId: string | null;
-  version: string;
+  title: string;
+  key: string;
+  description?: string;
   children?: TextbookChapter[];
 }
 
@@ -94,8 +95,9 @@ export async function deleteTagCategory(id: string) {
 // --- Knowledge Node CRUD ---
 
 export async function addKnowledgeNode(data: {
-  name: string;
-  parentId: string | null;
+  title: string;
+  parentId?: string | null;
+  description?: string;
 }) {
   return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
     method: 'POST',
@@ -103,7 +105,11 @@ export async function addKnowledgeNode(data: {
   });
 }
 
-export async function updateKnowledgeNode(data: { id: string; name: string }) {
+export async function updateKnowledgeNode(data: {
+  id: string;
+  title: string;
+  description?: string;
+}) {
   return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
     method: 'PUT',
     data,
@@ -129,8 +135,9 @@ export async function getQuestionTypeTree() {
 }
 
 export async function addQuestionTypeNode(data: {
-  name: string;
-  parentId: string | null;
+  title: string;
+  parentId?: string | null;
+  description?: string;
 }) {
   return request<ApiResponse<QuestionTypeNode>>(
     '/api/tags/question-type-node',
@@ -143,7 +150,8 @@ export async function addQuestionTypeNode(data: {
 
 export async function updateQuestionTypeNode(data: {
   id: string;
-  name: string;
+  title: string;
+  description?: string;
 }) {
   return request<ApiResponse<QuestionTypeNode>>(
     '/api/tags/question-type-node',
@@ -215,9 +223,10 @@ export async function getTextbookChapters(version: string) {
 }
 
 export async function addTextbookChapter(data: {
-  name: string;
-  parentId: string | null;
+  title: string;
+  parentId?: string | null;
   version: string;
+  description?: string;
 }) {
   return request<ApiResponse<TextbookChapter>>('/api/tags/textbook-chapter', {
     method: 'POST',
@@ -227,7 +236,9 @@ export async function addTextbookChapter(data: {
 
 export async function updateTextbookChapter(data: {
   id: string;
-  name: string;
+  title: string;
+  version?: string;
+  description?: string;
 }) {
   return request<ApiResponse<TextbookChapter>>('/api/tags/textbook-chapter', {
     method: 'PUT',

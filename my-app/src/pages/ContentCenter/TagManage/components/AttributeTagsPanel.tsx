@@ -363,7 +363,7 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
                 _text: React.ReactNode,
                 record: AttributeItem,
                 _index: number,
-                action: EditableColumnAction,
+                action?: EditableColumnAction,
               ) => [
                 <a
                   key="editable"
@@ -393,7 +393,11 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
           recordCreatorProps={{
             newRecordType: 'dataSource',
             position: 'bottom',
-            record: () => ({ id: Date.now().toString(), name: '' }),
+            record: () => ({
+              id: Date.now().toString(),
+              name: '',
+              color: 'default',
+            }),
             creatorButtonText: '添加新标签',
           }}
           editable={{

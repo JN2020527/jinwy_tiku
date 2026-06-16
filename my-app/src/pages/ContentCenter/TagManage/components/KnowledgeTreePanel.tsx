@@ -171,7 +171,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
       title: '确认删除',
       content: `确定要删除节点 "${node.title}" 吗？`,
       onOk: async () => {
-        const res = await deleteKnowledgeNode(node.key);
+        const res = await deleteKnowledgeNode(String(node.key));
         if (res.success) {
           message.success('删除成功');
           onRefresh();
@@ -239,7 +239,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
       title: '确认删除',
       content: `确定要删除章节 "${node.title}" 吗？`,
       onOk: async () => {
-        const res = await deleteTextbookChapter(node.key);
+        const res = await deleteTextbookChapter(String(node.key));
         if (res.success) {
           message.success('删除成功');
           fetchChapters();

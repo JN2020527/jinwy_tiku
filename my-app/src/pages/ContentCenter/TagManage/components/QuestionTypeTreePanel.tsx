@@ -65,7 +65,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
       title: '确认删除',
       content: `确定要删除题型 "${node.title}" 吗？`,
       onOk: async () => {
-        const res = await deleteQuestionTypeNode(node.key);
+        const res = await deleteQuestionTypeNode(String(node.key));
         if (res.success) {
           message.success('删除成功');
           onRefresh();
@@ -79,9 +79,14 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   const handleQtModalFinish = async (values: Record<string, unknown>) => {
     let res;
     if (qtModalType === 'add') {
-      res = await addQuestionTypeNode(values);
+      res = await addQuestionTypeNode(
+        values as Parameters<typeof addQuestionTypeNode>[0],
+      );
     } else {
-      res = await updateQuestionTypeNode({ ...values, id: selectedQtNode.key });
+      res = await updateQuestionTypeNode({
+        ...(values as Parameters<typeof updateQuestionTypeNode>[0]),
+        id: String(selectedQtNode?.key),
+      });
     }
     if (res.success) {
       message.success(qtModalType === 'add' ? '添加成功' : '修改成功');
