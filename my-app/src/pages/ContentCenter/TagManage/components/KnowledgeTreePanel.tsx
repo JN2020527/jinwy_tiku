@@ -39,14 +39,18 @@ import { useTreeSearch } from './treeHelpers';
 
 interface KnowledgeTreePanelProps {
   knowledgeTree: KnowledgeNode[];
-  selectedStage: string;
+  selectedGrade: string;
   selectedSubject: string;
   onRefresh: () => void;
 }
 
-const STAGE_MAP: Record<string, string> = {
-  junior: '初中',
-  senior: '高中',
+const GRADE_MAP: Record<string, string> = {
+  'grade-7': '七年级',
+  'grade-8': '八年级',
+  'grade-9': '九年级',
+  'grade-10': '高一',
+  'grade-11': '高二',
+  'grade-12': '高三',
 };
 
 const SUBJECT_MAP: Record<string, string> = {
@@ -63,10 +67,15 @@ const SUBJECT_MAP: Record<string, string> = {
 
 const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   knowledgeTree,
-  selectedStage,
+  selectedGrade,
   selectedSubject,
   onRefresh,
 }) => {
+  const tagContext = {
+    grade: selectedGrade,
+    subject: selectedSubject,
+  };
+
   // Knowledge tree search
   const knowledgeSearch = useTreeSearch(
     knowledgeTree as unknown as TreeNodeData[],
@@ -171,7 +180,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
       title: '确认删除',
       content: `确定要删除节点 "${node.title}" 吗？`,
       onOk: async () => {
-        const res = await deleteKnowledgeNode(String(node.key));
+        const res = await deleteKnowledgeNode(String(node.key), tagContext);
         if (res.success) {
           message.success('删除成功');
           onRefresh();
@@ -184,13 +193,17 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
 
   const handleModalFinish = async (values: Record<string, unknown>) => {
     let res;
+    const payload = {
+      ...values,
+      ...tagContext,
+    };
     if (modalType === 'add') {
       res = await addKnowledgeNode(
-        values as Parameters<typeof addKnowledgeNode>[0],
+        payload as Parameters<typeof addKnowledgeNode>[0],
       );
     } else {
       res = await updateKnowledgeNode({
-        ...(values as Parameters<typeof updateKnowledgeNode>[0]),
+        ...(payload as Parameters<typeof updateKnowledgeNode>[0]),
         id: String(selectedNode?.key),
       });
     }
@@ -275,7 +288,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   };
 
   const subjectLabel = SUBJECT_MAP[selectedSubject] || selectedSubject;
-  const stageLabel = STAGE_MAP[selectedStage] || selectedStage;
+  const gradeLabel = GRADE_MAP[selectedGrade] || selectedGrade;
 
   return (
     <>
@@ -353,7 +366,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
         </Col>
         <Col span={12} style={{ borderLeft: '1px solid #f0f0f0' }}>
           <Card
-            title={`${stageLabel}${subjectLabel}知识点结构树`}
+            title={`${gradeLabel}${subjectLabel}知识点结构树`}
             variant="borderless"
             extra={
               <Button type="primary" size="small" onClick={handleAddRoot}>

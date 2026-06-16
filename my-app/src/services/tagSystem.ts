@@ -8,16 +8,67 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+export type AttributeStatus = 'enabled' | 'disabled';
+export type AttributeTarget = 'question' | 'paper' | 'common';
+export type AttributeValueType =
+  | 'text'
+  | 'number'
+  | 'single'
+  | 'multiple'
+  | 'tree';
+export type AttributeControlType =
+  | 'input'
+  | 'select'
+  | 'checkbox'
+  | 'radio'
+  | 'rate'
+  | 'treeSelect';
+export type AttributeScene = 'contentCompletion' | 'tagging' | 'frontDisplay';
+export type AttributeSelectionMode = 'single' | 'multiple';
+
+export interface AttributeSceneRule {
+  scene: AttributeScene;
+  enabled: boolean;
+  required?: boolean;
+}
+
+export interface AttributeDisplayRule {
+  visible: boolean;
+  filterable?: boolean;
+  displayName?: string;
+}
+
 export interface AttributeItem {
   id: string;
   name: string;
   color: string;
+  value?: string;
+  sort?: number;
+  status?: AttributeStatus;
+  displayName?: string;
+  frontVisible?: boolean;
+  star?: number;
 }
 
 export interface TagCategory {
   id: string;
   name: string;
   tags: AttributeItem[];
+  code?: string;
+  description?: string;
+  target?: AttributeTarget;
+  valueType?: AttributeValueType;
+  controlType?: AttributeControlType;
+  required?: boolean;
+  selectionMode?: AttributeSelectionMode;
+  status?: AttributeStatus;
+  sceneRules?: AttributeSceneRule[];
+  displayRule?: AttributeDisplayRule;
+}
+
+export interface TagContextParams {
+  grade: string;
+  subject: string;
 }
 
 export interface KnowledgeNode {
@@ -25,6 +76,8 @@ export interface KnowledgeNode {
   title: string;
   key: string;
   value?: string;
+  grade?: string;
+  subject?: string;
   description?: string;
   children?: KnowledgeNode[];
 }
@@ -32,6 +85,8 @@ export interface KnowledgeNode {
 export interface QuestionTypeNode {
   title: string;
   key: string;
+  grade?: string;
+  subject?: string;
   description?: string;
   children?: QuestionTypeNode[];
 }
@@ -50,45 +105,58 @@ export interface TextbookChapter {
 
 // --- Knowledge Tree ---
 
-export async function getKnowledgeTree() {
+export async function getKnowledgeTree(params?: {
+  grade?: string;
+  subject?: string;
+}) {
   return request<ApiResponse<KnowledgeNode[]>>('/api/tags/knowledge-tree', {
     method: 'GET',
+    params,
   });
 }
 
 // --- Tag Category CRUD ---
 
-export async function getTagCategories() {
+export async function getTagCategories(params: TagContextParams) {
   return request<ApiResponse<TagCategory[]>>('/api/tags/categories', {
     method: 'GET',
+    params,
   });
 }
 
-export async function addTagCategory(data: {
-  name: string;
-  tags?: AttributeItem[];
-}) {
+export async function addTagCategory(
+  data: {
+    name: string;
+    grade: string;
+    subject: string;
+    tags?: AttributeItem[];
+  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>>,
+) {
   return request<ApiResponse<TagCategory>>('/api/tags/category', {
     method: 'POST',
     data,
   });
 }
 
-export async function updateTagCategory(data: {
-  id: string;
-  name: string;
-  tags?: AttributeItem[];
-}) {
+export async function updateTagCategory(
+  data: {
+    id: string;
+    name: string;
+    grade: string;
+    subject: string;
+    tags?: AttributeItem[];
+  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>>,
+) {
   return request<ApiResponse<TagCategory>>('/api/tags/category', {
     method: 'PUT',
     data,
   });
 }
 
-export async function deleteTagCategory(id: string) {
+export async function deleteTagCategory(id: string, params: TagContextParams) {
   return request<ApiResponse<void>>('/api/tags/category', {
     method: 'DELETE',
-    params: { id },
+    params: { id, ...params },
   });
 }
 
@@ -97,6 +165,8 @@ export async function deleteTagCategory(id: string) {
 export async function addKnowledgeNode(data: {
   title: string;
   parentId?: string | null;
+  grade: string;
+  subject: string;
   description?: string;
 }) {
   return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
@@ -108,6 +178,8 @@ export async function addKnowledgeNode(data: {
 export async function updateKnowledgeNode(data: {
   id: string;
   title: string;
+  grade?: string;
+  subject?: string;
   description?: string;
 }) {
   return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
@@ -116,20 +188,27 @@ export async function updateKnowledgeNode(data: {
   });
 }
 
-export async function deleteKnowledgeNode(id: string) {
+export async function deleteKnowledgeNode(
+  id: string,
+  params?: { grade?: string; subject?: string },
+) {
   return request<ApiResponse<void>>('/api/tags/knowledge-node', {
     method: 'DELETE',
-    params: { id },
+    params: { id, ...params },
   });
 }
 
 // --- Question Type CRUD ---
 
-export async function getQuestionTypeTree() {
+export async function getQuestionTypeTree(params?: {
+  grade?: string;
+  subject?: string;
+}) {
   return request<ApiResponse<QuestionTypeNode[]>>(
     '/api/tags/question-type-tree',
     {
       method: 'GET',
+      params,
     },
   );
 }
@@ -137,6 +216,8 @@ export async function getQuestionTypeTree() {
 export async function addQuestionTypeNode(data: {
   title: string;
   parentId?: string | null;
+  grade: string;
+  subject: string;
   description?: string;
 }) {
   return request<ApiResponse<QuestionTypeNode>>(
@@ -151,6 +232,8 @@ export async function addQuestionTypeNode(data: {
 export async function updateQuestionTypeNode(data: {
   id: string;
   title: string;
+  grade?: string;
+  subject?: string;
   description?: string;
 }) {
   return request<ApiResponse<QuestionTypeNode>>(
@@ -162,42 +245,57 @@ export async function updateQuestionTypeNode(data: {
   );
 }
 
-export async function deleteQuestionTypeNode(id: string) {
+export async function deleteQuestionTypeNode(
+  id: string,
+  params?: { grade?: string; subject?: string },
+) {
   return request<ApiResponse<void>>('/api/tags/question-type-node', {
     method: 'DELETE',
-    params: { id },
+    params: { id, ...params },
   });
 }
 
 // --- Attribute CRUD ---
 
-export async function addAttribute(data: {
-  categoryId: string;
-  name: string;
-  color: string;
-}) {
+export async function addAttribute(
+  data: {
+    categoryId: string;
+    grade: string;
+    subject: string;
+    name: string;
+    color: string;
+  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>>,
+) {
   return request<ApiResponse<AttributeItem>>('/api/tags/attribute', {
     method: 'POST',
     data,
   });
 }
 
-export async function updateAttribute(data: {
-  id: string;
-  categoryId: string;
-  name?: string;
-  color?: string;
-}) {
+export async function updateAttribute(
+  data: {
+    id: string;
+    categoryId: string;
+    grade: string;
+    subject: string;
+    name?: string;
+    color?: string;
+  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>>,
+) {
   return request<ApiResponse<AttributeItem>>('/api/tags/attribute', {
     method: 'PUT',
     data,
   });
 }
 
-export async function deleteAttribute(id: string, categoryId: string) {
+export async function deleteAttribute(
+  id: string,
+  categoryId: string,
+  params: TagContextParams,
+) {
   return request<ApiResponse<void>>('/api/tags/attribute', {
     method: 'DELETE',
-    params: { id, categoryId },
+    params: { id, categoryId, ...params },
   });
 }
 

@@ -8,13 +8,16 @@ import KnowledgeTreePanel from './components/KnowledgeTreePanel';
 const KnowledgeTagPage: React.FC = () => {
   const [knowledgeTree, setKnowledgeTree] = useState<KnowledgeNode[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [selectedStage, setSelectedStage] = useState<string>('junior');
+  const [selectedGrade, setSelectedGrade] = useState<string>('grade-7');
   const [selectedSubject, setSelectedSubject] = useState<string>('math');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getKnowledgeTree();
+      const res = await getKnowledgeTree({
+        grade: selectedGrade,
+        subject: selectedSubject,
+      });
       if (res.success) {
         setKnowledgeTree(res.data);
       }
@@ -23,7 +26,7 @@ const KnowledgeTagPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedStage, selectedSubject]);
+  }, [selectedGrade, selectedSubject]);
 
   useEffect(() => {
     fetchData();
@@ -37,14 +40,18 @@ const KnowledgeTagPage: React.FC = () => {
       >
         <Space size="large">
           <Space>
-            <span>学段：</span>
+            <span>年级：</span>
             <Select
-              value={selectedStage}
-              onChange={setSelectedStage}
+              value={selectedGrade}
+              onChange={setSelectedGrade}
               style={{ width: 120 }}
               options={[
-                { label: '初中', value: 'junior' },
-                { label: '高中', value: 'senior' },
+                { label: '七年级', value: 'grade-7' },
+                { label: '八年级', value: 'grade-8' },
+                { label: '九年级', value: 'grade-9' },
+                { label: '高一', value: 'grade-10' },
+                { label: '高二', value: 'grade-11' },
+                { label: '高三', value: 'grade-12' },
               ]}
             />
           </Space>
@@ -74,7 +81,7 @@ const KnowledgeTagPage: React.FC = () => {
         <Card>
           <KnowledgeTreePanel
             knowledgeTree={knowledgeTree}
-            selectedStage={selectedStage}
+            selectedGrade={selectedGrade}
             selectedSubject={selectedSubject}
             onRefresh={fetchData}
           />

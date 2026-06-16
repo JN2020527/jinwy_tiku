@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * Shape of a tree node as received by titleRender in Ant Design Tree
@@ -8,6 +8,8 @@ import { useRef, useState } from 'react';
 export interface TreeNodeData {
   key: React.Key;
   title: string;
+  grade?: string;
+  subject?: string;
   description?: string;
   children?: TreeNodeData[];
 }
@@ -52,6 +54,17 @@ export const generateList = (
   return result;
 };
 
+const generateExpandableKeys = (data: TreeNodeData[]): React.Key[] => {
+  const result: React.Key[] = [];
+  data.forEach((node) => {
+    if (node.children?.length) {
+      result.push(node.key);
+      result.push(...generateExpandableKeys(node.children));
+    }
+  });
+  return result;
+};
+
 /**
  * Reusable hook for tree search behavior (expand + highlight).
  */
@@ -60,6 +73,19 @@ export const useTreeSearch = (treeData: TreeNodeData[]) => {
   const [autoExpandParent, setAutoExpandParent] = useState<boolean>(true);
   const [searchValue, setSearchValue] = useState<string>('');
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setExpandedKeys(generateExpandableKeys(treeData));
+    setAutoExpandParent(true);
+  }, [treeData]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const onExpand = (newExpandedKeys: React.Key[]) => {
     setExpandedKeys(newExpandedKeys);
