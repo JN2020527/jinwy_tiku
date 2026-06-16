@@ -44,7 +44,7 @@ const AttributeTagPage: React.FC = () => {
         setTagCategories(res.data);
       }
     } catch {
-      message.error('获取属性标签失败');
+      message.error('获取属性设置失败');
     } finally {
       setLoading(false);
     }

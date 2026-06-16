@@ -22,7 +22,6 @@ import {
   DragOutlined,
   EditOutlined,
   PlusOutlined,
-  SearchOutlined,
   TagsOutlined,
 } from '@ant-design/icons';
 import {
@@ -40,6 +39,7 @@ import {
   message,
   Modal,
   Space,
+  Tabs,
   Tag,
   Tooltip,
 } from 'antd';
@@ -225,16 +225,37 @@ const renderBooleanTag = (
   );
 };
 
-const renderStatusTag = (status?: AttributeStatus) => {
-  if (!status) {
-    return <Tag>未配置</Tag>;
-  }
+const renderStatePill = (
+  value?: boolean,
+  trueText = '启用',
+  falseText = '停用',
+) => {
+  const stateClass =
+    value === undefined ? 'unknown' : value ? 'enabled' : 'disabled';
 
   return (
-    <Tag color={status === 'enabled' ? 'green' : 'default'}>
-      {getLabel(STATUS_LABELS, status)}
-    </Tag>
+    <span className={`attribute-state-pill ${stateClass}`}>
+      {value === undefined ? '未配置' : value ? trueText : falseText}
+    </span>
   );
+};
+
+const renderOptionStatus = (status?: AttributeStatus) =>
+  renderStatePill(
+    status === undefined ? undefined : status === 'enabled',
+    STATUS_LABELS.enabled,
+    STATUS_LABELS.disabled,
+  );
+
+const getOptionMetaText = (item: AttributeItem) => {
+  const name = item.name.trim();
+  const displayName = item.displayName?.trim();
+
+  if (displayName && displayName !== name) {
+    return `展示名：${displayName}`;
+  }
+
+  return '';
 };
 
 const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
@@ -252,7 +273,6 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
   );
 
   const [activeCategoryId, setActiveCategoryId] = useState<string>('');
-  const [activeOptionId, setActiveOptionId] = useState<string>('');
   const [draggingOptionId, setDraggingOptionId] = useState<string>('');
   const [dragOverOptionId, setDragOverOptionId] = useState<string>('');
 
@@ -265,12 +285,10 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
   const [selectedAttr, setSelectedAttr] = useState<AttributeItem | null>(null);
   const [attrForm] = Form.useForm();
   const [newTagName, setNewTagName] = useState<string>('');
-  const [tagSearch, setTagSearch] = useState<string>('');
 
   useEffect(() => {
     if (!tagCategories.length) {
       setActiveCategoryId('');
-      setActiveOptionId('');
       return;
     }
 
@@ -292,39 +310,27 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
     [activeCategory?.tags],
   );
 
-  useEffect(() => {
-    if (!activeCategory) {
-      setActiveOptionId('');
-      return;
-    }
+  const attributeSceneRules = useMemo(
+    () =>
+      (activeCategory?.sceneRules || []).filter(
+        (rule) => rule.scene !== 'frontDisplay',
+      ),
+    [activeCategory?.sceneRules],
+  );
 
-    if (!activeTags.length) {
-      setActiveOptionId('');
-      return;
-    }
-
-    const stillExists = activeTags.some((item) => item.id === activeOptionId);
-    if (!activeOptionId || !stillExists) {
-      setActiveOptionId(activeTags[0].id);
-    }
-  }, [activeCategory, activeOptionId, activeTags]);
+  const frontDisplaySceneRule = useMemo(
+    () =>
+      activeCategory?.sceneRules?.find(
+        (rule) => rule.scene === 'frontDisplay',
+      ),
+    [activeCategory?.sceneRules],
+  );
 
   useEffect(() => {
     setNewTagName('');
-    setTagSearch('');
     setDraggingOptionId('');
     setDragOverOptionId('');
   }, [activeCategoryId]);
-
-  const activeOption = useMemo(
-    () => activeTags.find((item) => item.id === activeOptionId),
-    [activeOptionId, activeTags],
-  );
-
-  const activeOptionIndex = useMemo(
-    () => activeTags.findIndex((item) => item.id === activeOptionId),
-    [activeOptionId, activeTags],
-  );
 
   const totalTagCount = useMemo(
     () =>
@@ -334,19 +340,6 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
       ),
     [tagCategories],
   );
-
-  const filteredTags = useMemo(() => {
-    const keyword = tagSearch.trim().toLowerCase();
-    if (!keyword) return activeTags;
-
-    return activeTags.filter((item) => {
-      const searchableText = [item.name, item.displayName, item.value]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return searchableText.includes(keyword);
-    });
-  }, [activeTags, tagSearch]);
 
   const persistOptionOrder = useCallback(
     async (nextTags: AttributeItem[]) => {
@@ -383,7 +376,6 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
       const nextTags = [...activeTags];
       const [movedTag] = nextTags.splice(fromIndex, 1);
       nextTags.splice(toIndex, 0, movedTag);
-      setActiveOptionId(sourceId);
       await persistOptionOrder(nextTags);
     },
     [activeCategory, activeTags, persistOptionOrder],
@@ -403,7 +395,6 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', item.id);
     setDraggingOptionId(item.id);
-    setActiveOptionId(item.id);
   };
 
   const handleOptionDragOver = (
@@ -547,7 +538,6 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
     if (res.success) {
       message.success('添加成功');
       setNewTagName('');
-      setActiveOptionId(res.data.id);
       onRefresh();
     }
   };
@@ -581,7 +571,6 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
       message.success('修改成功');
       setAttrModalVisible(false);
       setSelectedAttr(null);
-      setActiveOptionId(selectedAttr.id);
       onRefresh();
       return true;
     }
@@ -707,45 +696,15 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
           <>
             <div className="attribute-panel-header">
               <div>
-                <div className="attribute-panel-title">
-                  {activeCategory.name}
-                </div>
+                <div className="attribute-panel-title">选项值</div>
                 <div className="attribute-panel-meta">
-                  {activeTags.length} 个选项
+                  当前属性：{activeCategory.name} / {activeTags.length} 个选项
                   {activeCategory.description
                     ? ` / ${activeCategory.description}`
                     : ''}
+                  {' / 前台按当前顺序展示'}
                 </div>
               </div>
-            </div>
-
-            <div className="attribute-tag-toolbar">
-              <Input.Search
-                allowClear
-                aria-label="搜索属性选项"
-                prefix={<SearchOutlined />}
-                placeholder="搜索名称、展示名或取值"
-                value={tagSearch}
-                onChange={(event) => setTagSearch(event.target.value)}
-                className="attribute-tag-search"
-              />
-              <Space.Compact className="attribute-tag-create">
-                <Input
-                  aria-label="快速新增属性选项名称"
-                  placeholder="输入选项名称"
-                  value={newTagName}
-                  onChange={(event) => setNewTagName(event.target.value)}
-                  onPressEnter={handleQuickAddAttr}
-                />
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={handleQuickAddAttr}
-                  disabled={!newTagName.trim()}
-                >
-                  添加
-                </Button>
-              </Space.Compact>
             </div>
 
             <div
@@ -753,15 +712,34 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
               role="list"
               aria-label={`${activeCategory.name}选项`}
             >
-              {filteredTags.length ? (
-                filteredTags.map((item) => {
-                  const active = item.id === activeOptionId;
+              <div className="attribute-option-create">
+                <Space.Compact className="attribute-tag-create">
+                  <Input
+                    aria-label="快速新增属性选项名称"
+                    placeholder="输入选项名称"
+                    value={newTagName}
+                    onChange={(event) => setNewTagName(event.target.value)}
+                    onPressEnter={handleQuickAddAttr}
+                  />
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={handleQuickAddAttr}
+                    disabled={!newTagName.trim()}
+                  >
+                    添加
+                  </Button>
+                </Space.Compact>
+              </div>
+
+              {activeTags.length ? (
+                activeTags.map((item) => {
                   const optionIndex = activeTags.findIndex(
                     (tag) => tag.id === item.id,
                   );
+                  const optionMetaText = getOptionMetaText(item);
                   const rowClassName = [
                     'attribute-option-item',
-                    active ? 'active' : '',
                     draggingOptionId === item.id ? 'dragging' : '',
                     dragOverOptionId === item.id ? 'drag-over' : '',
                   ]
@@ -781,31 +759,33 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
                       onDrop={(event) => handleOptionDrop(event, item)}
                       onDragEnd={handleOptionDragEnd}
                     >
-                      <button
-                        type="button"
-                        className="attribute-option-main"
-                        aria-current={active ? 'true' : undefined}
-                        aria-pressed={active}
-                        onClick={() => setActiveOptionId(item.id)}
-                      >
+                      <div className="attribute-option-main">
                         <span className="attribute-option-drag">
                           <DragOutlined />
                         </span>
-                        <span className="attribute-option-sort">
-                          #{optionIndex + 1}
+                        <span
+                          className="attribute-option-sort"
+                          aria-label={`第 ${optionIndex + 1} 项`}
+                        >
+                          {optionIndex + 1}
                         </span>
                         <span className="attribute-option-content">
                           <span className="attribute-option-name-row">
-                            <Tag color={item.color || 'default'}>
+                            <span className="attribute-option-name">
                               {item.name}
-                            </Tag>
-                            {renderStatusTag(item.status)}
+                            </span>
                           </span>
-                          <span className="attribute-option-subtitle">
-                            {item.displayName || item.value || '暂无展示名'}
-                          </span>
+                          {optionMetaText ? (
+                            <span className="attribute-option-subtitle">
+                              {optionMetaText}
+                            </span>
+                          ) : null}
                         </span>
-                      </button>
+                      </div>
+
+                      <span className="attribute-option-status">
+                        {renderOptionStatus(item.status)}
+                      </span>
 
                       <Space size={2} className="attribute-option-actions">
                         <Tooltip title="上移">
@@ -854,7 +834,7 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
               ) : (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description={tagSearch ? '无匹配选项' : '暂无选项'}
+                  description="暂无选项"
                 />
               )}
             </div>
@@ -876,21 +856,80 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
         )}
       </section>
 
-      <aside className="attribute-rule-panel" aria-label="规则详情">
+      <aside className="attribute-rule-panel" aria-label="属性规则">
         {activeCategory ? (
           <>
             <div className="attribute-panel-header">
               <div>
-                <div className="attribute-panel-title">规则详情</div>
+                <div className="attribute-panel-title">属性规则</div>
                 <div className="attribute-panel-meta">
-                  字段、场景与前台展示配置
+                  当前属性：{activeCategory.name}
                 </div>
               </div>
+              <Tooltip title="编辑规则">
+                <Button
+                  size="small"
+                  aria-label={`编辑规则 ${activeCategory.name}`}
+                  icon={<EditOutlined />}
+                  onClick={() => handleEditCategory(activeCategory)}
+                >
+                  编辑规则
+                </Button>
+              </Tooltip>
             </div>
 
             <div className="attribute-rule-content">
               <section className="attribute-rule-section">
-                <h3>属性定义</h3>
+                <h3>使用场景</h3>
+                {attributeSceneRules.length ? (
+                  <div className="attribute-scene-list">
+                    {attributeSceneRules.map((rule) => (
+                      <div className="attribute-scene-item" key={rule.scene}>
+                        <span>{getLabel(SCENE_LABELS, rule.scene)}</span>
+                        <Space size={4} wrap>
+                          {renderStatePill(rule.enabled)}
+                          {rule.required !== undefined
+                            ? renderBooleanTag(rule.required, '必填', '非必填')
+                            : null}
+                        </Space>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="attribute-rule-empty">暂无使用场景</div>
+                )}
+              </section>
+
+              <section className="attribute-rule-section">
+                <h3>前台展示配置</h3>
+                <dl className="attribute-rule-list">
+                  <dt>规则状态</dt>
+                  <dd>
+                    {renderStatePill(frontDisplaySceneRule?.enabled)}
+                  </dd>
+                  <dt>展示名称</dt>
+                  <dd>{activeCategory.displayRule?.displayName || '未配置'}</dd>
+                  <dt>是否展示</dt>
+                  <dd>
+                    {renderBooleanTag(
+                      activeCategory.displayRule?.visible,
+                      '展示',
+                      '隐藏',
+                    )}
+                  </dd>
+                  <dt>是否可筛选</dt>
+                  <dd>
+                    {renderBooleanTag(
+                      activeCategory.displayRule?.filterable,
+                      '可筛选',
+                      '不可筛选',
+                    )}
+                  </dd>
+                </dl>
+              </section>
+
+              <section className="attribute-rule-section">
+                <h3>字段定义</h3>
                 <dl className="attribute-rule-list">
                   <dt>属性编码</dt>
                   <dd>{activeCategory.code || '未配置'}</dd>
@@ -916,79 +955,6 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
                   <dd>{activeCategory.description || '暂无描述'}</dd>
                 </dl>
               </section>
-
-              <section className="attribute-rule-section">
-                <h3>场景规则</h3>
-                {activeCategory.sceneRules?.length ? (
-                  <div className="attribute-scene-list">
-                    {activeCategory.sceneRules.map((rule) => (
-                      <div className="attribute-scene-item" key={rule.scene}>
-                        <span>{getLabel(SCENE_LABELS, rule.scene)}</span>
-                        <Space size={4} wrap>
-                          {renderBooleanTag(rule.enabled, '启用', '停用')}
-                          {rule.required !== undefined
-                            ? renderBooleanTag(rule.required, '必填', '非必填')
-                            : null}
-                        </Space>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="attribute-rule-empty">暂无场景规则</div>
-                )}
-              </section>
-
-              <section className="attribute-rule-section">
-                <h3>前台展示</h3>
-                <dl className="attribute-rule-list">
-                  <dt>展示名称</dt>
-                  <dd>{activeCategory.displayRule?.displayName || '未配置'}</dd>
-                  <dt>是否展示</dt>
-                  <dd>
-                    {renderBooleanTag(
-                      activeCategory.displayRule?.visible,
-                      '展示',
-                      '隐藏',
-                    )}
-                  </dd>
-                  <dt>是否可筛选</dt>
-                  <dd>
-                    {renderBooleanTag(
-                      activeCategory.displayRule?.filterable,
-                      '可筛选',
-                      '不可筛选',
-                    )}
-                  </dd>
-                </dl>
-              </section>
-
-              <section className="attribute-rule-section">
-                <h3>当前选项</h3>
-                {activeOption ? (
-                  <dl className="attribute-rule-list">
-                    <dt>选项名称</dt>
-                    <dd>{activeOption.name}</dd>
-                    <dt>取值</dt>
-                    <dd>{activeOption.value || '未配置'}</dd>
-                    <dt>展示名称</dt>
-                    <dd>{activeOption.displayName || '未配置'}</dd>
-                    <dt>状态</dt>
-                    <dd>{renderStatusTag(activeOption.status)}</dd>
-                    <dt>前台展示</dt>
-                    <dd>
-                      {renderBooleanTag(
-                        activeOption.frontVisible,
-                        '展示',
-                        '隐藏',
-                      )}
-                    </dd>
-                    <dt>顺序</dt>
-                    <dd>{activeOptionIndex + 1}</dd>
-                  </dl>
-                ) : (
-                  <div className="attribute-rule-empty">请选择一个选项</div>
-                )}
-              </section>
             </div>
           </>
         ) : (
@@ -1012,106 +978,137 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
         }}
         form={catForm}
         onFinish={handleCatModalFinish}
-        width={560}
+        width={640}
       >
-        <ProFormText
-          name="name"
-          label="属性名称"
-          rules={[{ required: true, message: '请输入属性名称' }]}
-          placeholder="例如：难度、年份、来源"
+        <Tabs
+          className="attribute-definition-tabs"
+          defaultActiveKey="basic"
+          items={[
+            {
+              key: 'basic',
+              label: '基础信息',
+              forceRender: true,
+              children: (
+                <>
+                  <ProFormText
+                    name="name"
+                    label="属性名称"
+                    rules={[{ required: true, message: '请输入属性名称' }]}
+                    placeholder="例如：难度、年份、来源"
+                  />
+                  <ProFormText
+                    name="code"
+                    label="字段编码"
+                    placeholder="例如：difficulty"
+                  />
+                  <ProFormSelect
+                    name="target"
+                    label="适用对象"
+                    options={TARGET_OPTIONS}
+                  />
+                  <ProFormSelect
+                    name="valueType"
+                    label="字段类型"
+                    options={VALUE_TYPE_OPTIONS}
+                  />
+                  <ProFormSelect
+                    name="controlType"
+                    label="控件类型"
+                    options={CONTROL_TYPE_OPTIONS}
+                  />
+                  <ProFormSwitch
+                    name="required"
+                    label="是否必填"
+                    fieldProps={{
+                      checkedChildren: '必填',
+                      unCheckedChildren: '非必填',
+                    }}
+                  />
+                  <ProFormTextArea
+                    name="description"
+                    label="描述"
+                    placeholder="说明该属性用于哪些运营场景"
+                  />
+                </>
+              ),
+            },
+            {
+              key: 'scene',
+              label: '使用场景',
+              forceRender: true,
+              children: (
+                <>
+                  <ProFormSwitch
+                    name="contentCompletionEnabled"
+                    label="用于内容完善"
+                    fieldProps={{
+                      checkedChildren: '启用',
+                      unCheckedChildren: '停用',
+                    }}
+                  />
+                  <ProFormSwitch
+                    name="contentCompletionRequired"
+                    label="内容完善必填"
+                    fieldProps={{
+                      checkedChildren: '必填',
+                      unCheckedChildren: '非必填',
+                    }}
+                  />
+                  <ProFormSwitch
+                    name="taggingEnabled"
+                    label="用于打标"
+                    fieldProps={{
+                      checkedChildren: '启用',
+                      unCheckedChildren: '停用',
+                    }}
+                  />
+                  <ProFormSwitch
+                    name="taggingRequired"
+                    label="打标必填"
+                    fieldProps={{
+                      checkedChildren: '必填',
+                      unCheckedChildren: '非必填',
+                    }}
+                  />
+                </>
+              ),
+            },
+            {
+              key: 'display',
+              label: '前台展示',
+              forceRender: true,
+              children: (
+                <>
+                  <ProFormSwitch
+                    name="frontDisplayEnabled"
+                    label="用于前台展示"
+                    fieldProps={{
+                      checkedChildren: '启用',
+                      unCheckedChildren: '停用',
+                    }}
+                  />
+                  <ProFormSwitch
+                    name="displayVisible"
+                    label="前台展示"
+                    fieldProps={{
+                      checkedChildren: '展示',
+                      unCheckedChildren: '隐藏',
+                    }}
+                  />
+                  <ProFormSwitch
+                    name="displayFilterable"
+                    label="前台筛选"
+                    fieldProps={{
+                      checkedChildren: '可筛选',
+                      unCheckedChildren: '不可筛选',
+                    }}
+                  />
+                  <ProFormText name="displayName" label="前台展示名称" />
+                </>
+              ),
+            },
+          ]}
         />
-        <ProFormText
-          name="code"
-          label="字段编码"
-          placeholder="例如：difficulty"
-        />
-        <ProFormSelect
-          name="target"
-          label="适用对象"
-          options={TARGET_OPTIONS}
-        />
-        <ProFormSelect
-          name="valueType"
-          label="字段类型"
-          options={VALUE_TYPE_OPTIONS}
-        />
-        <ProFormSelect
-          name="controlType"
-          label="控件类型"
-          options={CONTROL_TYPE_OPTIONS}
-        />
-        <ProFormSwitch
-          name="required"
-          label="是否必填"
-          fieldProps={{
-            checkedChildren: '必填',
-            unCheckedChildren: '非必填',
-          }}
-        />
-        <ProFormTextArea
-          name="description"
-          label="描述"
-          placeholder="说明该属性用于哪些运营场景"
-        />
-        <div className="attribute-modal-section-title">场景规则</div>
-        <ProFormSwitch
-          name="contentCompletionEnabled"
-          label="用于内容完善"
-          fieldProps={{
-            checkedChildren: '启用',
-            unCheckedChildren: '停用',
-          }}
-        />
-        <ProFormSwitch
-          name="contentCompletionRequired"
-          label="内容完善必填"
-          fieldProps={{
-            checkedChildren: '必填',
-            unCheckedChildren: '非必填',
-          }}
-        />
-        <ProFormSwitch
-          name="taggingEnabled"
-          label="用于打标"
-          fieldProps={{
-            checkedChildren: '启用',
-            unCheckedChildren: '停用',
-          }}
-        />
-        <ProFormSwitch
-          name="taggingRequired"
-          label="打标必填"
-          fieldProps={{
-            checkedChildren: '必填',
-            unCheckedChildren: '非必填',
-          }}
-        />
-        <div className="attribute-modal-section-title">前台展示</div>
-        <ProFormSwitch
-          name="frontDisplayEnabled"
-          label="用于前台展示"
-          fieldProps={{
-            checkedChildren: '启用',
-            unCheckedChildren: '停用',
-          }}
-        />
-        <ProFormSwitch
-          name="displayVisible"
-          label="前台展示"
-          fieldProps={{
-            checkedChildren: '展示',
-            unCheckedChildren: '隐藏',
-          }}
-        />
-        <ProFormSwitch
-          name="displayFilterable"
-          label="前台筛选"
-          fieldProps={{
-            checkedChildren: '可筛选',
-            unCheckedChildren: '不可筛选',
-          }}
-        />
-        <ProFormText name="displayName" label="前台展示名称" />
       </ModalForm>
 
       <ModalForm<OptionFormValues>

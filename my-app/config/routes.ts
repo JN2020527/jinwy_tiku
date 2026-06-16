@@ -119,7 +119,7 @@ export default [
       },
       {
         path: '/tag-system/attributes',
-        name: '属性标签',
+        name: '属性设置',
         component: './ContentCenter/TagManage/Attributes',
       },
     ],
