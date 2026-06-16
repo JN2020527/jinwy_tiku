@@ -90,7 +90,7 @@ export interface QuestionTypeNode {
   children?: QuestionTypeNode[];
 }
 
-export type QuestionTypeDropPosition = 'before' | 'after' | 'inside';
+export type QuestionTypeDropPosition = 'before' | 'after';
 
 export interface TextbookVersion {
   label: string;

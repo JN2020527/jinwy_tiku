@@ -1,0 +1,34 @@
+.tag-tree-node-title {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tag-tree-node-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #202733;
+  font-size: 14px;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-tree-node-actions {
+  flex: 0 0 auto;
+  opacity: 0.54;
+  transition: opacity 0.18s;
+}
+
+.ant-tree-treenode:hover .tag-tree-node-actions,
+.tag-tree-node-title:focus-within .tag-tree-node-actions {
+  opacity: 1;
+}
+
+.tag-tree-node-actions .ant-btn {
+  width: 24px;
+  height: 24px;
+}

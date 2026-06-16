@@ -97,7 +97,9 @@ interface MockQuestionTypeNode {
   children?: MockQuestionTypeNode[];
 }
 
-type QuestionTypeDropPosition = 'before' | 'after' | 'inside';
+type QuestionTypeDropPosition = 'before' | 'after';
+
+const MAX_QUESTION_TYPE_LEVEL = 2;
 
 // Mock Data for Knowledge Points (Tree Structure)
 const defaultKnowledgePointTemplates: KnowledgeSeedNode[] = [
@@ -815,66 +817,68 @@ const findQuestionTypeNode = (
   return null;
 };
 
-const hasQuestionTypeDescendant = (
-  node: MockQuestionTypeNode,
-  targetId: string,
-): boolean =>
-  Boolean(
-    node.children?.some(
-      (child) =>
-        child.key === targetId || hasQuestionTypeDescendant(child, targetId),
-    ),
-  );
-
-const removeQuestionTypeNode = (
+const getQuestionTypeNodeLevel = (
   nodes: MockQuestionTypeNode[],
   id: string,
-): MockQuestionTypeNode | null => {
-  for (let index = 0; index < nodes.length; index++) {
-    const node = nodes[index];
-    if (!node) continue;
+  level = 1,
+): number | null => {
+  for (const node of nodes) {
     if (node.key === id) {
-      return nodes.splice(index, 1)[0] || null;
+      return level;
     }
     if (node.children?.length) {
-      const removed = removeQuestionTypeNode(node.children, id);
-      if (removed) return removed;
+      const found = getQuestionTypeNodeLevel(node.children, id, level + 1);
+      if (found) return found;
     }
   }
   return null;
 };
 
-const insertQuestionTypeNode = (
+const findQuestionTypeParentList = (
   nodes: MockQuestionTypeNode[],
-  targetId: string,
-  position: QuestionTypeDropPosition,
-  nodeToInsert: MockQuestionTypeNode,
-): boolean => {
-  for (let index = 0; index < nodes.length; index++) {
-    const node = nodes[index];
-    if (!node) continue;
-
-    if (node.key === targetId) {
-      if (position === 'inside') {
-        if (!node.children) node.children = [];
-        node.children.push(nodeToInsert);
-      } else {
-        nodes.splice(position === 'before' ? index : index + 1, 0, nodeToInsert);
-      }
-      return true;
+  id: string,
+  parentList: MockQuestionTypeNode[] = nodes,
+): MockQuestionTypeNode[] | null => {
+  for (const node of nodes) {
+    if (node.key === id) {
+      return parentList;
     }
-
     if (node.children?.length) {
-      const inserted = insertQuestionTypeNode(
+      const found = findQuestionTypeParentList(
         node.children,
-        targetId,
-        position,
-        nodeToInsert,
+        id,
+        node.children,
       );
-      if (inserted) return true;
+      if (found) return found;
     }
   }
-  return false;
+  return null;
+};
+
+const reorderQuestionTypeNode = (
+  siblingNodes: MockQuestionTypeNode[],
+  id: string,
+  targetId: string,
+  position: QuestionTypeDropPosition,
+): boolean => {
+  const sourceIndex = siblingNodes.findIndex((node) => node.key === id);
+  if (sourceIndex < 0) return false;
+
+  const [nodeToMove] = siblingNodes.splice(sourceIndex, 1);
+  if (!nodeToMove) return false;
+
+  const targetIndex = siblingNodes.findIndex((node) => node.key === targetId);
+  if (targetIndex < 0) {
+    siblingNodes.splice(sourceIndex, 0, nodeToMove);
+    return false;
+  }
+
+  siblingNodes.splice(
+    position === 'before' ? targetIndex : targetIndex + 1,
+    0,
+    nodeToMove,
+  );
+  return true;
 };
 
 const normalizeTagOrder = (category: MockTagCategory) => {
@@ -1189,20 +1193,25 @@ export default {
 
     let added = false;
     if (parentId) {
-      const addNode = (nodes: MockQuestionTypeNode[]) => {
-        for (const node of nodes) {
-          if (node.key === parentId) {
-            if (!node.children) node.children = [];
-            node.children.push(newNode);
-            return true;
-          }
-          if (node.children && node.children.length > 0) {
-            if (addNode(node.children)) return true;
-          }
-        }
-        return false;
-      };
-      added = addNode(questionTypeTree);
+      const parentNode = findQuestionTypeNode(questionTypeTree, parentId);
+      const parentLevel = getQuestionTypeNodeLevel(questionTypeTree, parentId);
+
+      if (!parentNode || !parentLevel) {
+        res.send({ success: false, message: 'Parent question type not found' });
+        return;
+      }
+
+      if (parentLevel >= MAX_QUESTION_TYPE_LEVEL) {
+        res.send({
+          success: false,
+          message: `题型最多支持 ${MAX_QUESTION_TYPE_LEVEL} 层结构`,
+        });
+        return;
+      }
+
+      if (!parentNode.children) parentNode.children = [];
+      parentNode.children.push(newNode);
+      added = true;
     } else {
       questionTypeTree.push(newNode);
       added = true;
@@ -1276,8 +1285,16 @@ export default {
       return;
     }
 
-    if (id === targetId || hasQuestionTypeDescendant(nodeToMove, targetId)) {
+    if (id === targetId) {
       res.send({ success: false, message: 'Cannot move node into itself' });
+      return;
+    }
+
+    if (position !== 'before' && position !== 'after') {
+      res.send({
+        success: false,
+        message: 'Question types can only be reordered at the same level',
+      });
       return;
     }
 
@@ -1287,28 +1304,33 @@ export default {
       return;
     }
 
-    const removedNode = removeQuestionTypeNode(scopedTree, id);
-    if (!removedNode) {
-      res.send({ success: false, message: 'Question Type not found' });
+    const sourceParentList = findQuestionTypeParentList(scopedTree, id);
+    const targetParentList = findQuestionTypeParentList(scopedTree, targetId);
+
+    if (
+      !sourceParentList ||
+      !targetParentList ||
+      sourceParentList !== targetParentList
+    ) {
+      res.send({
+        success: false,
+        message: 'Question types can only be reordered at the same level',
+      });
       return;
     }
 
-    const inserted = insertQuestionTypeNode(
-      scopedTree,
+    const moved = reorderQuestionTypeNode(
+      sourceParentList,
+      id,
       targetId,
       position as QuestionTypeDropPosition,
-      removedNode,
     );
 
-    if (!inserted) {
-      scopedTree.push(removedNode);
-    }
-
     res.send({
-      success: inserted,
-      message: inserted
+      success: moved,
+      message: moved
         ? 'Question Type moved successfully'
-        : 'Target question type not found',
+        : 'Question Type move failed',
     });
   },
 
