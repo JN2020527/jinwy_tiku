@@ -16,8 +16,6 @@ import {
   updateTagCategory,
 } from '@/services/tagSystem';
 import {
-  ArrowDownOutlined,
-  ArrowUpOutlined,
   DeleteOutlined,
   DragOutlined,
   EditOutlined,
@@ -43,7 +41,14 @@ import {
   Tag,
   Tooltip,
 } from 'antd';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { InputRef } from 'antd';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import './AttributeTagsPanel.less';
 
 interface AttributeTagsPanelProps {
@@ -285,6 +290,9 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
   const [selectedAttr, setSelectedAttr] = useState<AttributeItem | null>(null);
   const [attrForm] = Form.useForm();
   const [newTagName, setNewTagName] = useState<string>('');
+  const [optionCreateVisible, setOptionCreateVisible] =
+    useState<boolean>(false);
+  const optionCreateInputRef = useRef<InputRef>(null);
 
   useEffect(() => {
     if (!tagCategories.length) {
@@ -328,9 +336,16 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
 
   useEffect(() => {
     setNewTagName('');
+    setOptionCreateVisible(false);
     setDraggingOptionId('');
     setDragOverOptionId('');
   }, [activeCategoryId]);
+
+  useEffect(() => {
+    if (optionCreateVisible) {
+      optionCreateInputRef.current?.focus();
+    }
+  }, [optionCreateVisible]);
 
   const totalTagCount = useMemo(
     () =>
@@ -380,13 +395,6 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
     },
     [activeCategory, activeTags, persistOptionOrder],
   );
-
-  const handleMoveOptionByOffset = (item: AttributeItem, offset: -1 | 1) => {
-    const currentIndex = activeTags.findIndex((tag) => tag.id === item.id);
-    const target = activeTags[currentIndex + offset];
-    if (!target) return;
-    moveOption(item.id, target.id);
-  };
 
   const handleOptionDragStart = (
     event: React.DragEvent<HTMLDivElement>,
@@ -538,8 +546,14 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
     if (res.success) {
       message.success('添加成功');
       setNewTagName('');
+      setOptionCreateVisible(false);
       onRefresh();
     }
+  };
+
+  const handleCancelQuickAddAttr = () => {
+    setNewTagName('');
+    setOptionCreateVisible(false);
   };
 
   const handleEditAttr = (item: AttributeItem) => {
@@ -713,23 +727,35 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
               aria-label={`${activeCategory.name}选项`}
             >
               <div className="attribute-option-create">
-                <Space.Compact className="attribute-tag-create">
-                  <Input
-                    aria-label="快速新增属性选项名称"
-                    placeholder="输入选项名称"
-                    value={newTagName}
-                    onChange={(event) => setNewTagName(event.target.value)}
-                    onPressEnter={handleQuickAddAttr}
-                  />
+                {optionCreateVisible ? (
+                  <Space.Compact className="attribute-tag-create">
+                    <Input
+                      ref={optionCreateInputRef}
+                      aria-label="快速新增属性选项名称"
+                      placeholder="输入选项名称"
+                      value={newTagName}
+                      onChange={(event) => setNewTagName(event.target.value)}
+                      onPressEnter={handleQuickAddAttr}
+                    />
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={handleQuickAddAttr}
+                      disabled={!newTagName.trim()}
+                    >
+                      添加
+                    </Button>
+                    <Button onClick={handleCancelQuickAddAttr}>取消</Button>
+                  </Space.Compact>
+                ) : (
                   <Button
-                    type="primary"
+                    className="attribute-option-create-trigger"
                     icon={<PlusOutlined />}
-                    onClick={handleQuickAddAttr}
-                    disabled={!newTagName.trim()}
+                    onClick={() => setOptionCreateVisible(true)}
                   >
-                    添加
+                    添加选项
                   </Button>
-                </Space.Compact>
+                )}
               </div>
 
               {activeTags.length ? (
@@ -788,26 +814,6 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
                       </span>
 
                       <Space size={2} className="attribute-option-actions">
-                        <Tooltip title="上移">
-                          <Button
-                            type="text"
-                            size="small"
-                            aria-label={`上移选项 ${item.name}`}
-                            icon={<ArrowUpOutlined />}
-                            disabled={optionIndex <= 0}
-                            onClick={() => handleMoveOptionByOffset(item, -1)}
-                          />
-                        </Tooltip>
-                        <Tooltip title="下移">
-                          <Button
-                            type="text"
-                            size="small"
-                            aria-label={`下移选项 ${item.name}`}
-                            icon={<ArrowDownOutlined />}
-                            disabled={optionIndex >= activeTags.length - 1}
-                            onClick={() => handleMoveOptionByOffset(item, 1)}
-                          />
-                        </Tooltip>
                         <Tooltip title="编辑选项">
                           <Button
                             type="text"

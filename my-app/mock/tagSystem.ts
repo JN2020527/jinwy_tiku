@@ -58,6 +58,10 @@ interface TagContext {
   subject: string;
 }
 
+interface QuestionTypeContext {
+  subject: string;
+}
+
 interface KnowledgeSeedNode {
   id?: string;
   title: string;
@@ -88,7 +92,6 @@ interface QuestionTypeSeedNode {
 interface MockQuestionTypeNode {
   title: string;
   key: string;
-  grade: string;
   subject: string;
   description?: string;
   children?: MockQuestionTypeNode[];
@@ -717,8 +720,18 @@ const getTagContext = (req: Request): TagContext => ({
   ),
 });
 
+const getQuestionTypeContext = (req: Request): QuestionTypeContext => ({
+  subject: normalizeQueryValue(
+    req.body?.subject ?? req.query.subject,
+    DEFAULT_TAG_CONTEXT.subject,
+  ),
+});
+
 const getTagContextKey = ({ grade, subject }: TagContext) =>
   `${grade}__${subject}`;
+
+const getQuestionTypeContextKey = ({ subject }: QuestionTypeContext) =>
+  subject;
 
 const applyKnowledgeScope = (
   nodes: KnowledgeSeedNode[],
@@ -754,12 +767,11 @@ const getKnowledgeTreeByContext = (context: TagContext) => {
 
 const applyQuestionTypeScope = (
   nodes: QuestionTypeSeedNode[],
-  context: TagContext,
+  context: QuestionTypeContext,
 ): MockQuestionTypeNode[] =>
   nodes.map((node) => ({
     title: node.title,
-    key: `${context.grade}-${context.subject}-${node.key}`,
-    grade: context.grade,
+    key: `${context.subject}-${node.key}`,
     subject: context.subject,
     description: node.description,
     children: node.children
@@ -767,15 +779,15 @@ const applyQuestionTypeScope = (
       : undefined,
   }));
 
-const createQuestionTypeNodeKey = (context: TagContext) => {
-  const contextKey = getTagContextKey(context);
+const createQuestionTypeNodeKey = (context: QuestionTypeContext) => {
+  const contextKey = getQuestionTypeContextKey(context);
   return `qt-${contextKey}-${Date.now()}`;
 };
 
 const questionTypeTreeStore: Record<string, MockQuestionTypeNode[]> = {};
 
-const getQuestionTypeTreeByContext = (context: TagContext) => {
-  const contextKey = getTagContextKey(context);
+const getQuestionTypeTreeByContext = (context: QuestionTypeContext) => {
+  const contextKey = getQuestionTypeContextKey(context);
   if (!questionTypeTreeStore[contextKey]) {
     questionTypeTreeStore[contextKey] = applyQuestionTypeScope(
       getQuestionTypeSeed(context.subject),
@@ -1076,7 +1088,7 @@ export default {
 
   // Question Type CRUD
   'GET /api/tags/question-type-tree': (req: Request, res: Response) => {
-    const context = getTagContext(req);
+    const context = getQuestionTypeContext(req);
     res.send({
       success: true,
       data: getQuestionTypeTreeByContext(context),
@@ -1084,13 +1096,12 @@ export default {
   },
   'POST /api/tags/question-type-node': (req: Request, res: Response) => {
     const { parentId, title, description } = req.body;
-    const context = getTagContext(req);
+    const context = getQuestionTypeContext(req);
     const questionTypeTree = getQuestionTypeTreeByContext(context);
     const nodeId = createQuestionTypeNodeKey(context);
     const newNode: MockQuestionTypeNode = {
       title,
       key: nodeId,
-      grade: context.grade,
       subject: context.subject,
       description,
       children: [],
@@ -1125,7 +1136,7 @@ export default {
   },
   'PUT /api/tags/question-type-node': (req: Request, res: Response) => {
     const { id, title, description } = req.body;
-    const context = getTagContext(req);
+    const context = getQuestionTypeContext(req);
     const scopedTree = getQuestionTypeTreeByContext(context);
     const updateNode = (nodes: MockQuestionTypeNode[]) => {
       for (const node of nodes) {
@@ -1150,7 +1161,7 @@ export default {
   },
   'DELETE /api/tags/question-type-node': (req: Request, res: Response) => {
     const { id } = req.query;
-    const context = getTagContext(req);
+    const context = getQuestionTypeContext(req);
     const scopedTree = getQuestionTypeTreeByContext(context);
     const deleteNode = (nodes: MockQuestionTypeNode[]) => {
       for (let i = 0; i < nodes.length; i++) {

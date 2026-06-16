@@ -85,7 +85,6 @@ export interface KnowledgeNode {
 export interface QuestionTypeNode {
   title: string;
   key: string;
-  grade?: string;
   subject?: string;
   description?: string;
   children?: QuestionTypeNode[];
@@ -200,10 +199,7 @@ export async function deleteKnowledgeNode(
 
 // --- Question Type CRUD ---
 
-export async function getQuestionTypeTree(params?: {
-  grade?: string;
-  subject?: string;
-}) {
+export async function getQuestionTypeTree(params?: { subject?: string }) {
   return request<ApiResponse<QuestionTypeNode[]>>(
     '/api/tags/question-type-tree',
     {
@@ -216,7 +212,6 @@ export async function getQuestionTypeTree(params?: {
 export async function addQuestionTypeNode(data: {
   title: string;
   parentId?: string | null;
-  grade: string;
   subject: string;
   description?: string;
 }) {
@@ -232,7 +227,6 @@ export async function addQuestionTypeNode(data: {
 export async function updateQuestionTypeNode(data: {
   id: string;
   title: string;
-  grade?: string;
   subject?: string;
   description?: string;
 }) {
@@ -247,7 +241,7 @@ export async function updateQuestionTypeNode(data: {
 
 export async function deleteQuestionTypeNode(
   id: string,
-  params?: { grade?: string; subject?: string },
+  params?: { subject?: string },
 ) {
   return request<ApiResponse<void>>('/api/tags/question-type-node', {
     method: 'DELETE',

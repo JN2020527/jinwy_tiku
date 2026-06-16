@@ -5,15 +5,6 @@ import { Card, message, Select, Space, Spin } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
 import QuestionTypeTreePanel from './components/QuestionTypeTreePanel';
 
-const GRADE_OPTIONS = [
-  { label: '七年级', value: 'grade-7' },
-  { label: '八年级', value: 'grade-8' },
-  { label: '九年级', value: 'grade-9' },
-  { label: '高一', value: 'grade-10' },
-  { label: '高二', value: 'grade-11' },
-  { label: '高三', value: 'grade-12' },
-];
-
 const SUBJECT_OPTIONS = [
   { label: '语文', value: 'chinese' },
   { label: '数学', value: 'math' },
@@ -31,14 +22,12 @@ const QuestionTypeTagPage: React.FC = () => {
     [],
   );
   const [loading, setLoading] = useState<boolean>(false);
-  const [selectedGrade, setSelectedGrade] = useState<string>('grade-7');
   const [selectedSubject, setSelectedSubject] = useState<string>('math');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getQuestionTypeTree({
-        grade: selectedGrade,
         subject: selectedSubject,
       });
       if (res.success) {
@@ -49,15 +38,12 @@ const QuestionTypeTagPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedGrade, selectedSubject]);
+  }, [selectedSubject]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const selectedGradeLabel =
-    GRADE_OPTIONS.find((item) => item.value === selectedGrade)?.label ||
-    selectedGrade;
   const selectedSubjectLabel =
     SUBJECT_OPTIONS.find((item) => item.value === selectedSubject)?.label ||
     selectedSubject;
@@ -69,15 +55,6 @@ const QuestionTypeTagPage: React.FC = () => {
         styles={{ body: { padding: '16px 24px' } }}
       >
         <Space size="large" wrap>
-          <Space>
-            <span>年级：</span>
-            <Select
-              value={selectedGrade}
-              onChange={setSelectedGrade}
-              style={{ width: 120 }}
-              options={GRADE_OPTIONS}
-            />
-          </Space>
           <Space>
             <span>学科：</span>
             <Select
@@ -93,11 +70,8 @@ const QuestionTypeTagPage: React.FC = () => {
       <Spin spinning={loading}>
         <QuestionTypeTreePanel
           questionTypeTree={questionTypeTree}
-          selectedGrade={selectedGrade}
           selectedSubject={selectedSubject}
-          selectedGradeLabel={selectedGradeLabel}
           selectedSubjectLabel={selectedSubjectLabel}
-          gradeOptions={GRADE_OPTIONS}
           subjectOptions={SUBJECT_OPTIONS}
           onRefresh={fetchData}
         />

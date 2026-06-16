@@ -1,0 +1,84 @@
+{
+  "actionCounts": {
+    "categoryActions": 10,
+    "optionActions": 20
+  },
+  "optionRows": [
+    "1较易启用",
+    "2容易启用",
+    "3中等启用",
+    "4较难启用",
+    "5困难启用"
+  ],
+  "panels": [
+    {
+      "className": "attribute-category-panel",
+      "header": "属性定义",
+      "meta": "5 个定义 / 28 个选项",
+      "rect": {
+        "height": 639,
+        "left": 181,
+        "top": 203,
+        "width": 280
+      }
+    },
+    {
+      "className": "attribute-option-panel",
+      "header": "选项值",
+      "meta": "当前属性：难度 / 5 个选项 / 用于描述试题解答难易程度 / 前台按当前顺序展示",
+      "rect": {
+        "height": 639,
+        "left": 461,
+        "top": 203,
+        "width": 578
+      }
+    },
+    {
+      "className": "attribute-rule-panel",
+      "header": "属性规则",
+      "meta": "当前属性：难度",
+      "rect": {
+        "height": 639,
+        "left": 1039,
+        "top": 203,
+        "width": 360
+      }
+    }
+  ],
+  "rects": {
+    "category": {
+      "height": 639,
+      "left": 181,
+      "top": 203,
+      "width": 280
+    },
+    "options": {
+      "height": 639,
+      "left": 461,
+      "top": 203,
+      "width": 578
+    },
+    "rules": {
+      "height": 639,
+      "left": 1039,
+      "top": 203,
+      "width": 360
+    },
+    "workspace": {
+      "height": 641,
+      "left": 180,
+      "top": 202,
+      "width": 1220
+    }
+  },
+  "ruleSections": [
+    "使用场景",
+    "前台展示配置",
+    "字段定义"
+  ],
+  "title": "属性设置 - 晋文源试卷管理系统",
+  "viewport": {
+    "height": 1000,
+    "width": 1440
+  }
+}

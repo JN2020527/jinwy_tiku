@@ -1,0 +1,109 @@
+{
+  "actionCounts": {
+    "categoryDelete": 5,
+    "categoryEdit": 5,
+    "moveDown": 5,
+    "moveUp": 5,
+    "optionDelete": 5,
+    "optionEdit": 5
+  },
+  "breadcrumb": "标签设定/属性设置",
+  "categoryItems": [
+    "难度5 个选项 / difficulty",
+    "考查能力4 个选项 / competency",
+    "题源类型4 个选项 / source_type",
+    "地区4 个选项 / region",
+    "试题场景11 个选项 / question_scene"
+  ],
+  "optionCreateInsideList": true,
+  "optionRows": [
+    "1较易启用",
+    "2容易启用",
+    "3中等启用",
+    "4较难启用",
+    "5困难启用"
+  ],
+  "pageTitle": "",
+  "panels": [
+    {
+      "className": "attribute-category-panel",
+      "header": "属性定义",
+      "meta": "5 个定义 / 28 个选项",
+      "rect": {
+        "height": 416,
+        "left": 105,
+        "top": 203,
+        "width": 670
+      }
+    },
+    {
+      "className": "attribute-option-panel",
+      "header": "选项值",
+      "meta": "当前属性：难度 / 5 个选项 / 用于描述试题解答难易程度 / 前台按当前顺序展示",
+      "rect": {
+        "height": 474,
+        "left": 105,
+        "top": 619,
+        "width": 670
+      }
+    },
+    {
+      "className": "attribute-rule-panel",
+      "header": "属性规则",
+      "meta": "当前属性：难度",
+      "rect": {
+        "height": 639,
+        "left": 105,
+        "top": 1093,
+        "width": 670
+      }
+    }
+  ],
+  "rects": {
+    "category": {
+      "height": 416,
+      "left": 105,
+      "top": 203,
+      "width": 670
+    },
+    "optionCreate": {
+      "height": 40,
+      "left": 121,
+      "top": 704,
+      "width": 638
+    },
+    "options": {
+      "height": 474,
+      "left": 105,
+      "top": 619,
+      "width": 670
+    },
+    "rules": {
+      "height": 639,
+      "left": 105,
+      "top": 1093,
+      "width": 670
+    },
+    "workspace": {
+      "height": 1531,
+      "left": 104,
+      "top": 202,
+      "width": 672
+    }
+  },
+  "ruleSections": [
+    "使用场景",
+    "前台展示配置",
+    "字段定义"
+  ],
+  "selectors": [
+    "七年级",
+    "数学"
+  ],
+  "title": "属性设置 - 晋文源试卷管理系统",
+  "url": "http://localhost:8000/tag-system/attributes",
+  "viewport": {
+    "height": 964,
+    "width": 831
+  }
+}

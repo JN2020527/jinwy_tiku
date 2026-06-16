@@ -24,22 +24,16 @@ interface SelectOption {
 
 interface QuestionTypeTreePanelProps {
   questionTypeTree: QuestionTypeNode[];
-  selectedGrade: string;
   selectedSubject: string;
-  selectedGradeLabel: string;
   selectedSubjectLabel: string;
-  gradeOptions: SelectOption[];
   subjectOptions: SelectOption[];
   onRefresh: () => void;
 }
 
 const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   questionTypeTree,
-  selectedGrade,
   selectedSubject,
-  selectedGradeLabel,
   selectedSubjectLabel,
-  gradeOptions,
   subjectOptions,
   onRefresh,
 }) => {
@@ -58,7 +52,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     setSelectedQtNode(null);
     qtForm.resetFields();
     qtForm.setFieldsValue({
-      grade: selectedGrade,
       subject: selectedSubject,
     });
     setQtModalVisible(true);
@@ -72,7 +65,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     qtForm.setFieldsValue({
       parentId: node.key,
       parentName: node.title,
-      grade: node.grade || selectedGrade,
       subject: node.subject || selectedSubject,
     });
     setQtModalVisible(true);
@@ -85,7 +77,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     qtForm.setFieldsValue({
       id: node.key,
       title: node.title,
-      grade: node.grade || selectedGrade,
       subject: node.subject || selectedSubject,
       description: node.description,
     });
@@ -99,7 +90,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
       content: `确定要删除题型 "${node.title}" 吗？`,
       onOk: async () => {
         const res = await deleteQuestionTypeNode(String(node.key), {
-          grade: selectedGrade,
           subject: selectedSubject,
         });
         if (res.success) {
@@ -115,7 +105,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   const handleQtModalFinish = async (values: Record<string, unknown>) => {
     const payload = {
       ...values,
-      grade: selectedGrade,
       subject: selectedSubject,
     };
     let res;
@@ -141,7 +130,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   return (
     <>
       <Card
-        title={`${selectedGradeLabel}${selectedSubjectLabel}题型结构树`}
+        title={`${selectedSubjectLabel}题型结构树`}
         variant="borderless"
         extra={
           <Button type="primary" size="small" onClick={handleAddQtRoot}>
@@ -158,7 +147,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         />
         {questionTypeTree.length > 0 ? (
           <Tree
-            key={`${selectedGrade}-${selectedSubject}`}
+            key={selectedSubject}
             treeData={questionTypeTree}
             onExpand={questionTypeSearch.onExpand}
             expandedKeys={questionTypeSearch.expandedKeys}
@@ -183,7 +172,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
           />
         ) : (
           <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>
-            当前年级和学科暂无题型
+            当前学科暂无题型
           </div>
         )}
       </Card>
@@ -196,14 +185,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         form={qtForm}
         onFinish={handleQtModalFinish}
       >
-        <ProFormSelect
-          name="grade"
-          label="年级"
-          disabled
-          options={gradeOptions}
-          initialValue={selectedGrade}
-          rules={[{ required: true, message: '请选择年级' }]}
-        />
         <ProFormSelect
           name="subject"
           label="学科"
