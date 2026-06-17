@@ -272,6 +272,9 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
 
   const handleToggleArrangeMode = () => {
     setQtModalVisible(false);
+    if (!arrangeMode) {
+      questionTypeSearch.resetSearch();
+    }
     setArrangeMode((value) => !value);
   };
 
@@ -481,15 +484,32 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         extra={
           <div className="tag-system-tree-card-extra">
             {arrangeMode ? null : (
-              <div className="tag-system-tree-subject-filter">
-                <span className="tag-system-tree-subject-label">学科</span>
-                <Select
-                  size="small"
-                  value={selectedSubject}
-                  onChange={onSubjectChange}
-                  className="tag-system-tree-subject-select"
-                  options={subjectOptions}
-                  aria-label="选择学科"
+              <div className="question-type-tree-toolbar-filters">
+                <div className="tag-system-tree-subject-filter">
+                  <span className="tag-system-tree-subject-label">学科</span>
+                  <Select
+                    value={selectedSubject}
+                    onChange={onSubjectChange}
+                    className="tag-system-tree-subject-select"
+                    options={subjectOptions}
+                    aria-label="选择学科"
+                  />
+                </div>
+                <Input
+                  className="question-type-tree-search"
+                  prefix={
+                    <SearchOutlined
+                      aria-hidden="true"
+                      style={{ color: '#ccc' }}
+                    />
+                  }
+                  aria-label="搜索题型"
+                  allowClear
+                  name="questionTypeSearch"
+                  autoComplete="off"
+                  placeholder="搜索题型"
+                  value={questionTypeSearch.searchValue}
+                  onChange={questionTypeSearch.onSearch}
                 />
               </div>
             )}
@@ -510,18 +530,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
           </div>
         }
       >
-        <Input
-          prefix={
-            <SearchOutlined aria-hidden="true" style={{ color: '#ccc' }} />
-          }
-          aria-label="搜索题型"
-          allowClear
-          name="questionTypeSearch"
-          autoComplete="off"
-          style={{ marginBottom: 8 }}
-          placeholder="搜索题型…"
-          onChange={questionTypeSearch.onSearch}
-        />
         {questionTypeTree.length > 0 ? (
           <>
             <div className="question-type-tree-table-header">
@@ -630,7 +638,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
           {qtModalType === 'add' && selectedQtNode && (
             <ProFormText
               name="parentName"
-              label="一级题型"
+              label="一级题型名称"
               disabled
               initialValue={selectedQtNode.title}
             />
@@ -652,8 +660,17 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                 : ''
             }
             name="title"
-            label="题型名称"
-            rules={[{ required: true, message: '请输入题型名称' }]}
+            label={
+              shouldShowAnswerAreaSettings ? '二级题型名称' : '一级题型名称'
+            }
+            rules={[
+              {
+                required: true,
+                message: shouldShowAnswerAreaSettings
+                  ? '请输入二级题型名称'
+                  : '请输入一级题型名称',
+              },
+            ]}
           />
           {shouldShowAnswerCardTypeSettings ? (
             <ProFormRadio.Group
@@ -678,6 +695,9 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                 name="answerAreaType"
                 label="答题区类型"
                 radioType="button"
+                fieldProps={{
+                  className: 'question-type-answer-area-radio',
+                }}
                 options={[
                   { label: '横线', value: 'line' },
                   { label: '空白', value: 'blank' },
@@ -688,7 +708,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                 className="question-type-answer-rows-field"
                 name="answerAreaRows"
                 label="答题区行数"
-                extra="填 0 表示带题干时不额外留空；无题干答题卡生成时系统至少保留 1 行。"
                 min={MIN_QUESTION_TYPE_ANSWER_ROWS}
                 max={MAX_QUESTION_TYPE_ANSWER_ROWS}
                 fieldProps={{

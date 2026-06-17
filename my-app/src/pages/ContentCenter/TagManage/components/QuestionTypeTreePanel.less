@@ -8,17 +8,56 @@
     var(--question-type-type-column) var(--question-type-answer-column)
     var(--question-type-rows-column) var(--question-type-action-column);
 
+  .question-type-tree-toolbar-filters {
+    display: inline-flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .question-type-tree-toolbar-filters .tag-system-tree-subject-filter {
+    height: 32px;
+  }
+
+  .question-type-tree-toolbar-filters .tag-system-tree-subject-select {
+    height: 32px;
+
+    .ant-select-selector {
+      height: 32px;
+    }
+  }
+
+  .question-type-tree-search {
+    flex: 0 0 320px;
+    width: 320px;
+    height: 32px;
+    max-width: 320px;
+    min-width: 240px;
+    align-items: center;
+  }
+
   .question-type-tree-table-header {
     display: grid;
     grid-template-columns: var(--question-type-table-columns);
     gap: 14px;
-    margin: 10px 0 4px 28px;
-    padding: 0 8px;
-    color: #98a2b3;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 28px;
+    margin: 10px 0 6px 28px;
+    padding: 0 8px 4px;
+    border-bottom: 1px solid #eef2f6;
+    color: #475467;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 30px;
     white-space: nowrap;
+  }
+
+  .question-type-tree-table-header span {
+    min-width: 0;
+  }
+
+  .question-type-tree-table-header span:last-child {
+    justify-self: end;
+    padding-right: 2px;
   }
 
   .ant-tree {
@@ -89,7 +128,7 @@
 
 .question-type-modal-basic-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.75fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 16px;
 }
 
@@ -109,17 +148,19 @@
 
 .question-type-answer-config-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.75fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 16px;
   align-items: start;
 }
 
-.question-type-answer-card-radio {
+.question-type-answer-card-radio,
+.question-type-answer-area-radio {
   display: flex;
   width: 100%;
 }
 
-.question-type-answer-card-radio .ant-radio-button-wrapper {
+.question-type-answer-card-radio .ant-radio-button-wrapper,
+.question-type-answer-area-radio .ant-radio-button-wrapper {
   flex: 1;
   text-align: center;
 }
@@ -130,6 +171,17 @@
 
 @media (max-width: 640px) {
   .tag-system-tree-panel.question-type-tree-panel {
+    .question-type-tree-toolbar-filters {
+      width: 100%;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .question-type-tree-search {
+      max-width: none;
+      min-width: 0;
+    }
+
     .question-type-tree-table-header {
       display: none;
     }

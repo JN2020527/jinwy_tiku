@@ -395,11 +395,6 @@ const AttributeDefinitionWorkspace: React.FC<
           onUpdateOption={handleUpdateOption}
           onDeleteOption={handleDeleteOption}
           onReorderOptions={handleReorderOptions}
-          onEditCategory={() => {
-            if (selectedCategory) {
-              openEditDefinitionModal(selectedCategory);
-            }
-          }}
         />
         <AttributeSummaryPanel
           category={selectedCategory}

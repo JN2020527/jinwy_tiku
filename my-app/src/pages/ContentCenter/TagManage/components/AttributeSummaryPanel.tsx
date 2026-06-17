@@ -4,7 +4,7 @@ import {
   EditOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import { Button, Empty, Space, Tag } from 'antd';
+import { Button, Empty, Space } from 'antd';
 import React, { useMemo } from 'react';
 import AttributeStatusPill from './AttributeStatusPill';
 import {
@@ -125,9 +125,15 @@ const AttributeSummaryPanel: React.FC<AttributeSummaryPanelProps> = ({
                 {enabledUsageRules.map((rule) => (
                   <div key={rule.id} className="attribute-scene-item">
                     <span>{USAGE_SCENE_LABELS[rule.scene]}</span>
-                    <Tag color={rule.required ? 'red' : 'blue'}>
+                    <span
+                      className={
+                        rule.required
+                          ? 'attribute-rule-badge required'
+                          : 'attribute-rule-badge'
+                      }
+                    >
                       {getUsageRuleSummary(rule)}
-                    </Tag>
+                    </span>
                   </div>
                 ))}
               </div>

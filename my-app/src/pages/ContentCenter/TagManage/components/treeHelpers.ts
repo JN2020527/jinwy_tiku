@@ -277,11 +277,23 @@ export const useTreeSearch = (treeData: TreeNodeData[]) => {
     }, 200);
   };
 
+  const resetSearch = () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    setSearchValue('');
+    setExpandedKeys(generateExpandableKeys(treeData));
+    setAutoExpandParent(true);
+  };
+
   return {
     expandedKeys,
     autoExpandParent,
     searchValue,
     onExpand,
     onSearch,
+    resetSearch,
   };
 };

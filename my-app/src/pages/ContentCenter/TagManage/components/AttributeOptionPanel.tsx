@@ -25,7 +25,6 @@ interface AttributeOptionPanelProps {
   ) => Promise<void>;
   onDeleteOption: (option: AttributeItem) => Promise<void>;
   onReorderOptions: (nextOptions: AttributeItem[]) => Promise<void>;
-  onEditCategory: () => void;
 }
 
 const shouldShowSubjectRange = (category?: TagCategory) =>
@@ -39,7 +38,6 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
   onUpdateOption,
   onDeleteOption,
   onReorderOptions,
-  onEditCategory,
 }) => {
   const [optionName, setOptionName] = useState<string>('');
   const [adding, setAdding] = useState<boolean>(false);
@@ -168,9 +166,6 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
             {category.name} / {options.length} 个选项
           </div>
         </div>
-        <Button icon={<EditOutlined />} onClick={onEditCategory}>
-          编辑属性
-        </Button>
       </div>
 
       <div className="attribute-option-list">

@@ -15,7 +15,6 @@ import {
   Empty,
   message,
   Modal,
-  Select,
   Space,
   Switch,
   Tag,
@@ -56,16 +55,8 @@ const FILTER_AREA_LABELS: Record<AttributeFilterArea, string> = {
   more: '更多筛选区',
 };
 
-const FILTER_AREA_OPTIONS: {
-  label: string;
-  value: AttributeFilterArea;
-}[] = [
-  { label: FILTER_AREA_LABELS.primary, value: 'primary' },
-  { label: FILTER_AREA_LABELS.more, value: 'more' },
-];
-
 const panelStyle: React.CSSProperties = {
-  background: '#fafbfc',
+  background: '#fff',
   border: '1px solid #edf0f5',
   borderRadius: 8,
   minHeight: 460,
@@ -107,25 +98,26 @@ const sectionTitleStyle: React.CSSProperties = {
 
 const rowStyle: React.CSSProperties = {
   alignItems: 'center',
-  background: '#fff',
+  background: '#fcfdff',
   border: '1px solid #edf0f5',
-  borderRadius: 8,
+  borderRadius: 6,
   display: 'flex',
   gap: 12,
   justifyContent: 'space-between',
-  minHeight: 54,
+  minHeight: 50,
   padding: '10px 14px',
 };
 
 const addableRowStyle: React.CSSProperties = {
-  alignItems: 'center',
-  background: '#fff',
+  alignItems: 'stretch',
+  background: '#fcfdff',
   border: '1px solid #edf0f5',
-  borderRadius: 8,
+  borderRadius: 6,
   display: 'flex',
-  gap: 12,
-  justifyContent: 'space-between',
-  minHeight: 60,
+  flexDirection: 'column',
+  gap: 8,
+  justifyContent: 'center',
+  minHeight: 68,
   padding: '10px 12px',
 };
 
@@ -713,6 +705,10 @@ const AttributeUsageSettingsWorkspace: React.FC<
     scopeKey: string,
   ) => {
     const filterArea = normalizeFilterArea(row.rule);
+    const targetFilterArea: AttributeFilterArea =
+      filterArea === 'primary' ? 'more' : 'primary';
+    const targetFilterAreaText =
+      targetFilterArea === 'primary' ? '移至主筛选' : '移至更多';
     const targetLabel = ATTRIBUTE_TARGET_LABELS[row.category.target];
     const isDragging = dragState?.ruleId === row.rule.id;
     const isDragOver =
@@ -771,11 +767,6 @@ const AttributeUsageSettingsWorkspace: React.FC<
               {row.category.status === 'disabled' && (
                 <Tag color="warning">属性已停用</Tag>
               )}
-              {sceneMeta.usageType === 'filter' && (
-                <Tag color={filterArea === 'primary' ? 'blue' : 'cyan'}>
-                  {FILTER_AREA_LABELS[filterArea]}
-                </Tag>
-              )}
               {sceneMeta.usageType === 'form' && (
                 <Space size={6}>
                   <span style={{ color: '#667085', fontSize: 12 }}>必填</span>
@@ -795,19 +786,26 @@ const AttributeUsageSettingsWorkspace: React.FC<
 
         <Space size={4}>
           {sceneMeta.usageType === 'filter' && (
-            <Select<AttributeFilterArea>
-              aria-label={`调整${row.category.name}筛选区`}
+            <Button
+              aria-label={`将${row.category.name}移动至${FILTER_AREA_LABELS[targetFilterArea]}`}
+              className="attribute-usage-move-button"
               disabled={saving}
-              options={FILTER_AREA_OPTIONS}
-              showSearch={false}
-              size="small"
-              style={{ width: 116 }}
-              suffixIcon={<SwapOutlined />}
-              value={filterArea}
-              onChange={(value) =>
-                handleFilterAreaChange(row.rule, row.category, value)
+              icon={<SwapOutlined />}
+              loading={
+                savingKey === `move-${row.rule.id}-${targetFilterArea}`
               }
-            />
+              size="small"
+              title={`移动至${FILTER_AREA_LABELS[targetFilterArea]}`}
+              onClick={() =>
+                handleFilterAreaChange(
+                  row.rule,
+                  row.category,
+                  targetFilterArea,
+                )
+              }
+            >
+              {targetFilterAreaText}
+            </Button>
           )}
           <Tooltip title="移出当前场景">
             <span>
@@ -964,78 +962,27 @@ const AttributeUsageSettingsWorkspace: React.FC<
                 className="attribute-addable-row"
                 style={addableRowStyle}
               >
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      color: '#1f2a37',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      lineHeight: '22px',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                    title={category.name}
-                  >
+                <div className="attribute-addable-content">
+                  <div className="attribute-addable-name" title={category.name}>
                     {category.name}
                   </div>
-                  <div
-                    style={{
-                      color: '#667085',
-                      fontSize: 12,
-                      lineHeight: '20px',
-                      marginTop: 2,
-                    }}
-                  >
-                    {ATTRIBUTE_TARGET_LABELS[category.target]}
+                  <div className="attribute-addable-meta-row">
+                    <span className="attribute-addable-type">
+                      {ATTRIBUTE_TARGET_LABELS[category.target]}
+                    </span>
+                    <Button
+                      aria-label={`添加${category.name}`}
+                      disabled={saving}
+                      icon={<PlusOutlined />}
+                      loading={savingKey === getAddSavingKey(category.id)}
+                      size="small"
+                      title="添加"
+                      onClick={() => handleAddCategory(category)}
+                    >
+                      添加
+                    </Button>
                   </div>
                 </div>
-                {isFilterScene ? (
-                  <Space
-                    className="attribute-addable-actions"
-                    direction="vertical"
-                    size={6}
-                  >
-                    <Button
-                      aria-label={`将${category.name}加入主筛选区`}
-                      disabled={saving}
-                      icon={<PlusOutlined />}
-                      loading={
-                        savingKey === getAddSavingKey(category.id, 'primary')
-                      }
-                      size="small"
-                      title="加入主筛选区"
-                      onClick={() => handleAddCategory(category, 'primary')}
-                    >
-                      主筛选区
-                    </Button>
-                    <Button
-                      aria-label={`将${category.name}加入更多筛选区`}
-                      disabled={saving}
-                      icon={<PlusOutlined />}
-                      loading={
-                        savingKey === getAddSavingKey(category.id, 'more')
-                      }
-                      size="small"
-                      title="加入更多筛选区"
-                      onClick={() => handleAddCategory(category, 'more')}
-                    >
-                      更多筛选区
-                    </Button>
-                  </Space>
-                ) : (
-                  <Button
-                    aria-label={`添加${category.name}`}
-                    disabled={saving}
-                    icon={<PlusOutlined />}
-                    loading={savingKey === getAddSavingKey(category.id)}
-                    size="small"
-                    title="添加"
-                    onClick={() => handleAddCategory(category)}
-                  >
-                    添加
-                  </Button>
-                )}
               </div>
             ))}
           </Space>
