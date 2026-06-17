@@ -7,7 +7,7 @@ import {
   UpOutlined,
 } from '@ant-design/icons';
 import { Button, Empty, Input, Modal, Segmented, Space } from 'antd';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import AttributeOptionModal from './AttributeOptionModal';
 import type { AttributeOptionFormValues } from './AttributeOptionModal';
 import AttributeStatusPill from './AttributeStatusPill';
@@ -43,6 +43,7 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
 }) => {
   const [optionName, setOptionName] = useState<string>('');
   const [adding, setAdding] = useState<boolean>(false);
+  const [reorderingOptionId, setReorderingOptionId] = useState<string>();
   const [editingOption, setEditingOption] = useState<AttributeItem>();
   const [optionModalOpen, setOptionModalOpen] = useState<boolean>(false);
 
@@ -51,8 +52,17 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
     [category, selectedSubject],
   );
   const showSubjectRange = shouldShowSubjectRange(category);
+  const reordering = Boolean(reorderingOptionId);
+
+  useEffect(() => {
+    setOptionName('');
+  }, [category?.id, selectedSubject]);
 
   const handleAddOption = async () => {
+    if (adding) {
+      return;
+    }
+
     const name = optionName.trim();
 
     if (!name) {
@@ -112,8 +122,25 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
     });
   };
 
-  const handleReorderOption = async (fromIndex: number, toIndex: number) => {
-    await onReorderOptions(reorder(options, fromIndex, toIndex));
+  const moveOption = async (fromIndex: number, toIndex: number) => {
+    if (reordering) {
+      return;
+    }
+
+    const option = options[fromIndex];
+
+    if (!option) {
+      return;
+    }
+
+    setReorderingOptionId(option.id);
+    try {
+      await onReorderOptions(reorder(options, fromIndex, toIndex));
+    } catch {
+      // Error feedback is owned by the workspace callback.
+    } finally {
+      setReorderingOptionId(undefined);
+    }
   };
 
   if (!category) {
@@ -165,16 +192,21 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
         <div className="attribute-option-create">
           <Space.Compact block>
             <Input
+              disabled={adding}
               value={optionName}
               placeholder="输入选项名称"
               onChange={(event) => setOptionName(event.target.value)}
-              onPressEnter={handleAddOption}
+              onPressEnter={() => {
+                if (!adding) {
+                  void handleAddOption();
+                }
+              }}
             />
             <Button
               type="primary"
               icon={<PlusOutlined />}
               loading={adding}
-              disabled={!optionName.trim()}
+              disabled={adding || !optionName.trim()}
               onClick={handleAddOption}
             >
               添加
@@ -198,24 +230,34 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
                 <Button
                   type="text"
                   icon={<UpOutlined />}
-                  disabled={index === 0}
-                  onClick={() => handleReorderOption(index, index - 1)}
+                  title="上移"
+                  aria-label="上移"
+                  loading={reorderingOptionId === option.id}
+                  disabled={reordering || index === 0}
+                  onClick={() => moveOption(index, index - 1)}
                 />
                 <Button
                   type="text"
                   icon={<DownOutlined />}
-                  disabled={index === options.length - 1}
-                  onClick={() => handleReorderOption(index, index + 1)}
+                  title="下移"
+                  aria-label="下移"
+                  loading={reorderingOptionId === option.id}
+                  disabled={reordering || index === options.length - 1}
+                  onClick={() => moveOption(index, index + 1)}
                 />
                 <Button
                   type="text"
                   icon={<EditOutlined />}
+                  title="编辑"
+                  aria-label="编辑"
                   onClick={() => openEditOptionModal(option)}
                 />
                 <Button
                   danger
                   type="text"
                   icon={<DeleteOutlined />}
+                  title="删除"
+                  aria-label="删除"
                   onClick={() => confirmDeleteOption(option)}
                 />
               </Space>
