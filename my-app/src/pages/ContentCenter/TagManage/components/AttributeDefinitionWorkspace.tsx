@@ -34,11 +34,23 @@ interface AttributeDefinitionWorkspaceProps {
 }
 
 type DefinitionModalMode = 'add' | 'edit';
+type UpdateTagCategoryPayload = Parameters<typeof updateTagCategory>[0];
 
 const normalizeOptionAddMode = (
   target: AttributeTarget,
   optionAddMode?: AttributeOptionAddMode,
 ) => (target === 'question' ? optionAddMode || 'unified' : 'unified');
+
+const getCategoryUpdatePayload = (
+  category: TagCategory,
+): UpdateTagCategoryPayload => {
+  if (category.target === 'question' && category.optionAddMode === 'bySubject') {
+    const { tags: _viewTags, ...payload } = category;
+    return payload;
+  }
+
+  return category;
+};
 
 const AttributeDefinitionWorkspace: React.FC<
   AttributeDefinitionWorkspaceProps
@@ -323,7 +335,7 @@ const AttributeDefinitionWorkspace: React.FC<
 
     let notified = false;
     try {
-      const res = await updateTagCategory(nextCategory);
+      const res = await updateTagCategory(getCategoryUpdatePayload(nextCategory));
 
       if (res.success) {
         message.success('排序已保存');

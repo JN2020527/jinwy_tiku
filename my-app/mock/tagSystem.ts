@@ -1054,7 +1054,11 @@ export default {
       if (subjectTags !== undefined) {
         category.subjectTags = cloneSubjectTags(subjectTags);
       }
-      if (tags !== undefined) {
+      const shouldApplyTagsPayload =
+        tags !== undefined &&
+        !(shouldUseSubjectOptions(category) && subjectTags !== undefined);
+
+      if (shouldApplyTagsPayload) {
         const currentTags = getCategoryOptionList(category, req.body?.subject);
         const nextTags = createMergedMockAttributeItems(
           tags,
