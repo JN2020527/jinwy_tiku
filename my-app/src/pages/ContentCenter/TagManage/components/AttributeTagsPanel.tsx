@@ -7,6 +7,7 @@ import { updateAttributeUsageRules } from '@/services/tagSystem';
 import { message, Tabs } from 'antd';
 import React, { useState } from 'react';
 import AttributeDefinitionWorkspace from './AttributeDefinitionWorkspace';
+import './AttributeTagsPanel.less';
 import AttributeUsageSettingsWorkspace from './AttributeUsageSettingsWorkspace';
 
 interface AttributeTagsPanelProps {

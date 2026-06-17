@@ -88,8 +88,23 @@ const AttributeDefinitionWorkspace: React.FC<
     setDefinitionModalOpen(true);
   };
 
-  const getNextSortForTarget = (target: AttributeTarget) =>
-    tagCategories.filter((category) => category.target === target).length;
+  const getNextSortForTarget = (target: AttributeTarget) => {
+    const targetCategoriesForSort = tagCategories.filter(
+      (category) => category.target === target,
+    );
+
+    if (!targetCategoriesForSort.length) {
+      return 0;
+    }
+
+    return (
+      Math.max(
+        ...targetCategoriesForSort.map(
+          (category, index) => category.sort ?? index,
+        ),
+      ) + 1
+    );
+  };
 
   const handleDefinitionFinish = async (
     values: AttributeDefinitionFormValues,
