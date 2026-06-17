@@ -8,6 +8,10 @@ import type {
 } from '@/services/tagSystem';
 import { USAGE_SCENE_OPTIONS } from './attributeSettingsConstants';
 
+interface GetRulesForSceneOptions {
+  enabledOnly?: boolean;
+}
+
 export const normalizeOptionOrder = (tags: AttributeItem[]) =>
   tags.map((tag, index) => ({
     ...tag,
@@ -15,7 +19,19 @@ export const normalizeOptionOrder = (tags: AttributeItem[]) =>
   }));
 
 export const sortBySort = <T extends { sort?: number }>(items: T[]) =>
-  [...items].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const sortA = a.item.sort ?? Number.POSITIVE_INFINITY;
+      const sortB = b.item.sort ?? Number.POSITIVE_INFINITY;
+
+      if (sortA !== sortB) {
+        return sortA - sortB;
+      }
+
+      return a.index - b.index;
+    })
+    .map(({ item }) => item);
 
 export const getOptionList = (category?: TagCategory, subject = 'math') => {
   if (!category) {
@@ -32,7 +48,7 @@ export const getOptionList = (category?: TagCategory, subject = 'math') => {
 export const withOptionList = (
   category: TagCategory,
   tags: AttributeItem[],
-  subject = 'math',
+  subject: string,
 ): TagCategory => {
   const normalizedTags = normalizeOptionOrder(tags);
 
@@ -64,14 +80,18 @@ export const getRulesForScene = (
   rules: AttributeUsageRule[],
   scene: AttributeUsageScene,
   filterArea?: AttributeFilterArea,
+  options: GetRulesForSceneOptions = {},
 ) =>
   sortBySort(
-    rules.filter(
-      (rule) =>
+    rules.filter((rule) => {
+      const { enabledOnly = true } = options;
+
+      return (
         rule.scene === scene &&
-        rule.enabled &&
-        (!filterArea || rule.filterArea === filterArea),
-    ),
+        (!enabledOnly || rule.enabled) &&
+        (!filterArea || rule.filterArea === filterArea)
+      );
+    }),
   );
 
 export const getRulesForAttribute = (
@@ -82,7 +102,11 @@ export const getRulesForAttribute = (
 export const makeUsageRuleId = (
   scene: AttributeUsageScene,
   attributeId: string,
-) => `usage-${scene}-${attributeId}`;
+  filterArea?: AttributeFilterArea,
+) =>
+  filterArea
+    ? `usage-${scene}-${filterArea}-${attributeId}`
+    : `usage-${scene}-${attributeId}`;
 
 export const reorder = <T>(items: T[], fromIndex: number, toIndex: number) => {
   if (fromIndex < 0 || fromIndex >= items.length) {

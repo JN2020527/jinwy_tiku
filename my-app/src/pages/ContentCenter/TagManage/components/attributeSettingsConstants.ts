@@ -13,6 +13,21 @@ export interface SubjectOption {
   value: string;
 }
 
+export type AttributeUsageType = 'form' | 'display' | 'filter';
+
+export interface SceneMeta {
+  readonly scene: AttributeUsageScene;
+  readonly label: string;
+  readonly description: string;
+  readonly allowedTargets: readonly AttributeTarget[];
+  readonly usageType: AttributeUsageType;
+}
+
+export interface UsageSceneGroup {
+  readonly title: string;
+  readonly scenes: readonly SceneMeta[];
+}
+
 export const ATTRIBUTE_TARGET_OPTIONS: AttributeTargetOption[] = [
   { label: '试卷', value: 'paper' },
   { label: '试题', value: 'question' },
@@ -47,88 +62,93 @@ export const SUBJECT_LABELS = SUBJECT_OPTIONS.reduce<Record<string, string>>(
   {},
 );
 
-export const USAGE_SCENE_GROUPS: Array<{
-  title: string;
-  scenes: Array<{
-    scene: AttributeUsageScene;
-    label: string;
-    description: string;
-    allowedTargets: AttributeTarget[];
-    usageType: 'form' | 'display' | 'filter';
-  }>;
-}> = [
+const SCENE_META = {
+  paperUpload: {
+    scene: 'paperUpload',
+    label: '试卷上传信息完善',
+    description: '配置上传字段和必填',
+    allowedTargets: ['paper'],
+    usageType: 'form',
+  },
+  paperCardDisplay: {
+    scene: 'paperCardDisplay',
+    label: '试卷卡片展示',
+    description: '配置试卷卡片属性',
+    allowedTargets: ['paper'],
+    usageType: 'display',
+  },
+  paperListFilter: {
+    scene: 'paperListFilter',
+    label: '试卷列表筛选',
+    description: '配置试卷筛选属性',
+    allowedTargets: ['paper'],
+    usageType: 'filter',
+  },
+  questionTagging: {
+    scene: 'questionTagging',
+    label: '试题打标',
+    description: '配置打标字段和必填',
+    allowedTargets: ['question'],
+    usageType: 'form',
+  },
+  questionCardDisplay: {
+    scene: 'questionCardDisplay',
+    label: '试题卡片展示',
+    description: '配置试题卡片展示属性',
+    allowedTargets: ['question'],
+    usageType: 'display',
+  },
+  questionListFilter: {
+    scene: 'questionListFilter',
+    label: '试题列表筛选',
+    description: '配置主筛选区/更多筛选区',
+    allowedTargets: ['question', 'paper'],
+    usageType: 'filter',
+  },
+  knowledgeTreeNodeDisplay: {
+    scene: 'knowledgeTreeNodeDisplay',
+    label: '知识点树节点展示',
+    description: '配置知识点树节点伴随展示属性',
+    allowedTargets: ['knowledge'],
+    usageType: 'display',
+  },
+  topicTreeNodeDisplay: {
+    scene: 'topicTreeNodeDisplay',
+    label: '专题树节点展示',
+    description: '配置专题树节点伴随展示属性',
+    allowedTargets: ['topic'],
+    usageType: 'display',
+  },
+} as const satisfies Record<AttributeUsageScene, SceneMeta>;
+
+const USAGE_SCENE_GROUP_DEFINITIONS = [
   {
     title: '试题场景',
     scenes: [
-      {
-        scene: 'questionTagging',
-        label: '试题打标',
-        description: '配置打标字段和必填',
-        allowedTargets: ['question'],
-        usageType: 'form',
-      },
-      {
-        scene: 'questionCardDisplay',
-        label: '试题卡片展示',
-        description: '配置试题卡片展示属性',
-        allowedTargets: ['question'],
-        usageType: 'display',
-      },
-      {
-        scene: 'questionListFilter',
-        label: '试题列表筛选',
-        description: '配置主筛选区/更多筛选区',
-        allowedTargets: ['question', 'paper'],
-        usageType: 'filter',
-      },
+      'questionTagging',
+      'questionCardDisplay',
+      'questionListFilter',
     ],
   },
   {
     title: '试卷场景',
-    scenes: [
-      {
-        scene: 'paperUpload',
-        label: '试卷上传信息完善',
-        description: '配置上传字段和必填',
-        allowedTargets: ['paper'],
-        usageType: 'form',
-      },
-      {
-        scene: 'paperCardDisplay',
-        label: '试卷卡片展示',
-        description: '配置试卷卡片属性',
-        allowedTargets: ['paper'],
-        usageType: 'display',
-      },
-      {
-        scene: 'paperListFilter',
-        label: '试卷列表筛选',
-        description: '配置试卷筛选属性',
-        allowedTargets: ['paper'],
-        usageType: 'filter',
-      },
-    ],
+    scenes: ['paperUpload', 'paperCardDisplay', 'paperListFilter'],
   },
   {
     title: '树节点展示',
-    scenes: [
-      {
-        scene: 'knowledgeTreeNodeDisplay',
-        label: '知识点树节点展示',
-        description: '配置知识点树节点伴随展示属性',
-        allowedTargets: ['knowledge'],
-        usageType: 'display',
-      },
-      {
-        scene: 'topicTreeNodeDisplay',
-        label: '专题树节点展示',
-        description: '配置专题树节点伴随展示属性',
-        allowedTargets: ['topic'],
-        usageType: 'display',
-      },
-    ],
+    scenes: ['knowledgeTreeNodeDisplay', 'topicTreeNodeDisplay'],
   },
-];
+] as const satisfies ReadonlyArray<{
+  title: string;
+  scenes: readonly AttributeUsageScene[];
+}>;
+
+export const USAGE_SCENE_GROUPS = USAGE_SCENE_GROUP_DEFINITIONS.map(
+  (group): UsageSceneGroup => ({
+    title: group.title,
+    scenes: group.scenes.map((scene) => SCENE_META[scene]),
+  }),
+);
 
 export const USAGE_SCENE_OPTIONS = USAGE_SCENE_GROUPS.flatMap(
   (group) => group.scenes,
