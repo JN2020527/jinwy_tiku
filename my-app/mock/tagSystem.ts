@@ -49,7 +49,6 @@ interface MockTagCategory {
   status?: AttributeStatus;
   sort?: number;
   selectionMode?: AttributeSelectionMode;
-  [legacyField: string]: any;
 }
 
 interface TagContext {
