@@ -11,7 +11,7 @@ import {
   PlusOutlined,
   SwapOutlined,
 } from '@ant-design/icons';
-import { Button, Empty, Select, Space, Switch, Tag, message } from 'antd';
+import { Button, Empty, Select, Space, Switch, Tag } from 'antd';
 import React, { useMemo, useState } from 'react';
 import {
   ATTRIBUTE_TARGET_LABELS,
@@ -114,8 +114,63 @@ const addableRowStyle: React.CSSProperties = {
   padding: '10px 12px',
 };
 
-const getFilterArea = (rule: AttributeUsageRule): AttributeFilterArea =>
-  rule.filterArea === 'primary' ? 'primary' : 'more';
+const normalizeFilterArea = (
+  rule?: Pick<AttributeUsageRule, 'filterArea'>,
+): AttributeFilterArea => (rule?.filterArea === 'primary' ? 'primary' : 'more');
+
+const getUsageRuleKey = (
+  rule: Pick<AttributeUsageRule, 'attributeId' | 'scene'>,
+) => `${rule.scene}::${rule.attributeId}`;
+
+const isSameSceneAttributeRule = (
+  rule: Pick<AttributeUsageRule, 'attributeId' | 'scene'>,
+  scene: AttributeUsageScene,
+  attributeId: string,
+) => rule.scene === scene && rule.attributeId === attributeId;
+
+const normalizeUsageRuleScope = (
+  rule: AttributeUsageRule,
+): AttributeUsageRule => {
+  const sceneMeta = getSceneMeta(rule.scene);
+
+  if (sceneMeta?.usageType !== 'filter') {
+    return rule;
+  }
+
+  const filterArea = normalizeFilterArea(rule);
+  const id = makeUsageRuleId(rule.scene, rule.attributeId, filterArea);
+
+  if (rule.filterArea === filterArea && rule.id === id) {
+    return rule;
+  }
+
+  return {
+    ...rule,
+    id,
+    filterArea,
+  };
+};
+
+const canonicalizeUsageRules = (rules: AttributeUsageRule[]) => {
+  const ruleIndexes = new Map<string, number>();
+  const nextRules: AttributeUsageRule[] = [];
+
+  rules.forEach((rule) => {
+    const normalizedRule = normalizeUsageRuleScope(rule);
+    const ruleKey = getUsageRuleKey(normalizedRule);
+    const currentIndex = ruleIndexes.get(ruleKey);
+
+    if (currentIndex === undefined) {
+      ruleIndexes.set(ruleKey, nextRules.length);
+      nextRules.push(normalizedRule);
+      return;
+    }
+
+    nextRules[currentIndex] = normalizedRule;
+  });
+
+  return nextRules;
+};
 
 const getNextSort = (
   rules: AttributeUsageRule[],
@@ -131,7 +186,7 @@ const getNextSort = (
       return true;
     }
 
-    return getFilterArea(rule) === filterArea;
+    return normalizeFilterArea(rule) === filterArea;
   });
 
   if (!scopedRules.length) {
@@ -152,7 +207,13 @@ const AttributeUsageSettingsWorkspace: React.FC<
   const [savingKey, setSavingKey] = useState<string>();
   const sceneMeta = getSceneMeta(activeScene)!;
   const saving = Boolean(savingKey);
-  const sceneRules = usageRules.filter((rule) => rule.scene === activeScene);
+  const canonicalUsageRules = useMemo(
+    () => canonicalizeUsageRules(usageRules),
+    [usageRules],
+  );
+  const sceneRules = canonicalUsageRules.filter(
+    (rule) => rule.scene === activeScene,
+  );
   const enabledRules = sortBySort(sceneRules.filter((rule) => rule.enabled));
 
   const categoryMap = useMemo(
@@ -166,7 +227,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
   const enabledSceneCounts = useMemo(() => {
     const counts = new Map<AttributeUsageScene, number>();
 
-    usageRules.forEach((rule) => {
+    canonicalUsageRules.forEach((rule) => {
       if (!rule.enabled) {
         return;
       }
@@ -175,7 +236,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
     });
 
     return counts;
-  }, [usageRules]);
+  }, [canonicalUsageRules]);
 
   const rows = enabledRules
     .map((rule) => {
@@ -194,9 +255,11 @@ const AttributeUsageSettingsWorkspace: React.FC<
 
   const isFilterScene = sceneMeta.usageType === 'filter';
   const primaryRows = rows.filter(
-    (row) => getFilterArea(row.rule) === 'primary',
+    (row) => normalizeFilterArea(row.rule) === 'primary',
   );
-  const moreRows = rows.filter((row) => getFilterArea(row.rule) === 'more');
+  const moreRows = rows.filter(
+    (row) => normalizeFilterArea(row.rule) === 'more',
+  );
 
   const addableCategories = useMemo(() => {
     const enabledAttributeIds = new Set(
@@ -220,11 +283,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
 
     setSavingKey(key);
     try {
-      const ok = await onSaveUsageRules(nextRules);
-
-      if (!ok) {
-        message.error('使用设置保存失败');
-      }
+      await onSaveUsageRules(canonicalizeUsageRules(nextRules));
     } finally {
       setSavingKey(undefined);
     }
@@ -234,23 +293,56 @@ const AttributeUsageSettingsWorkspace: React.FC<
     const filterArea: AttributeFilterArea | undefined = isFilterScene
       ? 'more'
       : undefined;
-    const nextRule: AttributeUsageRule = {
-      id: makeUsageRuleId(activeScene, category.id, filterArea),
-      attributeId: category.id,
-      scene: activeScene,
-      enabled: true,
-      ...(sceneMeta.usageType === 'form' ? { required: false } : {}),
-      ...(filterArea ? { filterArea } : {}),
-      sort: getNextSort(usageRules, activeScene, filterArea),
+    const existingRule = usageRules.find((rule) =>
+      isSameSceneAttributeRule(rule, activeScene, category.id),
+    );
+    const getNextRule = (rule?: AttributeUsageRule): AttributeUsageRule => {
+      const nextRule: AttributeUsageRule = {
+        ...(rule || {
+          attributeId: category.id,
+          scene: activeScene,
+        }),
+        id: makeUsageRuleId(activeScene, category.id, filterArea),
+        attributeId: category.id,
+        scene: activeScene,
+        enabled: true,
+        sort: getNextSort(canonicalUsageRules, activeScene, filterArea),
+      };
+
+      if (sceneMeta.usageType === 'form') {
+        nextRule.required = false;
+      } else {
+        delete nextRule.required;
+      }
+
+      if (filterArea) {
+        nextRule.filterArea = filterArea;
+      } else {
+        delete nextRule.filterArea;
+      }
+
+      return nextRule;
     };
 
-    saveRules([...usageRules, nextRule], `add-${category.id}`);
+    if (existingRule) {
+      saveRules(
+        usageRules.map((rule) =>
+          isSameSceneAttributeRule(rule, activeScene, category.id)
+            ? getNextRule(rule)
+            : rule,
+        ),
+        `add-${category.id}`,
+      );
+      return;
+    }
+
+    saveRules([...usageRules, getNextRule()], `add-${category.id}`);
   };
 
   const handleRemoveRule = (rule: AttributeUsageRule) => {
     saveRules(
       usageRules.map((item) =>
-        item.id === rule.id
+        isSameSceneAttributeRule(item, rule.scene, rule.attributeId)
           ? {
               ...item,
               enabled: false,
@@ -273,7 +365,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
 
     saveRules(
       usageRules.map((item) =>
-        item.id === rule.id
+        isSameSceneAttributeRule(item, rule.scene, rule.attributeId)
           ? {
               ...item,
               required,
@@ -290,19 +382,19 @@ const AttributeUsageSettingsWorkspace: React.FC<
   ) => {
     if (
       sceneMeta.usageType !== 'filter' ||
-      getFilterArea(rule) === filterArea
+      normalizeFilterArea(rule) === filterArea
     ) {
       return;
     }
 
     saveRules(
       usageRules.map((item) =>
-        item.id === rule.id
+        isSameSceneAttributeRule(item, rule.scene, rule.attributeId)
           ? {
               ...item,
-              id: makeUsageRuleId(activeScene, item.attributeId, filterArea),
+              id: makeUsageRuleId(rule.scene, item.attributeId, filterArea),
               filterArea,
-              sort: getNextSort(usageRules, activeScene, filterArea),
+              sort: getNextSort(canonicalUsageRules, rule.scene, filterArea),
             }
           : item,
       ),
@@ -325,11 +417,13 @@ const AttributeUsageSettingsWorkspace: React.FC<
       sort: index,
     }));
     const normalizedRuleMap = new Map(
-      normalizedRules.map((rule) => [rule.id, rule] as const),
+      normalizedRules.map((rule) => [getUsageRuleKey(rule), rule] as const),
     );
 
     saveRules(
-      usageRules.map((rule) => normalizedRuleMap.get(rule.id) || rule),
+      usageRules.map(
+        (rule) => normalizedRuleMap.get(getUsageRuleKey(rule)) || rule,
+      ),
       `reorder-${activeScene}-${scopeKey}-${fromIndex}-${toIndex}`,
     );
   };
@@ -340,7 +434,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
     scopeRows: AttributeUsageRuleRow[],
     scopeKey: string,
   ) => {
-    const filterArea = getFilterArea(row.rule);
+    const filterArea = normalizeFilterArea(row.rule);
     const targetLabel = ATTRIBUTE_TARGET_LABELS[row.category.target];
     const isFirst = index === 0;
     const isLast = index === scopeRows.length - 1;
