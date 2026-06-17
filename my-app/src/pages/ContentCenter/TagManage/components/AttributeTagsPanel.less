@@ -590,15 +590,6 @@
   min-width: 0;
 }
 
-.attribute-usage-scene small {
-  display: block;
-  max-width: 150px;
-  overflow: hidden;
-  color: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .attribute-usage-scene .ant-tag {
   flex: 0 0 auto;
   margin-inline-end: 0 !important;
@@ -730,10 +721,10 @@
 
 .attribute-addable-content {
   display: flex;
-  width: 100%;
+  flex: 1 1 auto;
   min-width: 0;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
 .attribute-addable-name {
@@ -747,16 +738,8 @@
   white-space: nowrap;
 }
 
-.attribute-addable-meta-row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
 .attribute-addable-type {
-  min-width: 0;
+  flex: 0 0 auto;
   overflow: hidden;
   color: @attribute-text-secondary;
   font-size: 12px;

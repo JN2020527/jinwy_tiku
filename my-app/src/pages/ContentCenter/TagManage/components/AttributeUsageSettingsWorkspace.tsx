@@ -109,15 +109,14 @@ const rowStyle: React.CSSProperties = {
 };
 
 const addableRowStyle: React.CSSProperties = {
-  alignItems: 'stretch',
+  alignItems: 'center',
   background: '#fcfdff',
   border: '1px solid #edf0f5',
   borderRadius: 6,
   display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  justifyContent: 'center',
-  minHeight: 68,
+  gap: 12,
+  justifyContent: 'space-between',
+  minHeight: 54,
   padding: '10px 12px',
 };
 
@@ -905,18 +904,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
                       type={active ? 'primary' : 'default'}
                       onClick={() => setActiveScene(scene.scene)}
                     >
-                      <span style={{ display: 'grid', gap: 2 }}>
-                        <span>{scene.label}</span>
-                        <small
-                          style={{
-                            fontWeight: 400,
-                            lineHeight: '18px',
-                            opacity: 0.78,
-                          }}
-                        >
-                          {scene.description}
-                        </small>
-                      </span>
+                      <span>{scene.label}</span>
                       <Tag
                         color={active ? 'processing' : 'default'}
                         style={{ marginInlineEnd: 0 }}
@@ -966,23 +954,21 @@ const AttributeUsageSettingsWorkspace: React.FC<
                   <div className="attribute-addable-name" title={category.name}>
                     {category.name}
                   </div>
-                  <div className="attribute-addable-meta-row">
-                    <span className="attribute-addable-type">
-                      {ATTRIBUTE_TARGET_LABELS[category.target]}
-                    </span>
-                    <Button
-                      aria-label={`添加${category.name}`}
-                      disabled={saving}
-                      icon={<PlusOutlined />}
-                      loading={savingKey === getAddSavingKey(category.id)}
-                      size="small"
-                      title="添加"
-                      onClick={() => handleAddCategory(category)}
-                    >
-                      添加
-                    </Button>
-                  </div>
+                  <span className="attribute-addable-type">
+                    {ATTRIBUTE_TARGET_LABELS[category.target]}
+                  </span>
                 </div>
+                <Button
+                  aria-label={`添加${category.name}`}
+                  disabled={saving}
+                  icon={<PlusOutlined />}
+                  loading={savingKey === getAddSavingKey(category.id)}
+                  size="small"
+                  title="添加"
+                  onClick={() => handleAddCategory(category)}
+                >
+                  添加
+                </Button>
               </div>
             ))}
           </Space>

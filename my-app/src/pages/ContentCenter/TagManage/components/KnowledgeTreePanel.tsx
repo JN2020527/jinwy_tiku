@@ -242,15 +242,33 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
         extra={
           <div className="tag-system-tree-card-extra">
             {arrangeMode ? null : (
-              <div className="tag-system-tree-subject-filter">
-                <span className="tag-system-tree-subject-label">学科</span>
-                <Select
-                  size="small"
-                  value={selectedSubject}
-                  onChange={onSubjectChange}
-                  className="tag-system-tree-subject-select"
-                  options={subjectOptions}
-                  aria-label="选择学科"
+              <div className="tag-system-tree-toolbar-filters">
+                <div className="tag-system-tree-subject-filter">
+                  <span className="tag-system-tree-subject-label">学科</span>
+                  <Select
+                    size="small"
+                    value={selectedSubject}
+                    onChange={onSubjectChange}
+                    className="tag-system-tree-subject-select"
+                    options={subjectOptions}
+                    aria-label="选择学科"
+                  />
+                </div>
+                <Input
+                  className="tag-system-tree-search"
+                  name="knowledgeNodeSearch"
+                  autoComplete="off"
+                  prefix={
+                    <SearchOutlined
+                      aria-hidden="true"
+                      style={{ color: '#ccc' }}
+                    />
+                  }
+                  aria-label="搜索知识节点"
+                  allowClear
+                  placeholder="搜索知识节点…"
+                  value={textbookSearch.searchValue}
+                  onChange={textbookSearch.onSearch}
                 />
               </div>
             )}
@@ -276,15 +294,6 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
           </div>
         }
       >
-        <Input
-          name="knowledgeNodeSearch"
-          autoComplete="off"
-          prefix={<SearchOutlined style={{ color: '#ccc' }} />}
-          allowClear
-          style={{ marginBottom: 8 }}
-          placeholder="搜索知识节点…"
-          onChange={textbookSearch.onSearch}
-        />
         {displayChapterTree.length > 0 ? (
           <Tree
             key={selectedSubject}

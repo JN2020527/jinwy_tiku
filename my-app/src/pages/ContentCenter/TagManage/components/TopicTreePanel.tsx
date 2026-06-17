@@ -205,15 +205,33 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
         extra={
           <div className="tag-system-tree-card-extra">
             {arrangeMode ? null : (
-              <div className="tag-system-tree-subject-filter">
-                <span className="tag-system-tree-subject-label">学科</span>
-                <Select
-                  size="small"
-                  value={selectedSubject}
-                  onChange={onSubjectChange}
-                  className="tag-system-tree-subject-select"
-                  options={subjectOptions}
-                  aria-label="选择学科"
+              <div className="tag-system-tree-toolbar-filters">
+                <div className="tag-system-tree-subject-filter">
+                  <span className="tag-system-tree-subject-label">学科</span>
+                  <Select
+                    size="small"
+                    value={selectedSubject}
+                    onChange={onSubjectChange}
+                    className="tag-system-tree-subject-select"
+                    options={subjectOptions}
+                    aria-label="选择学科"
+                  />
+                </div>
+                <Input
+                  className="tag-system-tree-search"
+                  name="topicSearch"
+                  autoComplete="off"
+                  prefix={
+                    <SearchOutlined
+                      aria-hidden="true"
+                      style={{ color: '#ccc' }}
+                    />
+                  }
+                  aria-label="搜索专题"
+                  allowClear
+                  placeholder="搜索专题…"
+                  value={topicSearch.searchValue}
+                  onChange={topicSearch.onSearch}
                 />
               </div>
             )}
@@ -234,15 +252,6 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
           </div>
         }
       >
-        <Input
-          name="topicSearch"
-          autoComplete="off"
-          prefix={<SearchOutlined style={{ color: '#ccc' }} />}
-          allowClear
-          style={{ marginBottom: 8 }}
-          placeholder="搜索专题…"
-          onChange={topicSearch.onSearch}
-        />
         {displayTopicTree.length > 0 ? (
           <Tree
             key={selectedSubject}

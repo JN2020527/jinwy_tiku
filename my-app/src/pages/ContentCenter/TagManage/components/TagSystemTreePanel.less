@@ -47,6 +47,14 @@
     flex-wrap: wrap;
   }
 
+  .tag-system-tree-toolbar-filters {
+    display: inline-flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+    gap: 18px;
+  }
+
   .tag-system-tree-subject-filter {
     display: inline-flex;
     align-items: center;
@@ -62,6 +70,7 @@
   }
 
   .tag-system-tree-subject-select {
+    height: 32px;
     width: 128px;
     text-align: left;
 
@@ -69,6 +78,15 @@
       height: 32px;
       align-items: center;
     }
+  }
+
+  .tag-system-tree-search {
+    flex: 0 0 320px;
+    width: 320px;
+    height: 32px;
+    max-width: 320px;
+    min-width: 240px;
+    align-items: center;
   }
 
   .tag-system-tree-actions {
@@ -205,6 +223,22 @@
       .tag-system-tree-card-extra {
         justify-content: flex-end;
       }
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .tag-system-tree-panel {
+    .tag-system-tree-toolbar-filters {
+      width: 100%;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .tag-system-tree-search {
+      flex: 1 1 240px;
+      max-width: none;
+      min-width: 0;
     }
   }
 }
