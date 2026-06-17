@@ -57,31 +57,12 @@ export interface TagCategory {
   status?: AttributeStatus;
   sort?: number;
   selectionMode?: AttributeSelectionMode;
-  [legacyRulesField: `${string}Rules`]:
-    | Array<{ scene: string; enabled: boolean; required?: boolean }>
-    | undefined;
-  [legacyField: string]: any;
 }
 
 export interface TagContextParams {
   grade?: string;
   subject?: string;
 }
-
-export type AttributeValueType =
-  | 'text'
-  | 'number'
-  | 'single'
-  | 'multiple'
-  | 'tree';
-export type AttributeControlType =
-  | 'input'
-  | 'select'
-  | 'checkbox'
-  | 'radio'
-  | 'rate'
-  | 'treeSelect';
-export type AttributeScene = 'contentCompletion' | 'tagging' | 'frontDisplay';
 
 export interface KnowledgeNode {
   id?: string;
@@ -116,10 +97,6 @@ export interface TextbookChapter {
   children?: TextbookChapter[];
 }
 
-type CompatibleCallable<T extends (...args: any[]) => any> = T & {
-  (...args: any[]): ReturnType<T>;
-};
-
 // --- Knowledge Tree ---
 
 export async function getKnowledgeTree(params?: {
@@ -134,14 +111,11 @@ export async function getKnowledgeTree(params?: {
 
 // --- Tag Category CRUD ---
 
-const getTagCategoriesRequest = async () => {
+export async function getTagCategories() {
   return request<ApiResponse<TagCategory[]>>('/api/tags/categories', {
     method: 'GET',
   });
-};
-
-export const getTagCategories =
-  getTagCategoriesRequest as CompatibleCallable<typeof getTagCategoriesRequest>;
+}
 
 export async function addTagCategory(
   data: {
@@ -168,17 +142,12 @@ export async function updateTagCategory(
   });
 }
 
-const deleteTagCategoryRequest = async (id: string) => {
+export async function deleteTagCategory(id: string) {
   return request<ApiResponse<void>>('/api/tags/category', {
     method: 'DELETE',
     params: { id },
   });
-};
-
-export const deleteTagCategory =
-  deleteTagCategoryRequest as CompatibleCallable<
-    typeof deleteTagCategoryRequest
-  >;
+}
 
 // --- Knowledge Node CRUD ---
 
