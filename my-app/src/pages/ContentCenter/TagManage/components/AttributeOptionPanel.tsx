@@ -165,7 +165,7 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
     <main className="attribute-option-panel">
       <div className="attribute-option-workspace">
         <div className="attribute-option-toolbar">
-          <div>
+          <div className="attribute-option-toolbar-heading">
             <div className="attribute-option-toolbar-title">枚举值</div>
             <div className="attribute-option-toolbar-meta">
               {optionCountText}
