@@ -1,19 +1,31 @@
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
+  CheckOutlined,
+  CloseOutlined,
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
-import { Button, Space, Tooltip } from 'antd';
-import React from 'react';
+import type { InputRef } from 'antd';
+import { Button, Input, Space, Tooltip } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
 import type { TreeNodeData } from './treeHelpers';
 import './TreeNodeTitle.less';
+
+interface TreeNodeInlineEditConfig {
+  initialValue: string;
+  placeholder?: string;
+  saving?: boolean;
+  onSubmit: (value: string) => void;
+  onCancel: () => void;
+}
 
 export interface TreeNodeTitleProps {
   nodeData: TreeNodeData;
   searchValue?: string;
   meta?: React.ReactNode;
+  inlineEdit?: TreeNodeInlineEditConfig;
   showAddChild?: boolean;
   addChildTitle?: string;
   canMoveUp?: boolean;
@@ -29,6 +41,7 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
   nodeData,
   searchValue = '',
   meta,
+  inlineEdit,
   showAddChild = true,
   addChildTitle = '添加子节点',
   canMoveUp = false,
@@ -39,6 +52,73 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const [inlineValue, setInlineValue] = useState(
+    inlineEdit?.initialValue || '',
+  );
+  const inlineInputRef = useRef<InputRef>(null);
+
+  useEffect(() => {
+    setInlineValue(inlineEdit?.initialValue || '');
+    if (inlineEdit) {
+      window.setTimeout(() => {
+        inlineInputRef.current?.focus();
+        inlineInputRef.current?.select();
+      }, 0);
+    }
+  }, [Boolean(inlineEdit), inlineEdit?.initialValue]);
+
+  const handleInlineSubmit = () => {
+    inlineEdit?.onSubmit(inlineValue.trim());
+  };
+
+  if (inlineEdit) {
+    return (
+      <div
+        className="tag-tree-node-title tag-tree-node-title-editing"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Input
+          ref={inlineInputRef}
+          size="small"
+          value={inlineValue}
+          placeholder={inlineEdit.placeholder}
+          className="tag-tree-node-input"
+          disabled={inlineEdit.saving}
+          onChange={(e) => setInlineValue(e.target.value)}
+          onPressEnter={handleInlineSubmit}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              inlineEdit.onCancel();
+            }
+            e.stopPropagation();
+          }}
+        />
+        <Space className="tag-tree-node-actions" size={2}>
+          <Tooltip title="保存">
+            <Button
+              type="text"
+              size="small"
+              aria-label="保存"
+              loading={inlineEdit.saving}
+              icon={<CheckOutlined />}
+              onClick={handleInlineSubmit}
+            />
+          </Tooltip>
+          <Tooltip title="取消">
+            <Button
+              type="text"
+              size="small"
+              aria-label="取消"
+              disabled={inlineEdit.saving}
+              icon={<CloseOutlined />}
+              onClick={inlineEdit.onCancel}
+            />
+          </Tooltip>
+        </Space>
+      </div>
+    );
+  }
+
   const title =
     searchValue && nodeData.title.includes(searchValue) ? (
       <span>

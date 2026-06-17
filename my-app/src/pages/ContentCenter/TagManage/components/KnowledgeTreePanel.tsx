@@ -8,16 +8,10 @@ import {
   updateTextbookChapter,
 } from '@/services/tagSystem';
 import { HolderOutlined, SearchOutlined } from '@ant-design/icons';
-import {
-  ModalForm,
-  ProFormText,
-  ProFormTextArea,
-} from '@ant-design/pro-components';
 import type { TreeProps } from 'antd';
 import {
   Button,
   Card,
-  Form,
   Input,
   message,
   Modal,
@@ -25,12 +19,13 @@ import {
   Tooltip,
   Tree,
 } from 'antd';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import './TagSystemTreePanel.less';
 import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
+  appendTreeNode,
   getTreeMovePosition,
   useTreeSearch,
 } from './treeHelpers';
@@ -46,6 +41,17 @@ interface KnowledgeTreePanelProps {
   onSubjectChange: (subject: string) => void;
 }
 
+interface InlineEditState {
+  key: React.Key;
+  mode: 'add' | 'edit';
+  parentKey?: React.Key | null;
+  initialValue: string;
+  description?: string;
+  saving?: boolean;
+}
+
+const createDraftNodeKey = () => `draft-${Date.now()}`;
+
 const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   selectedSubject,
   subjectOptions,
@@ -54,15 +60,23 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const [chapterTree, setChapterTree] = useState<TextbookChapter[]>([]);
   const chapterTreeData = chapterTree as unknown as TreeNodeData[];
-  const textbookSearch = useTreeSearch(chapterTreeData);
-  const [selectedTextbookNode, setSelectedTextbookNode] =
-    useState<TreeNodeData | null>(null);
-  const [textbookModalVisible, setTextbookModalVisible] =
-    useState<boolean>(false);
-  const [textbookModalType, setTextbookModalType] = useState<'add' | 'edit'>(
-    'add',
+  const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
+  const displayChapterTree = useMemo(() => {
+    if (!inlineEdit || inlineEdit.mode !== 'add') {
+      return chapterTreeData;
+    }
+    return appendTreeNode(
+      chapterTreeData,
+      {
+        key: inlineEdit.key,
+        title: inlineEdit.initialValue,
+      },
+      inlineEdit.parentKey,
+    );
+  }, [chapterTreeData, inlineEdit]);
+  const textbookSearch = useTreeSearch(
+    displayChapterTree as unknown as TreeNodeData[],
   );
-  const [textbookForm] = Form.useForm();
 
   useEffect(() => {
     const fetchVersions = async () => {
@@ -97,32 +111,32 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   }, [fetchChapters]);
 
   const handleAddTextbookRoot = () => {
-    setTextbookModalType('add');
-    setSelectedTextbookNode(null);
-    textbookForm.resetFields();
-    setTextbookModalVisible(true);
+    setInlineEdit({
+      key: createDraftNodeKey(),
+      mode: 'add',
+      parentKey: null,
+      initialValue: '',
+    });
   };
 
   const handleAddTextbookChild = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
-    setTextbookModalType('add');
-    setSelectedTextbookNode(node);
-    textbookForm.resetFields();
-    textbookForm.setFieldValue('parentId', node.key);
-    textbookForm.setFieldValue('parentName', node.title);
-    setTextbookModalVisible(true);
+    setInlineEdit({
+      key: createDraftNodeKey(),
+      mode: 'add',
+      parentKey: node.key,
+      initialValue: '',
+    });
   };
 
   const handleEditTextbook = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
-    setTextbookModalType('edit');
-    setSelectedTextbookNode(node);
-    textbookForm.setFieldsValue({
-      id: node.key,
-      title: node.title,
+    setInlineEdit({
+      key: node.key,
+      mode: 'edit',
+      initialValue: node.title,
       description: node.description,
     });
-    setTextbookModalVisible(true);
   };
 
   const handleDeleteTextbook = (node: TreeNodeData, e: React.MouseEvent) => {
@@ -170,30 +184,44 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     }
   };
 
-  const handleTextbookModalFinish = async (values: Record<string, unknown>) => {
-    let res;
-    const payload = {
-      ...(values as Parameters<typeof addTextbookChapter>[0]),
-      version: selectedVersion,
-      subject: selectedSubject,
-    };
-    if (textbookModalType === 'add') {
-      res = await addTextbookChapter(payload);
-    } else {
-      res = await updateTextbookChapter({
-        ...(values as Parameters<typeof updateTextbookChapter>[0]),
-        id: String(selectedTextbookNode?.key),
-        version: selectedVersion,
-        subject: selectedSubject,
-      });
+  const handleCancelInlineEdit = () => {
+    setInlineEdit(null);
+  };
+
+  const handleInlineEditSubmit = async (title: string) => {
+    if (!inlineEdit) return;
+    if (!title) {
+      message.warning('请输入知识节点名称');
+      return;
     }
+
+    setInlineEdit({ ...inlineEdit, saving: true });
+    const res =
+      inlineEdit.mode === 'add'
+        ? await addTextbookChapter({
+            title,
+            parentId: inlineEdit.parentKey
+              ? String(inlineEdit.parentKey)
+              : null,
+            version: selectedVersion,
+            subject: selectedSubject,
+          })
+        : await updateTextbookChapter({
+            id: String(inlineEdit.key),
+            title,
+            version: selectedVersion,
+            subject: selectedSubject,
+            description: inlineEdit.description,
+          });
+
     if (res.success) {
-      message.success(textbookModalType === 'add' ? '添加成功' : '修改成功');
-      setTextbookModalVisible(false);
+      message.success(inlineEdit.mode === 'add' ? '添加成功' : '修改成功');
+      setInlineEdit(null);
       fetchChapters();
-      return true;
+    } else {
+      message.error(res.message || '保存失败');
+      setInlineEdit({ ...inlineEdit, saving: false });
     }
-    return false;
   };
 
   return (
@@ -232,10 +260,10 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
           placeholder="搜索知识节点"
           onChange={textbookSearch.onSearch}
         />
-        {chapterTree.length > 0 ? (
+        {displayChapterTree.length > 0 ? (
           <Tree
             key={selectedSubject}
-            treeData={chapterTree}
+            treeData={displayChapterTree}
             onExpand={textbookSearch.onExpand}
             expandedKeys={textbookSearch.expandedKeys}
             autoExpandParent={textbookSearch.autoExpandParent}
@@ -254,6 +282,17 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
               <TreeNodeTitle
                 nodeData={node}
                 searchValue={textbookSearch.searchValue}
+                inlineEdit={
+                  inlineEdit?.key === node.key
+                    ? {
+                        initialValue: inlineEdit.initialValue,
+                        placeholder: '请输入知识节点名称',
+                        saving: inlineEdit.saving,
+                        onSubmit: handleInlineEditSubmit,
+                        onCancel: handleCancelInlineEdit,
+                      }
+                    : undefined
+                }
                 onAddChild={handleAddTextbookChild}
                 onEdit={handleEditTextbook}
                 onDelete={handleDeleteTextbook}
@@ -278,37 +317,6 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
           </div>
         )}
       </Card>
-
-      <ModalForm
-        title={textbookModalType === 'add' ? '添加知识节点' : '编辑知识节点'}
-        open={textbookModalVisible}
-        onOpenChange={setTextbookModalVisible}
-        form={textbookForm}
-        onFinish={handleTextbookModalFinish}
-      >
-        {textbookModalType === 'add' && selectedTextbookNode && (
-          <ProFormText
-            name="parentName"
-            label="父节点"
-            disabled
-            initialValue={selectedTextbookNode.title}
-          />
-        )}
-        {textbookModalType === 'add' && selectedTextbookNode && (
-          <ProFormText
-            name="parentId"
-            label="父节点ID"
-            hidden
-            initialValue={selectedTextbookNode.key}
-          />
-        )}
-        <ProFormText
-          name="title"
-          label="知识节点名称"
-          rules={[{ required: true, message: '请输入知识节点名称' }]}
-        />
-        <ProFormTextArea name="description" label="描述" />
-      </ModalForm>
     </>
   );
 };

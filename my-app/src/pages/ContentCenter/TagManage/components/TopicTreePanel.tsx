@@ -6,16 +6,10 @@ import {
   updateKnowledgeNode,
 } from '@/services/tagSystem';
 import { HolderOutlined, SearchOutlined } from '@ant-design/icons';
-import {
-  ModalForm,
-  ProFormText,
-  ProFormTextArea,
-} from '@ant-design/pro-components';
 import type { TreeProps } from 'antd';
 import {
   Button,
   Card,
-  Form,
   Input,
   message,
   Modal,
@@ -23,12 +17,13 @@ import {
   Tooltip,
   Tree,
 } from 'antd';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import './TagSystemTreePanel.less';
 import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
+  appendTreeNode,
   getTreeMovePosition,
   useTreeSearch,
 } from './treeHelpers';
@@ -46,6 +41,17 @@ interface TopicTreePanelProps {
   onRefresh: () => void;
 }
 
+interface InlineEditState {
+  key: React.Key;
+  mode: 'add' | 'edit';
+  parentKey?: React.Key | null;
+  initialValue: string;
+  description?: string;
+  saving?: boolean;
+}
+
+const createDraftNodeKey = () => `draft-${Date.now()}`;
+
 const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   topicTree,
   selectedSubject,
@@ -57,39 +63,49 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
     subject: selectedSubject,
   };
   const topicTreeData = topicTree as unknown as TreeNodeData[];
-  const topicSearch = useTreeSearch(topicTreeData);
-  const [selectedNode, setSelectedNode] = useState<TreeNodeData | null>(null);
-  const [modalVisible, setModalVisible] = useState<boolean>(false);
-  const [modalType, setModalType] = useState<'add' | 'edit'>('add');
-  const [form] = Form.useForm();
+  const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
+  const displayTopicTree = useMemo(() => {
+    if (!inlineEdit || inlineEdit.mode !== 'add') {
+      return topicTreeData;
+    }
+    return appendTreeNode(
+      topicTreeData,
+      {
+        key: inlineEdit.key,
+        title: inlineEdit.initialValue,
+      },
+      inlineEdit.parentKey,
+    );
+  }, [inlineEdit, topicTreeData]);
+  const topicSearch = useTreeSearch(displayTopicTree);
 
   const handleAddRoot = () => {
-    setModalType('add');
-    setSelectedNode(null);
-    form.resetFields();
-    setModalVisible(true);
+    setInlineEdit({
+      key: createDraftNodeKey(),
+      mode: 'add',
+      parentKey: null,
+      initialValue: '',
+    });
   };
 
   const handleAddChild = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
-    setModalType('add');
-    setSelectedNode(node);
-    form.resetFields();
-    form.setFieldValue('parentId', node.key);
-    form.setFieldValue('parentName', node.title);
-    setModalVisible(true);
+    setInlineEdit({
+      key: createDraftNodeKey(),
+      mode: 'add',
+      parentKey: node.key,
+      initialValue: '',
+    });
   };
 
   const handleEdit = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
-    setModalType('edit');
-    setSelectedNode(node);
-    form.setFieldsValue({
-      id: node.key,
-      title: node.title,
+    setInlineEdit({
+      key: node.key,
+      mode: 'edit',
+      initialValue: node.title,
       description: node.description,
     });
-    setModalVisible(true);
   };
 
   const handleDelete = (node: TreeNodeData, e: React.MouseEvent) => {
@@ -131,29 +147,42 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
     }
   };
 
-  const handleModalFinish = async (values: Record<string, unknown>) => {
-    let res;
-    const payload = {
-      ...values,
-      ...tagContext,
-    };
-    if (modalType === 'add') {
-      res = await addKnowledgeNode(
-        payload as Parameters<typeof addKnowledgeNode>[0],
-      );
-    } else {
-      res = await updateKnowledgeNode({
-        ...(payload as Parameters<typeof updateKnowledgeNode>[0]),
-        id: String(selectedNode?.key),
-      });
+  const handleCancelInlineEdit = () => {
+    setInlineEdit(null);
+  };
+
+  const handleInlineEditSubmit = async (title: string) => {
+    if (!inlineEdit) return;
+    if (!title) {
+      message.warning('请输入专题名称');
+      return;
     }
+
+    setInlineEdit({ ...inlineEdit, saving: true });
+    const res =
+      inlineEdit.mode === 'add'
+        ? await addKnowledgeNode({
+            title,
+            parentId: inlineEdit.parentKey
+              ? String(inlineEdit.parentKey)
+              : null,
+            subject: selectedSubject,
+          })
+        : await updateKnowledgeNode({
+            id: String(inlineEdit.key),
+            title,
+            subject: selectedSubject,
+            description: inlineEdit.description,
+          });
+
     if (res.success) {
-      message.success(modalType === 'add' ? '添加成功' : '修改成功');
-      setModalVisible(false);
+      message.success(inlineEdit.mode === 'add' ? '添加成功' : '修改成功');
+      setInlineEdit(null);
       onRefresh();
-      return true;
+    } else {
+      message.error(res.message || '保存失败');
+      setInlineEdit({ ...inlineEdit, saving: false });
     }
-    return false;
   };
 
   return (
@@ -187,10 +216,10 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
           placeholder="搜索专题"
           onChange={topicSearch.onSearch}
         />
-        {topicTree.length > 0 ? (
+        {displayTopicTree.length > 0 ? (
           <Tree
             key={selectedSubject}
-            treeData={topicTree}
+            treeData={displayTopicTree}
             onExpand={topicSearch.onExpand}
             expandedKeys={topicSearch.expandedKeys}
             autoExpandParent={topicSearch.autoExpandParent}
@@ -209,6 +238,17 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
               <TreeNodeTitle
                 nodeData={node}
                 searchValue={topicSearch.searchValue}
+                inlineEdit={
+                  inlineEdit?.key === node.key
+                    ? {
+                        initialValue: inlineEdit.initialValue,
+                        placeholder: '请输入专题名称',
+                        saving: inlineEdit.saving,
+                        onSubmit: handleInlineEditSubmit,
+                        onCancel: handleCancelInlineEdit,
+                      }
+                    : undefined
+                }
                 onAddChild={handleAddChild}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
@@ -225,37 +265,6 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
           <div>暂无数据</div>
         )}
       </Card>
-
-      <ModalForm
-        title={modalType === 'add' ? '添加专题' : '编辑专题'}
-        open={modalVisible}
-        onOpenChange={setModalVisible}
-        form={form}
-        onFinish={handleModalFinish}
-      >
-        {modalType === 'add' && selectedNode && (
-          <ProFormText
-            name="parentName"
-            label="父节点"
-            disabled
-            initialValue={selectedNode.title}
-          />
-        )}
-        {modalType === 'add' && selectedNode && (
-          <ProFormText
-            name="parentId"
-            label="父节点ID"
-            hidden
-            initialValue={selectedNode.key}
-          />
-        )}
-        <ProFormText
-          name="title"
-          label="专题名称"
-          rules={[{ required: true, message: '请输入专题名称' }]}
-        />
-        <ProFormTextArea name="description" label="描述" />
-      </ModalForm>
     </>
   );
 };

@@ -477,6 +477,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
             }}
             allowDrop={allowQuestionTypeDrop}
             onDrop={handleDropQuestionType}
+            showLine
             blockNode
             titleRender={(node: TreeNodeData) => {
               const canAddChild = canAddQuestionTypeChild(node.key);

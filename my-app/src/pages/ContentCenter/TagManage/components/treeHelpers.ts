@@ -80,6 +80,34 @@ export const allowCrossParentTreeDrop = (
   dropKey: React.Key,
 ) => dragKey !== dropKey && !isTreeDescendant(tree, dragKey, dropKey);
 
+export const appendTreeNode = (
+  treeData: TreeNodeData[],
+  nodeToAppend: TreeNodeData,
+  parentKey?: React.Key | null,
+): TreeNodeData[] => {
+  if (!parentKey) {
+    return [...treeData, nodeToAppend];
+  }
+
+  return treeData.map((node) => {
+    if (node.key === parentKey) {
+      return {
+        ...node,
+        children: [...(node.children || []), nodeToAppend],
+      };
+    }
+
+    if (node.children?.length) {
+      return {
+        ...node,
+        children: appendTreeNode(node.children, nodeToAppend, parentKey),
+      };
+    }
+
+    return node;
+  });
+};
+
 export const getTreeMovePosition = (
   info: Parameters<NonNullable<TreeProps['onDrop']>>[0],
 ): TreeMovePosition => {
