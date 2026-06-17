@@ -26,6 +26,7 @@ export interface TreeNodeTitleProps {
   searchValue?: string;
   meta?: React.ReactNode;
   inlineEdit?: TreeNodeInlineEditConfig;
+  actionsVisible?: boolean;
   showAddChild?: boolean;
   addChildTitle?: string;
   canMoveUp?: boolean;
@@ -42,6 +43,7 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
   searchValue = '',
   meta,
   inlineEdit,
+  actionsVisible = true,
   showAddChild = true,
   addChildTitle = '添加子节点',
   canMoveUp = false,
@@ -143,62 +145,64 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
         <span className="tag-tree-node-name">{title}</span>
         {meta ? <span className="tag-tree-node-meta">{meta}</span> : null}
       </span>
-      <Space className="tag-tree-node-actions" size={2}>
-        {onMoveUp ? (
-          <Tooltip title="上移">
+      {actionsVisible ? (
+        <Space className="tag-tree-node-actions" size={2}>
+          {onMoveUp ? (
+            <Tooltip title="上移">
+              <Button
+                type="text"
+                size="small"
+                aria-label="上移"
+                disabled={!canMoveUp}
+                icon={<ArrowUpOutlined />}
+                onClick={(e) => onMoveUp(nodeData, e)}
+              />
+            </Tooltip>
+          ) : null}
+          {onMoveDown ? (
+            <Tooltip title="下移">
+              <Button
+                type="text"
+                size="small"
+                aria-label="下移"
+                disabled={!canMoveDown}
+                icon={<ArrowDownOutlined />}
+                onClick={(e) => onMoveDown(nodeData, e)}
+              />
+            </Tooltip>
+          ) : null}
+          {showAddChild ? (
+            <Tooltip title={addChildTitle}>
+              <Button
+                type="text"
+                size="small"
+                aria-label={addChildTitle}
+                icon={<PlusOutlined />}
+                onClick={(e) => onAddChild(nodeData, e)}
+              />
+            </Tooltip>
+          ) : null}
+          <Tooltip title="编辑">
             <Button
               type="text"
               size="small"
-              aria-label="上移"
-              disabled={!canMoveUp}
-              icon={<ArrowUpOutlined />}
-              onClick={(e) => onMoveUp(nodeData, e)}
+              aria-label="编辑"
+              icon={<EditOutlined />}
+              onClick={(e) => onEdit(nodeData, e)}
             />
           </Tooltip>
-        ) : null}
-        {onMoveDown ? (
-          <Tooltip title="下移">
+          <Tooltip title="删除">
             <Button
+              danger
               type="text"
               size="small"
-              aria-label="下移"
-              disabled={!canMoveDown}
-              icon={<ArrowDownOutlined />}
-              onClick={(e) => onMoveDown(nodeData, e)}
+              aria-label="删除"
+              icon={<DeleteOutlined />}
+              onClick={(e) => onDelete(nodeData, e)}
             />
           </Tooltip>
-        ) : null}
-        {showAddChild ? (
-          <Tooltip title={addChildTitle}>
-            <Button
-              type="text"
-              size="small"
-              aria-label={addChildTitle}
-              icon={<PlusOutlined />}
-              onClick={(e) => onAddChild(nodeData, e)}
-            />
-          </Tooltip>
-        ) : null}
-        <Tooltip title="编辑">
-          <Button
-            type="text"
-            size="small"
-            aria-label="编辑"
-            icon={<EditOutlined />}
-            onClick={(e) => onEdit(nodeData, e)}
-          />
-        </Tooltip>
-        <Tooltip title="删除">
-          <Button
-            danger
-            type="text"
-            size="small"
-            aria-label="删除"
-            icon={<DeleteOutlined />}
-            onClick={(e) => onDelete(nodeData, e)}
-          />
-        </Tooltip>
-      </Space>
+        </Space>
+      ) : null}
     </div>
   );
 };

@@ -120,7 +120,7 @@ type QuestionTypeDropPosition = 'before' | 'after';
 type TreeMovePosition = 'before' | 'after' | 'inside';
 
 const MAX_QUESTION_TYPE_LEVEL = 2;
-const MIN_QUESTION_TYPE_ANSWER_ROWS = 1;
+const MIN_QUESTION_TYPE_ANSWER_ROWS = 0;
 const MAX_QUESTION_TYPE_ANSWER_ROWS = 20;
 const DEFAULT_QUESTION_TYPE_ANSWER_AREA: MockQuestionTypeAnswerArea = {
   type: 'line',

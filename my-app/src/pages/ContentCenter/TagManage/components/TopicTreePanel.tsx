@@ -24,7 +24,7 @@ import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
   appendTreeNode,
-  getTreeMovePosition,
+  getTreeMoveRequest,
   useTreeSearch,
 } from './treeHelpers';
 
@@ -64,6 +64,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   };
   const topicTreeData = topicTree as unknown as TreeNodeData[];
   const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
+  const [arrangeMode, setArrangeMode] = useState(false);
   const displayTopicTree = useMemo(() => {
     if (!inlineEdit || inlineEdit.mode !== 'add') {
       return topicTreeData;
@@ -86,6 +87,11 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
       parentKey: null,
       initialValue: '',
     });
+  };
+
+  const handleToggleArrangeMode = () => {
+    setInlineEdit(null);
+    setArrangeMode((value) => !value);
   };
 
   const handleAddChild = (node: TreeNodeData, e: React.MouseEvent) => {
@@ -132,10 +138,14 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   );
 
   const handleDropTopic: TreeProps['onDrop'] = async (info) => {
+    if (!arrangeMode) return;
+
+    const moveRequest = getTreeMoveRequest(topicTreeData, info);
+
     const res = await moveKnowledgeNode({
       id: String(info.dragNode.key),
-      targetId: String(info.node.key),
-      position: getTreeMovePosition(info),
+      targetId: String(moveRequest.targetId),
+      position: moveRequest.position,
       subject: selectedSubject,
     });
 
@@ -188,24 +198,39 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   return (
     <>
       <Card
-        className="tag-system-tree-panel"
-        title="专题体系"
+        className={`tag-system-tree-panel tag-system-tree-panel-no-title${
+          arrangeMode ? ' tag-system-tree-panel-arranging' : ''
+        }`}
         variant="borderless"
         extra={
           <div className="tag-system-tree-card-extra">
-            <div className="tag-system-tree-subject-filter">
-              <span className="tag-system-tree-subject-label">学科</span>
-              <Select
-                value={selectedSubject}
-                onChange={onSubjectChange}
-                className="tag-system-tree-subject-select"
-                options={subjectOptions}
-                aria-label="选择学科"
-              />
+            {arrangeMode ? null : (
+              <div className="tag-system-tree-subject-filter">
+                <span className="tag-system-tree-subject-label">学科</span>
+                <Select
+                  size="small"
+                  value={selectedSubject}
+                  onChange={onSubjectChange}
+                  className="tag-system-tree-subject-select"
+                  options={subjectOptions}
+                  aria-label="选择学科"
+                />
+              </div>
+            )}
+            <div className="tag-system-tree-actions">
+              <Button
+                type={arrangeMode ? 'primary' : 'default'}
+                size="small"
+                onClick={handleToggleArrangeMode}
+              >
+                {arrangeMode ? '完成整理' : '整理'}
+              </Button>
+              {arrangeMode ? null : (
+                <Button type="primary" size="small" onClick={handleAddRoot}>
+                  添加根节点
+                </Button>
+              )}
             </div>
-            <Button type="primary" size="small" onClick={handleAddRoot}>
-              添加根节点
-            </Button>
           </div>
         }
       >
@@ -223,15 +248,19 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
             onExpand={topicSearch.onExpand}
             expandedKeys={topicSearch.expandedKeys}
             autoExpandParent={topicSearch.autoExpandParent}
-            draggable={{
-              icon: (
-                <Tooltip title="拖拽移动">
-                  <HolderOutlined className="tag-system-tree-drag-icon" />
-                </Tooltip>
-              ),
-            }}
-            allowDrop={allowTopicDrop}
-            onDrop={handleDropTopic}
+            draggable={
+              arrangeMode
+                ? {
+                    icon: (
+                      <Tooltip title="拖拽移动">
+                        <HolderOutlined className="tag-system-tree-drag-icon" />
+                      </Tooltip>
+                    ),
+                  }
+                : undefined
+            }
+            allowDrop={arrangeMode ? allowTopicDrop : undefined}
+            onDrop={arrangeMode ? handleDropTopic : undefined}
             showLine
             blockNode
             titleRender={(node: TreeNodeData) => (
@@ -249,6 +278,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
                       }
                     : undefined
                 }
+                actionsVisible={!arrangeMode}
                 onAddChild={handleAddChild}
                 onEdit={handleEdit}
                 onDelete={handleDelete}

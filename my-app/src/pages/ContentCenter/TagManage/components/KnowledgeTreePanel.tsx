@@ -26,7 +26,7 @@ import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
   appendTreeNode,
-  getTreeMovePosition,
+  getTreeMoveRequest,
   useTreeSearch,
 } from './treeHelpers';
 
@@ -61,6 +61,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   const [chapterTree, setChapterTree] = useState<TextbookChapter[]>([]);
   const chapterTreeData = chapterTree as unknown as TreeNodeData[];
   const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
+  const [arrangeMode, setArrangeMode] = useState(false);
   const displayChapterTree = useMemo(() => {
     if (!inlineEdit || inlineEdit.mode !== 'add') {
       return chapterTreeData;
@@ -119,6 +120,11 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     });
   };
 
+  const handleToggleArrangeMode = () => {
+    setInlineEdit(null);
+    setArrangeMode((value) => !value);
+  };
+
   const handleAddTextbookChild = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
     setInlineEdit({
@@ -166,12 +172,14 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   );
 
   const handleDropTextbook: TreeProps['onDrop'] = async (info) => {
-    if (!selectedVersion) return;
+    if (!arrangeMode || !selectedVersion) return;
+
+    const moveRequest = getTreeMoveRequest(chapterTreeData, info);
 
     const res = await moveTextbookChapter({
       id: String(info.dragNode.key),
-      targetId: String(info.node.key),
-      position: getTreeMovePosition(info),
+      targetId: String(moveRequest.targetId),
+      position: moveRequest.position,
       version: selectedVersion,
       subject: selectedSubject,
     });
@@ -227,29 +235,44 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   return (
     <>
       <Card
-        className="tag-system-tree-panel"
-        title="知识体系"
+        className={`tag-system-tree-panel tag-system-tree-panel-no-title${
+          arrangeMode ? ' tag-system-tree-panel-arranging' : ''
+        }`}
         variant="borderless"
         extra={
           <div className="tag-system-tree-card-extra">
-            <div className="tag-system-tree-subject-filter">
-              <span className="tag-system-tree-subject-label">学科</span>
-              <Select
-                value={selectedSubject}
-                onChange={onSubjectChange}
-                className="tag-system-tree-subject-select"
-                options={subjectOptions}
-                aria-label="选择学科"
-              />
+            {arrangeMode ? null : (
+              <div className="tag-system-tree-subject-filter">
+                <span className="tag-system-tree-subject-label">学科</span>
+                <Select
+                  size="small"
+                  value={selectedSubject}
+                  onChange={onSubjectChange}
+                  className="tag-system-tree-subject-select"
+                  options={subjectOptions}
+                  aria-label="选择学科"
+                />
+              </div>
+            )}
+            <div className="tag-system-tree-actions">
+              <Button
+                type={arrangeMode ? 'primary' : 'default'}
+                size="small"
+                onClick={handleToggleArrangeMode}
+              >
+                {arrangeMode ? '完成整理' : '整理'}
+              </Button>
+              {arrangeMode ? null : (
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={handleAddTextbookRoot}
+                  disabled={!selectedVersion}
+                >
+                  添加根节点
+                </Button>
+              )}
             </div>
-            <Button
-              type="primary"
-              size="small"
-              onClick={handleAddTextbookRoot}
-              disabled={!selectedVersion}
-            >
-              添加根节点
-            </Button>
           </div>
         }
       >
@@ -267,15 +290,19 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
             onExpand={textbookSearch.onExpand}
             expandedKeys={textbookSearch.expandedKeys}
             autoExpandParent={textbookSearch.autoExpandParent}
-            draggable={{
-              icon: (
-                <Tooltip title="拖拽移动">
-                  <HolderOutlined className="tag-system-tree-drag-icon" />
-                </Tooltip>
-              ),
-            }}
-            allowDrop={allowTextbookDrop}
-            onDrop={handleDropTextbook}
+            draggable={
+              arrangeMode
+                ? {
+                    icon: (
+                      <Tooltip title="拖拽移动">
+                        <HolderOutlined className="tag-system-tree-drag-icon" />
+                      </Tooltip>
+                    ),
+                  }
+                : undefined
+            }
+            allowDrop={arrangeMode ? allowTextbookDrop : undefined}
+            onDrop={arrangeMode ? handleDropTextbook : undefined}
             showLine
             blockNode
             titleRender={(node: TreeNodeData) => (
@@ -293,6 +320,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
                       }
                     : undefined
                 }
+                actionsVisible={!arrangeMode}
                 onAddChild={handleAddTextbookChild}
                 onEdit={handleEditTextbook}
                 onDelete={handleDeleteTextbook}

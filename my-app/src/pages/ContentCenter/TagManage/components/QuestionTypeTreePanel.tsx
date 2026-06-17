@@ -12,7 +12,6 @@ import {
 } from '@/services/tagSystem';
 import {
   HolderOutlined,
-  InfoCircleFilled,
   SearchOutlined,
 } from '@ant-design/icons';
 import {
@@ -57,7 +56,7 @@ interface QuestionTypeTreePanelProps {
 const SAME_LEVEL_DROP_WARNING =
   '只能在同一层级内调整顺序，请拖到目标题型的上方或下方';
 const MAX_QUESTION_TYPE_LEVEL = 2;
-const MIN_QUESTION_TYPE_ANSWER_ROWS = 1;
+const MIN_QUESTION_TYPE_ANSWER_ROWS = 0;
 const MAX_QUESTION_TYPE_ANSWER_ROWS = 20;
 const DEFAULT_QUESTION_TYPE_ANSWER_AREA: QuestionTypeAnswerArea = {
   type: 'line',
@@ -156,7 +155,7 @@ const getQuestionTypeAnswerAreaFormValues = (
 const getQuestionTypeAnswerAreaText = (answerArea?: QuestionTypeAnswerArea) => {
   const normalizedAnswerArea = normalizeQuestionTypeAnswerArea(answerArea);
   const typeText = normalizedAnswerArea.type === 'blank' ? '空白' : '横线';
-  return `${typeText} ${normalizedAnswerArea.rows} 行`;
+  return `${typeText} · 额外 ${normalizedAnswerArea.rows} 行`;
 };
 
 const getQuestionTypeNodeMetaText = (node: TreeNodeData) =>
@@ -179,7 +178,11 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   );
   const [qtModalVisible, setQtModalVisible] = useState<boolean>(false);
   const [qtModalType, setQtModalType] = useState<'add' | 'edit'>('add');
+  const [arrangeMode, setArrangeMode] = useState(false);
   const [qtForm] = Form.useForm();
+  const selectedSubjectLabel =
+    subjectOptions.find((option) => option.value === selectedSubject)?.label ||
+    selectedSubject;
   const nodeMetaMap = useMemo(
     () => buildQuestionTypeNodeMetaMap(questionTypeTree),
     [questionTypeTree],
@@ -205,17 +208,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   const isFirstLevelQuestionTypeNode = useCallback(
     (nodeKey: React.Key) =>
       (nodeMetaMap.get(String(nodeKey))?.level ?? 1) === 1,
-    [nodeMetaMap],
-  );
-
-  const canMoveQuestionTypeNodeUp = useCallback(
-    (nodeKey: React.Key) =>
-      Boolean(nodeMetaMap.get(String(nodeKey))?.previousKey),
-    [nodeMetaMap],
-  );
-
-  const canMoveQuestionTypeNodeDown = useCallback(
-    (nodeKey: React.Key) => Boolean(nodeMetaMap.get(String(nodeKey))?.nextKey),
     [nodeMetaMap],
   );
 
@@ -246,6 +238,11 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
       ...getQuestionTypeAnswerAreaFormValues(),
     });
     setQtModalVisible(true);
+  };
+
+  const handleToggleArrangeMode = () => {
+    setQtModalVisible(false);
+    setArrangeMode((value) => !value);
   };
 
   const handleAddQtChild = (node: TreeNodeData, e: React.MouseEvent) => {
@@ -306,6 +303,8 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   };
 
   const handleDropQuestionType: TreeProps['onDrop'] = async (info) => {
+    if (!arrangeMode) return;
+
     const dragKey = String(info.dragNode.key);
     const dropKey = String(info.node.key);
 
@@ -332,35 +331,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
 
     if (res.success) {
       message.success('移动成功');
-      onRefresh();
-    } else {
-      message.error(res.message || '移动失败');
-    }
-  };
-
-  const handleMoveQuestionTypeByButton = async (
-    node: TreeNodeData,
-    direction: 'up' | 'down',
-    e: React.MouseEvent,
-  ) => {
-    e.stopPropagation();
-    const nodeMeta = nodeMetaMap.get(String(node.key));
-    const targetId =
-      direction === 'up' ? nodeMeta?.previousKey : nodeMeta?.nextKey;
-
-    if (!targetId) {
-      return;
-    }
-
-    const res = await moveQuestionTypeNode({
-      id: String(node.key),
-      targetId,
-      position: direction === 'up' ? 'before' : 'after',
-      subject: selectedSubject,
-    });
-
-    if (res.success) {
-      message.success(direction === 'up' ? '已上移' : '已下移');
       onRefresh();
     } else {
       message.error(res.message || '移动失败');
@@ -423,33 +393,43 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   return (
     <>
       <Card
-        className="tag-system-tree-panel question-type-tree-panel"
-        title={
-          <div className="question-type-card-title">
-            <span className="question-type-card-title-text">题型结构树</span>
-            <span className="question-type-rule-inline">
-              <InfoCircleFilled aria-hidden="true" />
-              最多 {MAX_QUESTION_TYPE_LEVEL}{' '}
-              层：一级=父题型，二级=子题型；拖拽仅支持同层排序。
-            </span>
-          </div>
-        }
+        className={`tag-system-tree-panel tag-system-tree-panel-no-title question-type-tree-panel${
+          arrangeMode ? ' tag-system-tree-panel-arranging' : ''
+        }`}
         variant="borderless"
         extra={
           <div className="tag-system-tree-card-extra">
             <div className="tag-system-tree-subject-filter">
               <span className="tag-system-tree-subject-label">学科</span>
-              <Select
-                value={selectedSubject}
-                onChange={onSubjectChange}
-                className="tag-system-tree-subject-select"
-                options={subjectOptions}
-                aria-label="选择学科"
-              />
+              {arrangeMode ? (
+                <span className="tag-system-tree-subject-value">
+                  {selectedSubjectLabel}
+                </span>
+              ) : (
+                <Select
+                  size="small"
+                  value={selectedSubject}
+                  onChange={onSubjectChange}
+                  className="tag-system-tree-subject-select"
+                  options={subjectOptions}
+                  aria-label="选择学科"
+                />
+              )}
             </div>
-            <Button type="primary" size="small" onClick={handleAddQtRoot}>
-              添加一级题型
-            </Button>
+            <div className="tag-system-tree-actions">
+              <Button
+                type={arrangeMode ? 'primary' : 'default'}
+                size="small"
+                onClick={handleToggleArrangeMode}
+              >
+                {arrangeMode ? '完成整理' : '整理'}
+              </Button>
+              {arrangeMode ? null : (
+                <Button type="primary" size="small" onClick={handleAddQtRoot}>
+                  添加一级题型
+                </Button>
+              )}
+            </div>
           </div>
         }
       >
@@ -468,15 +448,19 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
             onExpand={questionTypeSearch.onExpand}
             expandedKeys={questionTypeSearch.expandedKeys}
             autoExpandParent={questionTypeSearch.autoExpandParent}
-            draggable={{
-              icon: (
-                <Tooltip title="拖拽排序">
-                  <HolderOutlined className="tag-system-tree-drag-icon" />
-                </Tooltip>
-              ),
-            }}
-            allowDrop={allowQuestionTypeDrop}
-            onDrop={handleDropQuestionType}
+            draggable={
+              arrangeMode
+                ? {
+                    icon: (
+                      <Tooltip title="拖拽排序">
+                        <HolderOutlined className="tag-system-tree-drag-icon" />
+                      </Tooltip>
+                    ),
+                  }
+                : undefined
+            }
+            allowDrop={arrangeMode ? allowQuestionTypeDrop : undefined}
+            onDrop={arrangeMode ? handleDropQuestionType : undefined}
             showLine
             blockNode
             titleRender={(node: TreeNodeData) => {
@@ -487,14 +471,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                   nodeData={node}
                   searchValue={questionTypeSearch.searchValue}
                   meta={isFirstLevel ? getQuestionTypeNodeMetaText(node) : null}
-                  canMoveUp={canMoveQuestionTypeNodeUp(node.key)}
-                  canMoveDown={canMoveQuestionTypeNodeDown(node.key)}
-                  onMoveUp={(targetNode, e) =>
-                    handleMoveQuestionTypeByButton(targetNode, 'up', e)
-                  }
-                  onMoveDown={(targetNode, e) =>
-                    handleMoveQuestionTypeByButton(targetNode, 'down', e)
-                  }
+                  actionsVisible={!arrangeMode}
                   showAddChild={canAddChild}
                   addChildTitle="添加二级题型"
                   onAddChild={handleAddQtChild}
@@ -592,13 +569,14 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
               <ProFormDigit
                 className="question-type-answer-rows-field"
                 name="answerAreaRows"
-                label="答题区行数"
+                label="额外答题行数"
+                extra="填 0 表示带题干时不额外留空；无题干答题卡生成时系统至少保留 1 行。"
                 min={MIN_QUESTION_TYPE_ANSWER_ROWS}
                 max={MAX_QUESTION_TYPE_ANSWER_ROWS}
                 fieldProps={{
                   precision: 0,
                 }}
-                rules={[{ required: true, message: '请输入答题区行数' }]}
+                rules={[{ required: true, message: '请输入额外答题行数' }]}
               />
             </div>
           </section>

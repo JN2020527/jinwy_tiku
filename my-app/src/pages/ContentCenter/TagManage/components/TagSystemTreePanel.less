@@ -17,6 +17,28 @@
     padding-top: 16px;
   }
 
+  &.tag-system-tree-panel-no-title {
+    .ant-card-head-wrapper {
+      justify-content: stretch;
+    }
+
+    .ant-card-head-title {
+      display: none;
+    }
+
+    .ant-card-extra {
+      flex: 1 1 auto;
+      width: 100%;
+      margin-inline-start: 0;
+    }
+
+    .tag-system-tree-card-extra {
+      width: 100%;
+      min-height: 44px;
+      justify-content: space-between;
+    }
+  }
+
   .tag-system-tree-card-extra {
     display: inline-flex;
     align-items: center;
@@ -42,6 +64,14 @@
   .tag-system-tree-subject-select {
     width: 128px;
     text-align: left;
+  }
+
+  .tag-system-tree-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
   }
 
   .ant-tree {
@@ -98,10 +128,48 @@
     background: transparent;
   }
 
+  &:not(.tag-system-tree-panel-arranging) {
+    .ant-tree-show-line {
+      .ant-tree-indent-unit::before,
+      .ant-tree-switcher-leaf-line::before {
+        top: -6px;
+        bottom: -6px;
+        border-inline-end: 1px dashed #d0d5dd;
+      }
+
+      .ant-tree-switcher-leaf-line::after {
+        width: 12px;
+        border-bottom: 1px dashed #d0d5dd;
+      }
+    }
+  }
+
   .ant-tree-drop-indicator {
     height: 3px;
     border-radius: 999px;
     background-color: #1677ff;
+  }
+
+  &.tag-system-tree-panel-arranging {
+    .tag-system-tree-card-extra {
+      justify-content: flex-end;
+    }
+
+    .ant-tree-show-line {
+      .ant-tree-indent-unit::before,
+      .ant-tree-switcher-leaf-line::before,
+      .ant-tree-switcher-leaf-line::after {
+        display: none;
+      }
+    }
+
+    .ant-tree-node-content-wrapper {
+      cursor: grab;
+    }
+
+    .ant-tree-treenode:active .ant-tree-node-content-wrapper {
+      cursor: grabbing;
+    }
   }
 }
 
@@ -120,6 +188,12 @@
     .tag-system-tree-card-extra {
       width: 100%;
       justify-content: flex-start;
+    }
+
+    &.tag-system-tree-panel-arranging {
+      .tag-system-tree-card-extra {
+        justify-content: flex-end;
+      }
     }
   }
 }

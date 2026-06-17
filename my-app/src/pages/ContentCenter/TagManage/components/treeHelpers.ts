@@ -120,6 +120,79 @@ export const getTreeMovePosition = (
   return dropPosition < 0 ? 'before' : 'after';
 };
 
+export interface TreeMoveRequest {
+  targetId: React.Key;
+  position: TreeMovePosition;
+}
+
+const findTreeNode = (
+  tree: TreeNodeData[],
+  key: React.Key,
+): TreeNodeData | undefined => {
+  for (const node of tree) {
+    if (node.key === key) {
+      return node;
+    }
+
+    if (node.children?.length) {
+      const found = findTreeNode(node.children, key);
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return undefined;
+};
+
+export const getTreeMoveRequest = (
+  tree: TreeNodeData[],
+  info: Parameters<NonNullable<TreeProps['onDrop']>>[0],
+): TreeMoveRequest => {
+  const defaultPosition = getTreeMovePosition(info);
+  const dragKey = info.dragNode.key;
+  const dropKey = info.node.key;
+
+  if (defaultPosition !== 'inside') {
+    return {
+      targetId: dropKey,
+      position: defaultPosition,
+    };
+  }
+
+  const dragParentKey = getParentKey(dragKey, tree);
+  if (dragParentKey !== dropKey) {
+    return {
+      targetId: dropKey,
+      position: 'inside',
+    };
+  }
+
+  const parentNode = findTreeNode(tree, dropKey);
+  const siblings = parentNode?.children || [];
+  const dragIndex = siblings.findIndex((node) => node.key === dragKey);
+  const remainingSiblings = siblings.filter((node) => node.key !== dragKey);
+
+  if (dragIndex < 0 || remainingSiblings.length === 0) {
+    return {
+      targetId: dropKey,
+      position: 'inside',
+    };
+  }
+
+  if (dragIndex > 0) {
+    return {
+      targetId: remainingSiblings[0].key,
+      position: 'before',
+    };
+  }
+
+  return {
+    targetId: remainingSiblings[remainingSiblings.length - 1].key,
+    position: 'after',
+  };
+};
+
 /**
  * Flatten a tree into a list of { key, title } objects.
  */
