@@ -528,6 +528,9 @@ const NodeAttributeRelationWorkspace: React.FC<
                 ? `正在关联：${activeOption.name}`
                 : '请选择属性和枚举值'}
             </span>
+            <span className="node-attribute-context">
+              同一节点在当前属性下仅保留一个枚举值
+            </span>
           </div>
         </div>
         <div
