@@ -3,8 +3,6 @@ import type {
   AttributeUsageScene,
 } from '@/services/tagSystem';
 
-export type AttributeUsageType = 'form' | 'display' | 'filter';
-
 export interface AttributeTargetOption {
   label: string;
   value: AttributeTarget;
@@ -13,19 +11,6 @@ export interface AttributeTargetOption {
 export interface SubjectOption {
   label: string;
   value: string;
-}
-
-export interface UsageSceneOption {
-  label: string;
-  value: AttributeUsageScene;
-  description: string;
-  allowedTargets: AttributeTarget[];
-  usageType: AttributeUsageType;
-}
-
-export interface UsageSceneGroup {
-  label: string;
-  options: UsageSceneOption[];
 }
 
 export const ATTRIBUTE_TARGET_OPTIONS: AttributeTargetOption[] = [
@@ -62,27 +47,36 @@ export const SUBJECT_LABELS = SUBJECT_OPTIONS.reduce<Record<string, string>>(
   {},
 );
 
-export const USAGE_SCENE_GROUPS: UsageSceneGroup[] = [
+export const USAGE_SCENE_GROUPS: Array<{
+  title: string;
+  scenes: Array<{
+    scene: AttributeUsageScene;
+    label: string;
+    description: string;
+    allowedTargets: AttributeTarget[];
+    usageType: 'form' | 'display' | 'filter';
+  }>;
+}> = [
   {
-    label: '试题场景',
-    options: [
+    title: '试题场景',
+    scenes: [
       {
+        scene: 'questionTagging',
         label: '试题打标',
-        value: 'questionTagging',
         description: '配置打标字段和必填',
         allowedTargets: ['question'],
         usageType: 'form',
       },
       {
+        scene: 'questionCardDisplay',
         label: '试题卡片展示',
-        value: 'questionCardDisplay',
         description: '配置试题卡片展示属性',
         allowedTargets: ['question'],
         usageType: 'display',
       },
       {
+        scene: 'questionListFilter',
         label: '试题列表筛选',
-        value: 'questionListFilter',
         description: '配置主筛选区/更多筛选区',
         allowedTargets: ['question', 'paper'],
         usageType: 'filter',
@@ -90,25 +84,25 @@ export const USAGE_SCENE_GROUPS: UsageSceneGroup[] = [
     ],
   },
   {
-    label: '试卷场景',
-    options: [
+    title: '试卷场景',
+    scenes: [
       {
+        scene: 'paperUpload',
         label: '试卷上传信息完善',
-        value: 'paperUpload',
         description: '配置上传字段和必填',
         allowedTargets: ['paper'],
         usageType: 'form',
       },
       {
+        scene: 'paperCardDisplay',
         label: '试卷卡片展示',
-        value: 'paperCardDisplay',
         description: '配置试卷卡片属性',
         allowedTargets: ['paper'],
         usageType: 'display',
       },
       {
+        scene: 'paperListFilter',
         label: '试卷列表筛选',
-        value: 'paperListFilter',
         description: '配置试卷筛选属性',
         allowedTargets: ['paper'],
         usageType: 'filter',
@@ -116,18 +110,18 @@ export const USAGE_SCENE_GROUPS: UsageSceneGroup[] = [
     ],
   },
   {
-    label: '树节点展示',
-    options: [
+    title: '树节点展示',
+    scenes: [
       {
+        scene: 'knowledgeTreeNodeDisplay',
         label: '知识点树节点展示',
-        value: 'knowledgeTreeNodeDisplay',
         description: '配置知识点树节点伴随展示属性',
         allowedTargets: ['knowledge'],
         usageType: 'display',
       },
       {
+        scene: 'topicTreeNodeDisplay',
         label: '专题树节点展示',
-        value: 'topicTreeNodeDisplay',
         description: '配置专题树节点伴随展示属性',
         allowedTargets: ['topic'],
         usageType: 'display',
@@ -137,12 +131,12 @@ export const USAGE_SCENE_GROUPS: UsageSceneGroup[] = [
 ];
 
 export const USAGE_SCENE_OPTIONS = USAGE_SCENE_GROUPS.flatMap(
-  (group) => group.options,
+  (group) => group.scenes,
 );
 
 export const USAGE_SCENE_LABELS = USAGE_SCENE_OPTIONS.reduce<
   Record<AttributeUsageScene, string>
->((labels, scene) => {
-  labels[scene.value] = scene.label;
+>((labels, option) => {
+  labels[option.scene] = option.label;
   return labels;
 }, {} as Record<AttributeUsageScene, string>);

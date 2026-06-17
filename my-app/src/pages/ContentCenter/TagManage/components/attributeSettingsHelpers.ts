@@ -53,7 +53,7 @@ export const withOptionList = (
 };
 
 export const getSceneMeta = (scene: AttributeUsageScene) =>
-  USAGE_SCENE_OPTIONS.find((item) => item.value === scene);
+  USAGE_SCENE_OPTIONS.find((item) => item.scene === scene);
 
 export const isTargetAllowedInScene = (
   target: AttributeTarget,
