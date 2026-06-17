@@ -22,6 +22,7 @@ export type AttributeUsageScene =
   | 'knowledgeTreeNodeDisplay'
   | 'topicTreeNodeDisplay';
 export type AttributeSelectionMode = 'single' | 'multiple';
+export type NodeAttributeTargetType = 'knowledge' | 'topic';
 
 export interface AttributeUsageRule {
   id: string;
@@ -31,6 +32,16 @@ export interface AttributeUsageRule {
   required?: boolean;
   filterArea?: AttributeFilterArea;
   sort: number;
+}
+
+export interface NodeAttributeRelation {
+  id: string;
+  targetType: NodeAttributeTargetType;
+  subject: string;
+  nodeId: string;
+  attributeId: string;
+  optionId: string;
+  updatedAt?: string;
 }
 
 export interface AttributeItem {
@@ -323,6 +334,48 @@ export async function updateAttributeUsageRules(data: {
     '/api/tags/attribute-usage-rules',
     { method: 'PUT', data },
   );
+}
+
+export async function getNodeAttributeRelations(params: {
+  targetType: NodeAttributeTargetType;
+  subject: string;
+  attributeId?: string;
+}) {
+  return request<ApiResponse<NodeAttributeRelation[]>>(
+    '/api/tags/node-attribute-relations',
+    {
+      method: 'GET',
+      params,
+    },
+  );
+}
+
+export async function setNodeAttributeRelation(data: {
+  targetType: NodeAttributeTargetType;
+  subject: string;
+  nodeId: string;
+  attributeId: string;
+  optionId: string;
+}) {
+  return request<ApiResponse<NodeAttributeRelation>>(
+    '/api/tags/node-attribute-relation',
+    {
+      method: 'PUT',
+      data,
+    },
+  );
+}
+
+export async function deleteNodeAttributeRelation(params: {
+  targetType: NodeAttributeTargetType;
+  subject: string;
+  nodeId: string;
+  attributeId: string;
+}) {
+  return request<ApiResponse<void>>('/api/tags/node-attribute-relation', {
+    method: 'DELETE',
+    params,
+  });
 }
 
 // --- Textbook ---
