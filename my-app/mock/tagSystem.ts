@@ -3,38 +3,38 @@ import { Request, Response } from 'express';
 interface MockAttributeItem {
   id: string;
   name: string;
-  color: string;
+  color?: string;
   value?: string;
   sort?: number;
   status?: AttributeStatus;
+  star?: number;
   displayName?: string;
   frontVisible?: boolean;
-  star?: number;
 }
 
 type AttributeStatus = 'enabled' | 'disabled';
-type AttributeTarget = 'question' | 'paper' | 'common';
-type AttributeValueType = 'text' | 'number' | 'single' | 'multiple' | 'tree';
-type AttributeControlType =
-  | 'input'
-  | 'select'
-  | 'checkbox'
-  | 'radio'
-  | 'rate'
-  | 'treeSelect';
-type AttributeScene = 'contentCompletion' | 'tagging' | 'frontDisplay';
+type AttributeTarget = 'paper' | 'question' | 'knowledge' | 'topic';
+type AttributeOptionAddMode = 'unified' | 'bySubject';
+type AttributeFilterArea = 'primary' | 'more';
+type AttributeUsageScene =
+  | 'paperUpload'
+  | 'paperCardDisplay'
+  | 'paperListFilter'
+  | 'questionTagging'
+  | 'questionCardDisplay'
+  | 'questionListFilter'
+  | 'knowledgeTreeNodeDisplay'
+  | 'topicTreeNodeDisplay';
 type AttributeSelectionMode = 'single' | 'multiple';
 
-interface AttributeSceneRule {
-  scene: AttributeScene;
+interface AttributeUsageRule {
+  id: string;
+  attributeId: string;
+  scene: AttributeUsageScene;
   enabled: boolean;
   required?: boolean;
-}
-
-interface AttributeDisplayRule {
-  visible: boolean;
-  filterable?: boolean;
-  displayName?: string;
+  filterArea?: AttributeFilterArea;
+  sort: number;
 }
 
 interface MockTagCategory {
@@ -43,14 +43,13 @@ interface MockTagCategory {
   tags: MockAttributeItem[];
   code?: string;
   description?: string;
-  target?: AttributeTarget;
-  valueType?: AttributeValueType;
-  controlType?: AttributeControlType;
-  required?: boolean;
-  selectionMode?: AttributeSelectionMode;
+  target: AttributeTarget;
+  optionAddMode?: AttributeOptionAddMode;
+  subjectTags?: Partial<Record<string, MockAttributeItem[]>>;
   status?: AttributeStatus;
-  sceneRules?: AttributeSceneRule[];
-  displayRule?: AttributeDisplayRule;
+  sort?: number;
+  selectionMode?: AttributeSelectionMode;
+  [legacyField: string]: any;
 }
 
 interface TagContext {
@@ -292,412 +291,257 @@ const getQuestionTypeSeed = (subject: string) => {
   return mathQuestionTypeSeed;
 };
 
-// Mock Data for Tag Categories (Dynamic List) [Refactored]
+const createSeedOptions = (
+  prefix: string,
+  options: Array<{
+    name: string;
+    value?: string;
+    color?: string;
+    star?: number;
+  }>,
+): MockAttributeItem[] =>
+  options.map((option, index) => ({
+    id: `${prefix}-${index + 1}`,
+    name: option.name,
+    value: option.value || `${prefix}-${index + 1}`,
+    color: option.color || 'default',
+    star: option.star,
+    sort: index,
+    status: 'enabled',
+    displayName: option.name,
+    frontVisible: true,
+  }));
+
+// Mock Data for Attribute Categories
 const defaultTagCategoryTemplates: MockTagCategory[] = [
   {
-    id: 'cat-1',
+    id: 'cat-paper-year',
+    name: '年份',
+    code: 'year',
+    description: '用于描述试卷所属年份',
+    target: 'paper',
+    status: 'enabled',
+    sort: 0,
+    selectionMode: 'single',
+    tags: createSeedOptions('paper-year', [
+      { name: '2026', value: '2026' },
+      { name: '2025', value: '2025' },
+      { name: '2024', value: '2024' },
+      { name: '2023', value: '2023' },
+    ]),
+  },
+  {
+    id: 'cat-paper-region',
+    name: '地区',
+    code: 'region',
+    description: '用于描述试卷适用地区',
+    target: 'paper',
+    status: 'enabled',
+    sort: 1,
+    selectionMode: 'single',
+    tags: createSeedOptions('paper-region', [
+      { name: '北京', value: 'beijing' },
+      { name: '上海', value: 'shanghai' },
+      { name: '江苏', value: 'jiangsu' },
+      { name: '浙江', value: 'zhejiang' },
+    ]),
+  },
+  {
+    id: 'cat-paper-type',
+    name: '试卷类型',
+    code: 'paper_type',
+    description: '用于描述试卷业务类型',
+    target: 'paper',
+    status: 'enabled',
+    sort: 2,
+    selectionMode: 'single',
+    tags: createSeedOptions('paper-type', [
+      { name: '中考真题', value: 'entrance_exam' },
+      { name: '模拟试卷', value: 'mock_exam' },
+      { name: '期中试卷', value: 'midterm_exam' },
+      { name: '期末试卷', value: 'final_exam' },
+    ]),
+  },
+  {
+    id: 'cat-question-difficulty',
     name: '难度',
     code: 'difficulty',
     description: '用于描述试题解答难易程度',
     target: 'question',
-    valueType: 'single',
-    controlType: 'rate',
-    selectionMode: 'single',
-    required: true,
     status: 'enabled',
-    sceneRules: [
-      { scene: 'contentCompletion', enabled: true, required: true },
-      { scene: 'tagging', enabled: true, required: true },
-      { scene: 'frontDisplay', enabled: true },
-    ],
-    displayRule: {
-      visible: true,
-      filterable: true,
-      displayName: '难度',
-    },
-    tags: [
-      {
-        id: 'diff-1',
-        name: '容易',
-        value: 'easy',
-        star: 1,
-        color: 'green',
-        sort: 0,
-        status: 'enabled',
-        displayName: '容易',
-        frontVisible: true,
-      },
-      {
-        id: 'diff-2',
-        name: '较易',
-        value: 'relatively_easy',
-        star: 2,
-        color: 'cyan',
-        sort: 1,
-        status: 'enabled',
-        displayName: '较易',
-        frontVisible: true,
-      },
-      {
-        id: 'diff-3',
-        name: '中等',
-        value: 'medium',
-        star: 3,
-        color: 'blue',
-        sort: 2,
-        status: 'enabled',
-        displayName: '中等',
-        frontVisible: true,
-      },
-      {
-        id: 'diff-4',
-        name: '较难',
-        value: 'relatively_hard',
-        star: 4,
-        color: 'orange',
-        sort: 3,
-        status: 'enabled',
-        displayName: '较难',
-        frontVisible: true,
-      },
-      {
-        id: 'diff-5',
-        name: '困难',
-        value: 'hard',
-        star: 5,
-        color: 'red',
-        sort: 4,
-        status: 'enabled',
-        displayName: '困难',
-        frontVisible: true,
-      },
-    ],
+    sort: 0,
+    selectionMode: 'single',
+    tags: createSeedOptions('question-difficulty', [
+      { name: '容易', value: 'easy', color: 'green', star: 1 },
+      { name: '较易', value: 'relatively_easy', color: 'cyan', star: 2 },
+      { name: '中等', value: 'medium', color: 'blue', star: 3 },
+      { name: '较难', value: 'relatively_hard', color: 'orange', star: 4 },
+      { name: '困难', value: 'hard', color: 'red', star: 5 },
+    ]),
   },
   {
-    id: 'cat-2',
-    name: '考查能力',
-    code: 'competency',
+    id: 'cat-question-type',
+    name: '题型',
+    code: 'question_type',
+    description: '用于描述试题呈现与作答类型',
+    target: 'question',
+    status: 'enabled',
+    sort: 1,
+    selectionMode: 'single',
+    tags: createSeedOptions('question-type', [
+      { name: '单选题', value: 'single_choice' },
+      { name: '多选题', value: 'multiple_choice' },
+      { name: '填空题', value: 'fill_blank' },
+      { name: '解答题', value: 'answer' },
+    ]),
+  },
+  {
+    id: 'cat-question-ability',
+    name: '能力',
+    code: 'ability',
     description: '用于标记试题主要考查的学科能力',
     target: 'question',
-    valueType: 'multiple',
-    controlType: 'checkbox',
-    selectionMode: 'multiple',
-    required: false,
+    optionAddMode: 'bySubject',
     status: 'enabled',
-    sceneRules: [
-      { scene: 'contentCompletion', enabled: true },
-      { scene: 'tagging', enabled: true },
-      { scene: 'frontDisplay', enabled: true },
-    ],
-    displayRule: {
-      visible: true,
-      filterable: true,
-      displayName: '考查能力',
+    sort: 2,
+    selectionMode: 'multiple',
+    tags: [],
+    subjectTags: {
+      math: createSeedOptions('ability-math', [
+        { name: '运算能力', value: 'operation' },
+        { name: '逻辑推理', value: 'logical_reasoning' },
+        { name: '空间观念', value: 'spatial_concept' },
+        { name: '数据分析', value: 'data_analysis' },
+      ]),
+      chinese: createSeedOptions('ability-chinese', [
+        { name: '语言建构', value: 'language_construction' },
+        { name: '阅读理解', value: 'reading_comprehension' },
+        { name: '表达交流', value: 'expression' },
+      ]),
     },
-    tags: [
-      {
-        id: 'comp-1',
-        name: '运算能力',
-        value: 'operation',
-        color: 'purple',
-        sort: 0,
-        status: 'enabled',
-        displayName: '运算能力',
-        frontVisible: true,
-      },
-      {
-        id: 'comp-2',
-        name: '逻辑推理',
-        value: 'logical_reasoning',
-        color: 'geekblue',
-        sort: 1,
-        status: 'enabled',
-        displayName: '逻辑推理',
-        frontVisible: true,
-      },
-      {
-        id: 'comp-3',
-        name: '空间观念',
-        value: 'spatial_concept',
-        color: 'magenta',
-        sort: 2,
-        status: 'enabled',
-        displayName: '空间观念',
-        frontVisible: true,
-      },
-      {
-        id: 'comp-4',
-        name: '数据分析',
-        value: 'data_analysis',
-        color: 'gold',
-        sort: 3,
-        status: 'enabled',
-        displayName: '数据分析',
-        frontVisible: true,
-      },
-    ],
   },
   {
-    id: 'cat-3',
+    id: 'cat-question-core-literacy',
+    name: '核心素养',
+    code: 'core_literacy',
+    description: '用于标记试题对应的学科核心素养',
+    target: 'question',
+    optionAddMode: 'bySubject',
+    status: 'enabled',
+    sort: 3,
+    selectionMode: 'multiple',
+    tags: [],
+    subjectTags: {
+      math: createSeedOptions('literacy-math', [
+        { name: '数学抽象', value: 'mathematical_abstraction' },
+        { name: '数学建模', value: 'mathematical_modeling' },
+        { name: '直观想象', value: 'intuitive_imagination' },
+      ]),
+      chinese: createSeedOptions('literacy-chinese', [
+        { name: '文化自信', value: 'cultural_confidence' },
+        { name: '语言运用', value: 'language_use' },
+        { name: '思维能力', value: 'thinking_ability' },
+      ]),
+    },
+  },
+  {
+    id: 'cat-question-subject-feature',
+    name: '学科特色',
+    code: 'subject_feature',
+    description: '用于标记不同学科的特色标签',
+    target: 'question',
+    optionAddMode: 'bySubject',
+    status: 'enabled',
+    sort: 4,
+    selectionMode: 'multiple',
+    tags: [],
+    subjectTags: {
+      math: createSeedOptions('feature-math', [
+        { name: '函数思想', value: 'function_thinking' },
+        { name: '方程思想', value: 'equation_thinking' },
+        { name: '分类讨论', value: 'case_analysis' },
+      ]),
+      chinese: createSeedOptions('feature-chinese', [
+        { name: '文言实词', value: 'classical_words' },
+        { name: '修辞手法', value: 'rhetoric' },
+        { name: '立意表达', value: 'theme_expression' },
+      ]),
+    },
+  },
+  {
+    id: 'cat-question-source-type',
     name: '题源类型',
     code: 'source_type',
     description: '用于描述试题来源类型',
     target: 'question',
-    valueType: 'single',
-    controlType: 'select',
-    selectionMode: 'single',
-    required: false,
     status: 'enabled',
-    sceneRules: [
-      { scene: 'contentCompletion', enabled: true },
-      { scene: 'tagging', enabled: true },
-      { scene: 'frontDisplay', enabled: true },
-    ],
-    displayRule: {
-      visible: true,
-      filterable: true,
-      displayName: '题源',
-    },
-    tags: [
-      {
-        id: 'src-1',
-        name: '中考真题',
-        value: 'entrance_exam',
-        color: 'default',
-        sort: 0,
-        status: 'enabled',
-        displayName: '中考真题',
-        frontVisible: true,
-      },
-      {
-        id: 'src-2',
-        name: '一模/二模',
-        value: 'mock_exam',
-        color: 'default',
-        sort: 1,
-        status: 'enabled',
-        displayName: '一模/二模',
-        frontVisible: true,
-      },
-      {
-        id: 'src-3',
-        name: '期中/期末',
-        value: 'term_exam',
-        color: 'default',
-        sort: 2,
-        status: 'enabled',
-        displayName: '期中/期末',
-        frontVisible: true,
-      },
-      {
-        id: 'src-4',
-        name: '名校试题',
-        value: 'school_exam',
-        color: 'default',
-        sort: 3,
-        status: 'enabled',
-        displayName: '名校试题',
-        frontVisible: true,
-      },
-    ],
+    sort: 5,
+    selectionMode: 'single',
+    tags: createSeedOptions('source-type', [
+      { name: '中考真题', value: 'entrance_exam' },
+      { name: '一模/二模', value: 'mock_exam' },
+      { name: '期中/期末', value: 'term_exam' },
+      { name: '名校试题', value: 'school_exam' },
+    ]),
   },
   {
-    id: 'cat-4',
-    name: '地区',
-    code: 'region',
-    description: '用于描述试题或试卷适用地区',
-    target: 'common',
-    valueType: 'single',
-    controlType: 'select',
-    selectionMode: 'single',
-    required: false,
+    id: 'cat-knowledge-target',
+    name: '目标分类',
+    code: 'target_category',
+    description: '用于描述知识点目标层级',
+    target: 'knowledge',
     status: 'enabled',
-    sceneRules: [
-      { scene: 'contentCompletion', enabled: true },
-      { scene: 'tagging', enabled: true },
-      { scene: 'frontDisplay', enabled: true },
-    ],
-    displayRule: {
-      visible: true,
-      filterable: true,
-      displayName: '地区',
-    },
-    tags: [
-      {
-        id: 'prov-1',
-        name: '北京',
-        value: 'beijing',
-        color: 'default',
-        sort: 0,
-        status: 'enabled',
-        displayName: '北京',
-        frontVisible: true,
-      },
-      {
-        id: 'prov-2',
-        name: '上海',
-        value: 'shanghai',
-        color: 'default',
-        sort: 1,
-        status: 'enabled',
-        displayName: '上海',
-        frontVisible: true,
-      },
-      {
-        id: 'prov-3',
-        name: '江苏',
-        value: 'jiangsu',
-        color: 'default',
-        sort: 2,
-        status: 'enabled',
-        displayName: '江苏',
-        frontVisible: true,
-      },
-      {
-        id: 'prov-4',
-        name: '浙江',
-        value: 'zhejiang',
-        color: 'default',
-        sort: 3,
-        status: 'enabled',
-        displayName: '浙江',
-        frontVisible: true,
-      },
-    ],
+    sort: 0,
+    selectionMode: 'single',
+    tags: createSeedOptions('knowledge-target', [
+      { name: '必会', value: 'must_know' },
+      { name: '选学', value: 'optional' },
+      { name: '拓展', value: 'extension' },
+    ]),
   },
   {
-    id: 'cat-7',
-    name: '试题场景',
-    code: 'question_scene',
-    description: '用于描述试题推荐使用场景',
-    target: 'question',
-    valueType: 'multiple',
-    controlType: 'checkbox',
+    id: 'cat-knowledge-emphasis',
+    name: '重难点',
+    code: 'emphasis',
+    description: '用于标记知识点的教学重难点属性',
+    target: 'knowledge',
+    status: 'enabled',
+    sort: 1,
     selectionMode: 'multiple',
-    required: false,
+    tags: createSeedOptions('knowledge-emphasis', [
+      { name: '重点', value: 'key_point' },
+      { name: '难点', value: 'hard_point' },
+      { name: '易错点', value: 'error_prone' },
+    ]),
+  },
+  {
+    id: 'cat-knowledge-first-test',
+    name: '首次考查',
+    code: 'first_test',
+    description: '用于标记知识点是否首次进入考查范围',
+    target: 'knowledge',
     status: 'enabled',
-    sceneRules: [
-      { scene: 'contentCompletion', enabled: false },
-      { scene: 'tagging', enabled: true },
-      { scene: 'frontDisplay', enabled: true },
-    ],
-    displayRule: {
-      visible: true,
-      filterable: true,
-      displayName: '适用场景',
-    },
-    tags: [
-      {
-        id: 'scene-1',
-        name: '预习',
-        value: 'preview',
-        color: 'default',
-        sort: 0,
-        status: 'enabled',
-        displayName: '预习',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-2',
-        name: '作业',
-        value: 'homework',
-        color: 'default',
-        sort: 1,
-        status: 'enabled',
-        displayName: '作业',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-3',
-        name: '单元测',
-        value: 'unit_test',
-        color: 'default',
-        sort: 2,
-        status: 'enabled',
-        displayName: '单元测',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-4',
-        name: '月考',
-        value: 'monthly_exam',
-        color: 'default',
-        sort: 3,
-        status: 'enabled',
-        displayName: '月考',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-5',
-        name: '期中',
-        value: 'midterm_exam',
-        color: 'default',
-        sort: 4,
-        status: 'enabled',
-        displayName: '期中',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-6',
-        name: '期末',
-        value: 'final_exam',
-        color: 'default',
-        sort: 5,
-        status: 'enabled',
-        displayName: '期末',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-7',
-        name: '开学考',
-        value: 'placement_exam',
-        color: 'default',
-        sort: 6,
-        status: 'enabled',
-        displayName: '开学考',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-8',
-        name: '模拟',
-        value: 'mock',
-        color: 'default',
-        sort: 7,
-        status: 'enabled',
-        displayName: '模拟',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-9',
-        name: '真题',
-        value: 'real_exam',
-        color: 'default',
-        sort: 8,
-        status: 'enabled',
-        displayName: '真题',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-10',
-        name: '学业考',
-        value: 'academic_exam',
-        color: 'default',
-        sort: 9,
-        status: 'enabled',
-        displayName: '学业考',
-        frontVisible: true,
-      },
-      {
-        id: 'scene-11',
-        name: '假期',
-        value: 'holiday',
-        color: 'default',
-        sort: 10,
-        status: 'enabled',
-        displayName: '假期',
-        frontVisible: true,
-      },
-    ],
+    sort: 2,
+    selectionMode: 'single',
+    tags: createSeedOptions('knowledge-first-test', [
+      { name: '是', value: 'yes' },
+      { name: '否', value: 'no' },
+    ]),
+  },
+  {
+    id: 'cat-topic-frequency',
+    name: '考频',
+    code: 'exam_frequency',
+    description: '用于标记题型或专题的考查频率',
+    target: 'topic',
+    status: 'enabled',
+    sort: 0,
+    selectionMode: 'single',
+    tags: createSeedOptions('topic-frequency', [
+      { name: '高频', value: 'high' },
+      { name: '中频', value: 'medium' },
+      { name: '低频', value: 'low' },
+    ]),
   },
 ];
 
@@ -881,12 +725,132 @@ const reorderQuestionTypeNode = (
   return true;
 };
 
-const normalizeTagOrder = (category: MockTagCategory) => {
-  category.tags = category.tags.map((tag, index) => ({
+const SUBJECT_KEYS = [
+  'math',
+  'chinese',
+  'english',
+  'physics',
+  'chemistry',
+  'biology',
+  'history',
+  'geography',
+  'politics',
+] as const;
+
+const ATTRIBUTE_TARGET_ORDER: Record<AttributeTarget, number> = {
+  paper: 0,
+  question: 1,
+  knowledge: 2,
+  topic: 3,
+};
+
+const normalizeOptionOrder = (tags: MockAttributeItem[] = []) =>
+  tags.map((tag, index) => ({
     ...tag,
     sort: index,
   }));
+
+const getSubjectKey = (subject?: unknown) => {
+  if (Array.isArray(subject)) {
+    return getSubjectKey(subject[0]);
+  }
+  if (
+    typeof subject === 'string' &&
+    SUBJECT_KEYS.includes(subject as (typeof SUBJECT_KEYS)[number])
+  ) {
+    return subject;
+  }
+  return 'math';
+};
+
+const shouldUseSubjectOptions = (category: MockTagCategory) =>
+  category.target === 'question' && category.optionAddMode === 'bySubject';
+
+const getCategoryOptionList = (
+  category: MockTagCategory,
+  subject?: unknown,
+) => {
+  if (shouldUseSubjectOptions(category)) {
+    const subjectKey = getSubjectKey(subject);
+    if (!category.subjectTags) category.subjectTags = {};
+    category.subjectTags[subjectKey] = normalizeOptionOrder(
+      category.subjectTags[subjectKey] || [],
+    );
+    return category.subjectTags[subjectKey] || [];
+  }
+
+  category.tags = normalizeOptionOrder(category.tags || []);
+  return category.tags;
+};
+
+const setCategoryOptionList = (
+  category: MockTagCategory,
+  tags: MockAttributeItem[],
+  subject?: unknown,
+) => {
+  const nextTags = normalizeOptionOrder(tags);
+  if (shouldUseSubjectOptions(category)) {
+    const subjectKey = getSubjectKey(subject);
+    if (!category.subjectTags) category.subjectTags = {};
+    category.subjectTags[subjectKey] = nextTags;
+    return nextTags;
+  }
+
+  category.tags = nextTags;
+  return category.tags;
+};
+
+const cloneAttributeItems = (tags: MockAttributeItem[] = []) =>
+  (Array.isArray(tags) ? tags : []).map((tag) => ({ ...tag }));
+
+const cloneSubjectTags = (
+  subjectTags?: Partial<Record<string, MockAttributeItem[]>>,
+) =>
+  Object.entries(subjectTags || {}).reduce<
+    Partial<Record<string, MockAttributeItem[]>>
+  >((result, [subject, tags]) => {
+    result[subject] = cloneAttributeItems(tags);
+    return result;
+  }, {});
+
+const normalizeCategoryOptionLists = (category: MockTagCategory) => {
+  category.tags = normalizeOptionOrder(category.tags || []);
+  if (category.subjectTags) {
+    Object.keys(category.subjectTags).forEach((subject) => {
+      category.subjectTags![subject] = normalizeOptionOrder(
+        category.subjectTags![subject] || [],
+      );
+    });
+  }
   return category;
+};
+
+const cloneTagCategory = (category: MockTagCategory): MockTagCategory =>
+  normalizeCategoryOptionLists({
+    ...category,
+    tags: cloneAttributeItems(category.tags),
+    subjectTags: cloneSubjectTags(category.subjectTags),
+  });
+
+const sortTagCategories = (categories: MockTagCategory[]) =>
+  [...categories].sort((a, b) => {
+    const targetOrder =
+      ATTRIBUTE_TARGET_ORDER[a.target] - ATTRIBUTE_TARGET_ORDER[b.target];
+    if (targetOrder !== 0) return targetOrder;
+    const sortOrder = (a.sort ?? 0) - (b.sort ?? 0);
+    if (sortOrder !== 0) return sortOrder;
+    return a.name.localeCompare(b.name, 'zh-Hans-CN');
+  });
+
+const toTagCategoryResponse = (
+  category: MockTagCategory,
+  subject?: unknown,
+) => {
+  const responseCategory = cloneTagCategory(category);
+  responseCategory.tags = cloneAttributeItems(
+    getCategoryOptionList(category, subject),
+  );
+  return responseCategory;
 };
 
 const mergeDefined = <T extends object>(target: T, patch: Partial<T>) => {
@@ -900,21 +864,21 @@ const mergeDefined = <T extends object>(target: T, patch: Partial<T>) => {
 
 const createMockAttributeItem = (
   tag: Partial<MockAttributeItem>,
-  contextKey: string,
+  ownerKey: string,
   index: number,
 ): MockAttributeItem => ({
   ...tag,
-  id: tag.id || `tag-${contextKey}-${Date.now()}-${index}`,
-  name: tag.name || '未命名属性',
+  id: tag.id || `tag-${ownerKey}-${Date.now()}-${index}`,
+  name: tag.name || '未命名选项',
   color: tag.color || 'default',
 });
 
-const createMockAttributeItems = (tags: unknown, contextKey: string) =>
+const createMockAttributeItems = (tags: unknown, ownerKey: string) =>
   Array.isArray(tags)
     ? tags.map((tag, index) =>
         createMockAttributeItem(
           (tag || {}) as Partial<MockAttributeItem>,
-          contextKey,
+          ownerKey,
           index,
         ),
       )
@@ -923,7 +887,7 @@ const createMockAttributeItems = (tags: unknown, contextKey: string) =>
 const createMergedMockAttributeItems = (
   tags: unknown,
   existingTags: MockAttributeItem[],
-  contextKey: string,
+  ownerKey: string,
 ) =>
   Array.isArray(tags)
     ? tags.map((tag, index) => {
@@ -936,45 +900,49 @@ const createMergedMockAttributeItems = (
             ...existingTag,
             ...incomingTag,
           },
-          contextKey,
+          ownerKey,
           index,
         );
       })
     : [];
 
-const cloneTagCategories = (
-  source: MockTagCategory[],
-  contextKey: string,
-): MockTagCategory[] =>
-  source.map((category) =>
-    normalizeTagOrder({
-      ...category,
-      id: `${category.id}-${contextKey}`,
-      tags: category.tags.map((tag) => ({
-        ...tag,
-        id: `${tag.id}-${contextKey}`,
-      })),
-    }),
+const tagCategoryStore: MockTagCategory[] =
+  defaultTagCategoryTemplates.map(cloneTagCategory);
+
+const getTagCategoriesForResponse = (subject?: unknown) =>
+  sortTagCategories(tagCategoryStore).map((category) =>
+    toTagCategoryResponse(category, subject),
   );
 
-const tagCategoryStore: Record<string, MockTagCategory[]> = {
-  [getTagContextKey(DEFAULT_TAG_CONTEXT)]: cloneTagCategories(
-    defaultTagCategoryTemplates,
-    getTagContextKey(DEFAULT_TAG_CONTEXT),
-  ),
-};
+const getTagCategoryById = (categoryId: unknown) =>
+  tagCategoryStore.find((category) => category.id === categoryId);
 
-const getTagCategoriesByContext = (context: TagContext) => {
-  const contextKey = getTagContextKey(context);
-  if (!tagCategoryStore[contextKey]) {
-    tagCategoryStore[contextKey] = cloneTagCategories(
-      defaultTagCategoryTemplates,
-      contextKey,
-    );
-  }
-  tagCategoryStore[contextKey].forEach(normalizeTagOrder);
-  return tagCategoryStore[contextKey];
-};
+let attributeUsageRules: AttributeUsageRule[] = [
+  {
+    id: 'rule-question-tagging-difficulty',
+    attributeId: 'cat-question-difficulty',
+    scene: 'questionTagging',
+    enabled: true,
+    required: true,
+    sort: 0,
+  },
+  {
+    id: 'rule-question-list-filter-difficulty',
+    attributeId: 'cat-question-difficulty',
+    scene: 'questionListFilter',
+    enabled: true,
+    filterArea: 'primary',
+    sort: 0,
+  },
+  {
+    id: 'rule-question-list-filter-paper-year',
+    attributeId: 'cat-paper-year',
+    scene: 'questionListFilter',
+    enabled: true,
+    filterArea: 'more',
+    sort: 1,
+  },
+];
 
 // Mock Data for Textbook Versions
 let textbookVersions = [
@@ -1019,76 +987,96 @@ export default {
   },
   // Replaced /api/tags/attributes with /api/tags/categories
   'GET /api/tags/categories': (req: Request, res: Response) => {
-    const context = getTagContext(req);
     res.send({
       success: true,
-      data: getTagCategoriesByContext(context),
+      data: getTagCategoriesForResponse(req.query.subject),
     });
   },
   // Category CRUD
   'POST /api/tags/category': (req: Request, res: Response) => {
-    const context = getTagContext(req);
-    const contextKey = getTagContextKey(context);
-    const tagCategories = getTagCategoriesByContext(context);
     const categoryPayload = { ...req.body };
     const tags = categoryPayload.tags;
+    const subjectTags = categoryPayload.subjectTags;
     delete categoryPayload.grade;
     delete categoryPayload.subject;
     delete categoryPayload.tags;
+    delete categoryPayload.subjectTags;
 
-    const newCat = normalizeTagOrder({
+    const categoryId = categoryPayload.id || `cat-${Date.now()}`;
+    const newCat = normalizeCategoryOptionLists({
       ...(categoryPayload as Partial<MockTagCategory>),
-      id: categoryPayload.id || `cat-${contextKey}-${Date.now()}`,
+      id: categoryId,
       name: categoryPayload.name || '未命名属性',
-      tags: createMockAttributeItems(tags, contextKey),
-    });
-    tagCategories.push(newCat);
+      target: categoryPayload.target || 'question',
+      optionAddMode: categoryPayload.optionAddMode || 'unified',
+      status: categoryPayload.status || 'enabled',
+      sort: categoryPayload.sort ?? tagCategoryStore.length,
+      tags: createMockAttributeItems(tags, categoryId),
+      subjectTags: cloneSubjectTags(subjectTags),
+    } as MockTagCategory);
+    tagCategoryStore.push(newCat);
     res.send({
       success: true,
       message: 'Category created successfully',
-      data: newCat,
+      data: toTagCategoryResponse(newCat, req.body?.subject),
     });
   },
   'PUT /api/tags/category': (req: Request, res: Response) => {
     const { id } = req.body;
-    const context = getTagContext(req);
-    const contextKey = getTagContextKey(context);
-    const tagCategories = getTagCategoriesByContext(context);
-    const category = tagCategories.find((c) => c.id === id);
+    const category = getTagCategoryById(id);
     if (category) {
       const categoryPayload = { ...req.body };
       const tags = categoryPayload.tags;
+      const subjectTags = categoryPayload.subjectTags;
       delete categoryPayload.id;
       delete categoryPayload.grade;
       delete categoryPayload.subject;
       delete categoryPayload.tags;
+      delete categoryPayload.subjectTags;
 
       mergeDefined(category, categoryPayload as Partial<MockTagCategory>);
-      if (tags !== undefined) {
-        category.tags = createMergedMockAttributeItems(
-          tags,
-          category.tags,
-          contextKey,
-        );
+      if (subjectTags !== undefined) {
+        category.subjectTags = cloneSubjectTags(subjectTags);
       }
-      normalizeTagOrder(category);
+      if (tags !== undefined) {
+        const currentTags = getCategoryOptionList(category, req.body?.subject);
+        const nextTags = createMergedMockAttributeItems(
+          tags,
+          currentTags,
+          `${category.id}-${getSubjectKey(req.body?.subject)}`,
+        );
+        setCategoryOptionList(category, nextTags, req.body?.subject);
+      }
+      normalizeCategoryOptionLists(category);
     }
     res.send({
       success: !!category,
       message: category
         ? 'Category updated successfully'
         : 'Category not found',
-      data: category,
+      data: category
+        ? toTagCategoryResponse(category, req.body?.subject)
+        : undefined,
     });
   },
   'DELETE /api/tags/category': (req: Request, res: Response) => {
     const { id } = req.query;
-    const context = getTagContext(req);
-    const contextKey = getTagContextKey(context);
-    tagCategoryStore[contextKey] = getTagCategoriesByContext(context).filter(
-      (c) => c.id !== id,
-    );
-    res.send({ success: true, message: 'Category deleted successfully' });
+    const nextCategories = tagCategoryStore.filter((category) => {
+      return category.id !== id;
+    });
+    const deleted = nextCategories.length !== tagCategoryStore.length;
+    tagCategoryStore.splice(0, tagCategoryStore.length, ...nextCategories);
+    if (deleted) {
+      attributeUsageRules = attributeUsageRules.filter(
+        (rule) => rule.attributeId !== id,
+      );
+    }
+    res.send({
+      success: deleted,
+      message: deleted
+        ? 'Category deleted successfully'
+        : 'Category not found',
+    });
   },
 
   'POST /api/tags/knowledge-node': (req: Request, res: Response) => {
@@ -1336,13 +1324,11 @@ export default {
 
   // Attribute CRUD (Updated to use categoryId)
   'POST /api/tags/attribute': (req: Request, res: Response) => {
-    const { categoryId } = req.body;
-    const context = getTagContext(req);
-    const contextKey = getTagContextKey(context);
-    const tagCategories = getTagCategoriesByContext(context);
-    const category = tagCategories.find((c) => c.id === categoryId);
+    const { categoryId, subject } = req.body;
+    const category = getTagCategoryById(categoryId);
     let newTag: MockAttributeItem | undefined;
     if (category) {
+      const currentTags = getCategoryOptionList(category, subject);
       const tagPayload = { ...req.body };
       delete tagPayload.categoryId;
       delete tagPayload.grade;
@@ -1350,11 +1336,10 @@ export default {
 
       newTag = createMockAttributeItem(
         tagPayload as Partial<MockAttributeItem>,
-        contextKey,
-        category.tags.length,
+        `${category.id}-${getSubjectKey(subject)}`,
+        currentTags.length,
       );
-      category.tags.push(newTag);
-      normalizeTagOrder(category);
+      setCategoryOptionList(category, [...currentTags, newTag], subject);
     }
     res.send({
       success: !!newTag,
@@ -1365,13 +1350,12 @@ export default {
     });
   },
   'PUT /api/tags/attribute': (req: Request, res: Response) => {
-    const { id, categoryId } = req.body;
-    const context = getTagContext(req);
-    const tagCategories = getTagCategoriesByContext(context);
-    const category = tagCategories.find((c) => c.id === categoryId);
+    const { id, categoryId, subject } = req.body;
+    const category = getTagCategoryById(categoryId);
     let updatedTag: MockAttributeItem | undefined;
     if (category) {
-      const tag = category.tags.find((t: any) => t.id === id);
+      const currentTags = getCategoryOptionList(category, subject);
+      const tag = currentTags.find((item) => item.id === id);
       if (tag) {
         const tagPayload = { ...req.body };
         delete tagPayload.id;
@@ -1380,7 +1364,7 @@ export default {
         delete tagPayload.subject;
 
         mergeDefined(tag, tagPayload as Partial<MockAttributeItem>);
-        normalizeTagOrder(category);
+        setCategoryOptionList(category, currentTags, subject);
         updatedTag = tag;
       }
     }
@@ -1393,15 +1377,41 @@ export default {
     });
   },
   'DELETE /api/tags/attribute': (req: Request, res: Response) => {
-    const { id, categoryId } = req.query;
-    const context = getTagContext(req);
-    const tagCategories = getTagCategoriesByContext(context);
-    const category = tagCategories.find((c) => c.id === categoryId);
+    const { id, categoryId, subject } = req.query;
+    const category = getTagCategoryById(categoryId);
     if (category) {
-      category.tags = category.tags.filter((t: any) => t.id !== id);
-      normalizeTagOrder(category);
+      const currentTags = getCategoryOptionList(category, subject);
+      setCategoryOptionList(
+        category,
+        currentTags.filter((item) => item.id !== id),
+        subject,
+      );
     }
     res.send({ success: true, message: 'Attribute deleted successfully' });
+  },
+
+  'GET /api/tags/attribute-usage-rules': (req: Request, res: Response) => {
+    res.send({
+      success: true,
+      data: [...attributeUsageRules].sort((a, b) => a.sort - b.sort),
+    });
+  },
+  'PUT /api/tags/attribute-usage-rules': (req: Request, res: Response) => {
+    const rules: Partial<AttributeUsageRule>[] = Array.isArray(
+      req.body?.rules,
+    )
+      ? req.body.rules
+      : [];
+    attributeUsageRules = rules.map((rule, index) => ({
+      ...(rule as AttributeUsageRule),
+      id: rule.id || `rule-${Date.now()}-${index}`,
+      sort: rule.sort ?? index,
+    }));
+    res.send({
+      success: true,
+      message: 'Attribute usage rules updated successfully',
+      data: [...attributeUsageRules].sort((a, b) => a.sort - b.sort),
+    });
   },
 
   // Textbook API

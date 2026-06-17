@@ -9,7 +9,71 @@ export interface ApiResponse<T> {
 }
 
 export type AttributeStatus = 'enabled' | 'disabled';
-export type AttributeTarget = 'question' | 'paper' | 'common';
+export type AttributeTarget = 'paper' | 'question' | 'knowledge' | 'topic';
+export type AttributeOptionAddMode = 'unified' | 'bySubject';
+export type AttributeFilterArea = 'primary' | 'more';
+export type AttributeUsageScene =
+  | 'paperUpload'
+  | 'paperCardDisplay'
+  | 'paperListFilter'
+  | 'questionTagging'
+  | 'questionCardDisplay'
+  | 'questionListFilter'
+  | 'knowledgeTreeNodeDisplay'
+  | 'topicTreeNodeDisplay';
+export type AttributeSelectionMode = 'single' | 'multiple';
+
+export interface AttributeUsageRule {
+  id: string;
+  attributeId: string;
+  scene: AttributeUsageScene;
+  enabled: boolean;
+  required?: boolean;
+  filterArea?: AttributeFilterArea;
+  sort: number;
+}
+
+export interface AttributeItem {
+  id: string;
+  name: string;
+  color?: string;
+  value?: string;
+  sort?: number;
+  status?: AttributeStatus;
+  star?: number;
+  displayName?: string;
+  frontVisible?: boolean;
+}
+
+export interface TagCategory {
+  id: string;
+  name: string;
+  tags: AttributeItem[];
+  code?: string;
+  description?: string;
+  target: AttributeTarget;
+  optionAddMode?: AttributeOptionAddMode;
+  subjectTags?: Partial<Record<string, AttributeItem[]>>;
+  status?: AttributeStatus;
+  sort?: number;
+  selectionMode?: AttributeSelectionMode;
+  /** @deprecated Legacy settings-panel compatibility only. */
+  valueType?: AttributeValueType;
+  /** @deprecated Legacy settings-panel compatibility only. */
+  controlType?: AttributeControlType;
+  /** @deprecated Legacy settings-panel compatibility only. */
+  required?: boolean;
+  /** @deprecated Legacy settings-panel compatibility only. */
+  sceneRules?: AttributeSceneRule[];
+  /** @deprecated Legacy settings-panel compatibility only. */
+  displayRule?: AttributeDisplayRule;
+}
+
+export interface TagContextParams {
+  grade?: string;
+  subject?: string;
+}
+
 export type AttributeValueType =
   | 'text'
   | 'number'
@@ -24,7 +88,6 @@ export type AttributeControlType =
   | 'rate'
   | 'treeSelect';
 export type AttributeScene = 'contentCompletion' | 'tagging' | 'frontDisplay';
-export type AttributeSelectionMode = 'single' | 'multiple';
 
 export interface AttributeSceneRule {
   scene: AttributeScene;
@@ -36,39 +99,6 @@ export interface AttributeDisplayRule {
   visible: boolean;
   filterable?: boolean;
   displayName?: string;
-}
-
-export interface AttributeItem {
-  id: string;
-  name: string;
-  color: string;
-  value?: string;
-  sort?: number;
-  status?: AttributeStatus;
-  displayName?: string;
-  frontVisible?: boolean;
-  star?: number;
-}
-
-export interface TagCategory {
-  id: string;
-  name: string;
-  tags: AttributeItem[];
-  code?: string;
-  description?: string;
-  target?: AttributeTarget;
-  valueType?: AttributeValueType;
-  controlType?: AttributeControlType;
-  required?: boolean;
-  selectionMode?: AttributeSelectionMode;
-  status?: AttributeStatus;
-  sceneRules?: AttributeSceneRule[];
-  displayRule?: AttributeDisplayRule;
-}
-
-export interface TagContextParams {
-  grade: string;
-  subject: string;
 }
 
 export interface KnowledgeNode {
@@ -118,20 +148,18 @@ export async function getKnowledgeTree(params?: {
 
 // --- Tag Category CRUD ---
 
-export async function getTagCategories(params: TagContextParams) {
+export async function getTagCategories(_params?: TagContextParams) {
   return request<ApiResponse<TagCategory[]>>('/api/tags/categories', {
     method: 'GET',
-    params,
   });
 }
 
 export async function addTagCategory(
   data: {
     name: string;
-    grade: string;
-    subject: string;
     tags?: AttributeItem[];
-  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>>,
+  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>> &
+    TagContextParams,
 ) {
   return request<ApiResponse<TagCategory>>('/api/tags/category', {
     method: 'POST',
@@ -143,10 +171,9 @@ export async function updateTagCategory(
   data: {
     id: string;
     name: string;
-    grade: string;
-    subject: string;
     tags?: AttributeItem[];
-  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>>,
+  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>> &
+    TagContextParams,
 ) {
   return request<ApiResponse<TagCategory>>('/api/tags/category', {
     method: 'PUT',
@@ -154,10 +181,13 @@ export async function updateTagCategory(
   });
 }
 
-export async function deleteTagCategory(id: string, params: TagContextParams) {
+export async function deleteTagCategory(
+  id: string,
+  _params?: TagContextParams,
+) {
   return request<ApiResponse<void>>('/api/tags/category', {
     method: 'DELETE',
-    params: { id, ...params },
+    params: { id },
   });
 }
 
@@ -268,11 +298,11 @@ export async function moveQuestionTypeNode(data: {
 export async function addAttribute(
   data: {
     categoryId: string;
-    grade: string;
-    subject: string;
     name: string;
-    color: string;
-  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>>,
+    subject?: string;
+    color?: string;
+  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>> &
+    Pick<TagContextParams, 'grade'>,
 ) {
   return request<ApiResponse<AttributeItem>>('/api/tags/attribute', {
     method: 'POST',
@@ -284,11 +314,11 @@ export async function updateAttribute(
   data: {
     id: string;
     categoryId: string;
-    grade: string;
-    subject: string;
     name?: string;
+    subject?: string;
     color?: string;
-  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>>,
+  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>> &
+    Pick<TagContextParams, 'grade'>,
 ) {
   return request<ApiResponse<AttributeItem>>('/api/tags/attribute', {
     method: 'PUT',
@@ -299,12 +329,28 @@ export async function updateAttribute(
 export async function deleteAttribute(
   id: string,
   categoryId: string,
-  params: TagContextParams,
+  params?: { subject?: string; grade?: string },
 ) {
   return request<ApiResponse<void>>('/api/tags/attribute', {
     method: 'DELETE',
     params: { id, categoryId, ...params },
   });
+}
+
+export async function getAttributeUsageRules() {
+  return request<ApiResponse<AttributeUsageRule[]>>(
+    '/api/tags/attribute-usage-rules',
+    { method: 'GET' },
+  );
+}
+
+export async function updateAttributeUsageRules(data: {
+  rules: AttributeUsageRule[];
+}) {
+  return request<ApiResponse<AttributeUsageRule[]>>(
+    '/api/tags/attribute-usage-rules',
+    { method: 'PUT', data },
+  );
 }
 
 // --- Textbook ---
