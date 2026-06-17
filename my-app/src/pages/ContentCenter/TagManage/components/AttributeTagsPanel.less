@@ -598,6 +598,73 @@
   border-color: #bfd7ff !important;
 }
 
+.attribute-usage-rule-list {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.attribute-usage-rule-row {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.attribute-usage-rule-row.dragging {
+  opacity: 0.55;
+}
+
+.attribute-usage-rule-row.drag-over {
+  border-color: @attribute-blue !important;
+  box-shadow: 0 0 0 2px rgb(22 119 255 / 10%) !important;
+}
+
+.attribute-usage-row-leading {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding-top: 1px;
+}
+
+.attribute-usage-drag-handle {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: @attribute-text-muted;
+  cursor: grab;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.attribute-usage-drag-handle:hover,
+.attribute-usage-drag-handle:focus-visible {
+  border-color: @attribute-border;
+  background: @attribute-bg-subtle;
+  color: @attribute-blue;
+  outline: none;
+}
+
+.attribute-usage-drag-handle:active {
+  cursor: grabbing;
+}
+
+.attribute-usage-drag-handle[draggable='false'] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.attribute-usage-sort-index {
+  min-width: 18px;
+  color: @attribute-text-secondary;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 24px;
+  text-align: right;
+}
+
 .attribute-usage-rule-row > div:first-child,
 .attribute-addable-row > div:first-child {
   min-width: 0;
@@ -616,6 +683,42 @@
 
 .attribute-usage-rule-row .ant-select {
   flex: 0 0 auto;
+}
+
+.attribute-addable-actions {
+  width: 108px;
+  flex: 0 0 auto;
+
+  .ant-space-item,
+  .ant-btn {
+    width: 100%;
+  }
+
+  .ant-btn {
+    margin-left: 0 !important;
+    padding-inline: 8px;
+  }
+}
+
+.attribute-addable-empty {
+  display: flex;
+  min-height: 120px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 18px 12px;
+  border: 1px dashed @attribute-border-soft;
+  border-radius: 8px;
+  background: #fcfdff;
+  color: @attribute-text-muted;
+  text-align: center;
+}
+
+.attribute-addable-empty-title {
+  color: @attribute-text-secondary;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .attribute-addable-row .ant-btn {

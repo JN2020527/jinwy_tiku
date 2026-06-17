@@ -5,14 +5,23 @@ import type {
   TagCategory,
 } from '@/services/tagSystem';
 import {
-  ArrowDownOutlined,
-  ArrowUpOutlined,
-  DeleteOutlined,
+  HolderOutlined,
+  MinusCircleOutlined,
   PlusOutlined,
   SwapOutlined,
 } from '@ant-design/icons';
-import { Button, Empty, Select, Space, Switch, Tag } from 'antd';
-import React, { useMemo, useState } from 'react';
+import {
+  Button,
+  Empty,
+  message,
+  Modal,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Tooltip,
+} from 'antd';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ATTRIBUTE_TARGET_LABELS,
   USAGE_SCENE_GROUPS,
@@ -28,12 +37,18 @@ import {
 interface AttributeUsageSettingsWorkspaceProps {
   tagCategories: TagCategory[];
   usageRules: AttributeUsageRule[];
+  onOpenAttributeDefinitions?: () => void;
   onSaveUsageRules: (rules: AttributeUsageRule[]) => Promise<boolean>;
 }
 
 interface AttributeUsageRuleRow {
   category: TagCategory;
   rule: AttributeUsageRule;
+}
+
+interface DragState {
+  ruleId: string;
+  scopeKey: string;
 }
 
 const FILTER_AREA_LABELS: Record<AttributeFilterArea, string> = {
@@ -196,17 +211,36 @@ const getNextSort = (
   return Math.max(...scopedRules.map((rule, index) => rule.sort ?? index)) + 1;
 };
 
-const getRuleStatusText = (category: TagCategory) =>
-  category.status === 'disabled' ? '已停用' : '已启用';
+const getAddSavingKey = (
+  attributeId: string,
+  filterArea?: AttributeFilterArea,
+) => (filterArea ? `add-${attributeId}-${filterArea}` : `add-${attributeId}`);
 
 const AttributeUsageSettingsWorkspace: React.FC<
   AttributeUsageSettingsWorkspaceProps
-> = ({ tagCategories, usageRules, onSaveUsageRules }) => {
+> = ({
+  tagCategories,
+  usageRules,
+  onOpenAttributeDefinitions,
+  onSaveUsageRules,
+}) => {
   const [activeScene, setActiveScene] =
     useState<AttributeUsageScene>('questionListFilter');
   const [savingKey, setSavingKey] = useState<string>();
+  const [dragState, setDragState] = useState<DragState>();
+  const [dragOverRuleId, setDragOverRuleId] = useState<string>();
+  const usageRulesRef = useRef(usageRules);
+  const savingKeyRef = useRef<string>();
   const sceneMeta = getSceneMeta(activeScene)!;
   const saving = Boolean(savingKey);
+
+  useEffect(() => {
+    usageRulesRef.current = usageRules;
+  }, [usageRules]);
+
+  useEffect(() => {
+    savingKeyRef.current = savingKey;
+  }, [savingKey]);
   const canonicalUsageRules = useMemo(
     () => canonicalizeUsageRules(usageRules),
     [usageRules],
@@ -276,23 +310,114 @@ const AttributeUsageSettingsWorkspace: React.FC<
     );
   }, [activeScene, sceneRules, tagCategories]);
 
-  const saveRules = async (nextRules: AttributeUsageRule[], key: string) => {
-    if (savingKey) {
-      return;
+  const showActionMessage = (
+    content: React.ReactNode,
+    type: 'success' | 'info' = 'success',
+  ) => {
+    message.destroy();
+    message.open({
+      content,
+      type,
+    });
+  };
+
+  const saveRules = async (
+    nextRules: AttributeUsageRule[],
+    key: string,
+  ): Promise<boolean> => {
+    if (savingKeyRef.current) {
+      return false;
     }
 
+    savingKeyRef.current = key;
     setSavingKey(key);
     try {
-      await onSaveUsageRules(canonicalizeUsageRules(nextRules));
+      return await onSaveUsageRules(canonicalizeUsageRules(nextRules));
     } finally {
+      savingKeyRef.current = undefined;
       setSavingKey(undefined);
     }
   };
 
-  const handleAddCategory = (category: TagCategory) => {
+  const handleUndoRemoveRule = async (
+    removedRule: AttributeUsageRule,
+    category: TagCategory,
+  ) => {
+    const currentRules = usageRulesRef.current;
+    const currentRule = currentRules.find((rule) =>
+      isSameSceneAttributeRule(
+        rule,
+        removedRule.scene,
+        removedRule.attributeId,
+      ),
+    );
+
+    if (currentRule?.enabled) {
+      showActionMessage(`“${category.name}”已在当前场景中，无需撤销`, 'info');
+      return;
+    }
+
+    const nextRules = currentRule
+      ? currentRules.map((rule) =>
+          isSameSceneAttributeRule(
+            rule,
+            removedRule.scene,
+            removedRule.attributeId,
+          )
+            ? {
+                ...rule,
+                enabled: true,
+              }
+            : rule,
+        )
+      : [
+          ...currentRules,
+          {
+            ...removedRule,
+            enabled: true,
+          },
+        ];
+    const saved = await saveRules(nextRules, `undo-remove-${removedRule.id}`);
+
+    if (saved) {
+      const sceneLabel = getSceneMeta(removedRule.scene)?.label || '原场景';
+      showActionMessage(`已恢复“${category.name}”到${sceneLabel}`);
+    }
+  };
+
+  const showRemoveMessage = (
+    removedRule: AttributeUsageRule,
+    category: TagCategory,
+  ) => {
+    const sceneLabel = getSceneMeta(removedRule.scene)?.label || '当前场景';
+
+    message.destroy();
+    message.open({
+      content: (
+        <Space size={8}>
+          <span>{`已将“${category.name}”移出${sceneLabel}`}</span>
+          <Button
+            size="small"
+            type="link"
+            onClick={() => handleUndoRemoveRule(removedRule, category)}
+          >
+            撤销
+          </Button>
+        </Space>
+      ),
+      duration: 6,
+      type: 'success',
+    });
+  };
+
+  const handleAddCategory = async (
+    category: TagCategory,
+    targetFilterArea?: AttributeFilterArea,
+  ) => {
     const filterArea: AttributeFilterArea | undefined = isFilterScene
-      ? 'more'
+      ? targetFilterArea || 'more'
       : undefined;
+    const saveKey = getAddSavingKey(category.id, filterArea);
     const existingRule = usageRules.find((rule) =>
       isSameSceneAttributeRule(rule, activeScene, category.id),
     );
@@ -325,36 +450,66 @@ const AttributeUsageSettingsWorkspace: React.FC<
     };
 
     if (existingRule) {
-      saveRules(
+      const saved = await saveRules(
         usageRules.map((rule) =>
           isSameSceneAttributeRule(rule, activeScene, category.id)
             ? getNextRule(rule)
             : rule,
         ),
-        `add-${category.id}`,
+        saveKey,
       );
+      if (saved) {
+        showActionMessage(
+          filterArea
+            ? `已将“${category.name}”加入${FILTER_AREA_LABELS[filterArea]}`
+            : `已添加“${category.name}”`,
+        );
+      }
       return;
     }
 
-    saveRules([...usageRules, getNextRule()], `add-${category.id}`);
+    const saved = await saveRules([...usageRules, getNextRule()], saveKey);
+    if (saved) {
+      showActionMessage(
+        filterArea
+          ? `已将“${category.name}”加入${FILTER_AREA_LABELS[filterArea]}`
+          : `已添加“${category.name}”`,
+      );
+    }
   };
 
-  const handleRemoveRule = (rule: AttributeUsageRule) => {
-    saveRules(
+  const handleConfirmRemoveRule = async (row: AttributeUsageRuleRow) => {
+    const saved = await saveRules(
       usageRules.map((item) =>
-        isSameSceneAttributeRule(item, rule.scene, rule.attributeId)
+        isSameSceneAttributeRule(item, row.rule.scene, row.rule.attributeId)
           ? {
               ...item,
               enabled: false,
             }
           : item,
       ),
-      `remove-${rule.id}`,
+      `remove-${row.rule.id}`,
     );
+
+    if (saved) {
+      showRemoveMessage(row.rule, row.category);
+    }
   };
 
-  const handleRequiredChange = (
+  const handleRemoveRule = (row: AttributeUsageRuleRow) => {
+    Modal.confirm({
+      cancelText: '取消',
+      content: `仅从“${sceneMeta.label}”移出，不删除属性定义。后续仍可从右侧重新加入。`,
+      okButtonProps: { danger: true },
+      okText: '移出当前场景',
+      title: `确认将“${row.category.name}”移出当前场景？`,
+      onOk: () => handleConfirmRemoveRule(row),
+    });
+  };
+
+  const handleRequiredChange = async (
     rule: AttributeUsageRule,
+    category: TagCategory,
     required: boolean,
   ) => {
     const targetSceneMeta = getSceneMeta(rule.scene);
@@ -363,7 +518,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
       return;
     }
 
-    saveRules(
+    const saved = await saveRules(
       usageRules.map((item) =>
         isSameSceneAttributeRule(item, rule.scene, rule.attributeId)
           ? {
@@ -374,10 +529,19 @@ const AttributeUsageSettingsWorkspace: React.FC<
       ),
       `required-${rule.id}`,
     );
+
+    if (saved) {
+      showActionMessage(
+        required
+          ? `已将“${category.name}”设为必填`
+          : `已取消“${category.name}”必填`,
+      );
+    }
   };
 
-  const handleFilterAreaChange = (
+  const handleFilterAreaChange = async (
     rule: AttributeUsageRule,
+    category: TagCategory,
     filterArea: AttributeFilterArea,
   ) => {
     if (
@@ -387,7 +551,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
       return;
     }
 
-    saveRules(
+    const saved = await saveRules(
       usageRules.map((item) =>
         isSameSceneAttributeRule(item, rule.scene, rule.attributeId)
           ? {
@@ -400,14 +564,24 @@ const AttributeUsageSettingsWorkspace: React.FC<
       ),
       `move-${rule.id}-${filterArea}`,
     );
+
+    if (saved) {
+      showActionMessage(
+        `已将“${category.name}”移动至${FILTER_AREA_LABELS[filterArea]}`,
+      );
+    }
   };
 
-  const handleReorder = (
+  const handleReorder = async (
     scopeRows: AttributeUsageRuleRow[],
     fromIndex: number,
     toIndex: number,
     scopeKey: string,
   ) => {
+    if (fromIndex === toIndex) {
+      return;
+    }
+
     const normalizedRules = reorder(
       scopeRows.map((row) => row.rule),
       fromIndex,
@@ -420,12 +594,116 @@ const AttributeUsageSettingsWorkspace: React.FC<
       normalizedRules.map((rule) => [getUsageRuleKey(rule), rule] as const),
     );
 
-    saveRules(
+    const saved = await saveRules(
       usageRules.map(
         (rule) => normalizedRuleMap.get(getUsageRuleKey(rule)) || rule,
       ),
       `reorder-${activeScene}-${scopeKey}-${fromIndex}-${toIndex}`,
     );
+
+    if (saved) {
+      const scopeLabel =
+        scopeKey === 'primary'
+          ? '主筛选区'
+          : scopeKey === 'more'
+          ? '更多筛选区'
+          : '已启用属性';
+      showActionMessage(`${scopeLabel}排序已保存`);
+    }
+  };
+
+  const handleDragStart = (
+    event: React.DragEvent<HTMLElement>,
+    row: AttributeUsageRuleRow,
+    scopeKey: string,
+  ) => {
+    if (saving) {
+      event.preventDefault();
+      return;
+    }
+
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', row.rule.id);
+    setDragState({
+      ruleId: row.rule.id,
+      scopeKey,
+    });
+  };
+
+  const handleDragEnd = () => {
+    setDragState(undefined);
+    setDragOverRuleId(undefined);
+  };
+
+  const handleDragOver = (
+    event: React.DragEvent<HTMLElement>,
+    row: AttributeUsageRuleRow,
+    scopeKey: string,
+  ) => {
+    if (!dragState || dragState.scopeKey !== scopeKey || saving) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+
+    if (dragState.ruleId !== row.rule.id) {
+      setDragOverRuleId(row.rule.id);
+    }
+  };
+
+  const handleDropToIndex = async (
+    event: React.DragEvent<HTMLElement>,
+    scopeRows: AttributeUsageRuleRow[],
+    toIndex: number,
+    scopeKey: string,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const currentDragState = dragState;
+    setDragState(undefined);
+    setDragOverRuleId(undefined);
+
+    if (!currentDragState || currentDragState.scopeKey !== scopeKey) {
+      return;
+    }
+
+    const fromIndex = scopeRows.findIndex(
+      (row) => row.rule.id === currentDragState.ruleId,
+    );
+
+    if (fromIndex < 0 || fromIndex === toIndex) {
+      return;
+    }
+
+    await handleReorder(scopeRows, fromIndex, toIndex, scopeKey);
+  };
+
+  const handleSectionDragOver = (
+    event: React.DragEvent<HTMLElement>,
+    scopeKey: string,
+  ) => {
+    if (!dragState || dragState.scopeKey !== scopeKey || saving) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleSectionDrop = (
+    event: React.DragEvent<HTMLElement>,
+    scopeRows: AttributeUsageRuleRow[],
+    scopeKey: string,
+  ) => {
+    const target = event.target as HTMLElement;
+
+    if (!scopeRows.length || target.closest('.attribute-usage-rule-row')) {
+      return;
+    }
+
+    void handleDropToIndex(event, scopeRows, scopeRows.length - 1, scopeKey);
   };
 
   const renderRuleRow = (
@@ -436,34 +714,50 @@ const AttributeUsageSettingsWorkspace: React.FC<
   ) => {
     const filterArea = normalizeFilterArea(row.rule);
     const targetLabel = ATTRIBUTE_TARGET_LABELS[row.category.target];
-    const isFirst = index === 0;
-    const isLast = index === scopeRows.length - 1;
+    const isDragging = dragState?.ruleId === row.rule.id;
+    const isDragOver =
+      dragOverRuleId === row.rule.id && dragState?.ruleId !== row.rule.id;
 
     return (
       <div
         key={row.rule.id}
-        className="attribute-usage-rule-row"
+        className={[
+          'attribute-usage-rule-row',
+          isDragging ? 'dragging' : '',
+          isDragOver ? 'drag-over' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         style={rowStyle}
+        onDragLeave={() => {
+          if (dragOverRuleId === row.rule.id) {
+            setDragOverRuleId(undefined);
+          }
+        }}
+        onDragOver={(event) => handleDragOver(event, row, scopeKey)}
+        onDrop={(event) => handleDropToIndex(event, scopeRows, index, scopeKey)}
       >
         <div
           style={{
             alignItems: 'flex-start',
             display: 'flex',
             flex: 1,
-            gap: 12,
+            gap: 10,
             minWidth: 0,
           }}
         >
-          <span
-            style={{
-              color: '#667085',
-              flex: '0 0 24px',
-              fontVariantNumeric: 'tabular-nums',
-              lineHeight: '24px',
-              textAlign: 'right',
-            }}
-          >
-            {index + 1}
+          <span className="attribute-usage-row-leading">
+            <span
+              aria-label={`拖拽排序${row.category.name}`}
+              className="attribute-usage-drag-handle"
+              draggable={!saving}
+              title="拖拽排序"
+              onDragEnd={handleDragEnd}
+              onDragStart={(event) => handleDragStart(event, row, scopeKey)}
+            >
+              <HolderOutlined />
+            </span>
+            <span className="attribute-usage-sort-index">{index + 1}</span>
           </span>
           <div style={{ minWidth: 0 }}>
             <div
@@ -482,13 +776,9 @@ const AttributeUsageSettingsWorkspace: React.FC<
             </div>
             <Space size={6} style={{ flexWrap: 'wrap', marginTop: 6 }}>
               <Tag>{targetLabel}</Tag>
-              <Tag
-                color={
-                  row.category.status === 'disabled' ? 'default' : 'success'
-                }
-              >
-                {getRuleStatusText(row.category)}
-              </Tag>
+              {row.category.status === 'disabled' && (
+                <Tag color="warning">属性已停用</Tag>
+              )}
               {sceneMeta.usageType === 'filter' && (
                 <Tag color={filterArea === 'primary' ? 'blue' : 'cyan'}>
                   {FILTER_AREA_LABELS[filterArea]}
@@ -502,7 +792,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
                     disabled={saving}
                     size="small"
                     onChange={(checked) =>
-                      handleRequiredChange(row.rule, checked)
+                      handleRequiredChange(row.rule, row.category, checked)
                     }
                   />
                 </Space>
@@ -522,38 +812,26 @@ const AttributeUsageSettingsWorkspace: React.FC<
               style={{ width: 116 }}
               suffixIcon={<SwapOutlined />}
               value={filterArea}
-              onChange={(value) => handleFilterAreaChange(row.rule, value)}
+              onChange={(value) =>
+                handleFilterAreaChange(row.rule, row.category, value)
+              }
             />
           )}
-          <Button
-            aria-label={`上移${row.category.name}`}
-            disabled={saving || isFirst}
-            icon={<ArrowUpOutlined />}
-            size="small"
-            title="上移"
-            type="text"
-            onClick={() => handleReorder(scopeRows, index, index - 1, scopeKey)}
-          />
-          <Button
-            aria-label={`下移${row.category.name}`}
-            disabled={saving || isLast}
-            icon={<ArrowDownOutlined />}
-            size="small"
-            title="下移"
-            type="text"
-            onClick={() => handleReorder(scopeRows, index, index + 1, scopeKey)}
-          />
-          <Button
-            aria-label={`移除${row.category.name}`}
-            danger
-            disabled={saving}
-            icon={<DeleteOutlined />}
-            loading={savingKey === `remove-${row.rule.id}`}
-            size="small"
-            title="移除"
-            type="text"
-            onClick={() => handleRemoveRule(row.rule)}
-          />
+          <Tooltip title="移出当前场景">
+            <span>
+              <Button
+                aria-label={`将${row.category.name}移出当前场景`}
+                danger
+                disabled={saving}
+                icon={<MinusCircleOutlined />}
+                loading={savingKey === `remove-${row.rule.id}`}
+                size="small"
+                title="移出当前场景"
+                type="text"
+                onClick={() => handleRemoveRule(row)}
+              />
+            </span>
+          </Tooltip>
         </Space>
       </div>
     );
@@ -567,11 +845,15 @@ const AttributeUsageSettingsWorkspace: React.FC<
     <section style={sectionStyle}>
       <h3 style={sectionTitleStyle}>{title}</h3>
       {sectionRows.length ? (
-        <Space direction="vertical" size={10} style={{ width: '100%' }}>
+        <div
+          className="attribute-usage-rule-list"
+          onDragOver={(event) => handleSectionDragOver(event, scopeKey)}
+          onDrop={(event) => handleSectionDrop(event, sectionRows, scopeKey)}
+        >
           {sectionRows.map((row, index) =>
             renderRuleRow(row, index, sectionRows, scopeKey),
           )}
-        </Space>
+        </div>
       ) : (
         <Empty
           description="暂无已启用属性"
@@ -716,25 +998,75 @@ const AttributeUsageSettingsWorkspace: React.FC<
                     {ATTRIBUTE_TARGET_LABELS[category.target]}
                   </div>
                 </div>
-                <Button
-                  aria-label={`添加${category.name}`}
-                  disabled={saving}
-                  icon={<PlusOutlined />}
-                  loading={savingKey === `add-${category.id}`}
-                  size="small"
-                  title="添加"
-                  onClick={() => handleAddCategory(category)}
-                >
-                  添加
-                </Button>
+                {isFilterScene ? (
+                  <Space
+                    className="attribute-addable-actions"
+                    direction="vertical"
+                    size={6}
+                  >
+                    <Button
+                      aria-label={`将${category.name}加入主筛选区`}
+                      disabled={saving}
+                      icon={<PlusOutlined />}
+                      loading={
+                        savingKey === getAddSavingKey(category.id, 'primary')
+                      }
+                      size="small"
+                      title="加入主筛选区"
+                      onClick={() => handleAddCategory(category, 'primary')}
+                    >
+                      主筛选区
+                    </Button>
+                    <Button
+                      aria-label={`将${category.name}加入更多筛选区`}
+                      disabled={saving}
+                      icon={<PlusOutlined />}
+                      loading={
+                        savingKey === getAddSavingKey(category.id, 'more')
+                      }
+                      size="small"
+                      title="加入更多筛选区"
+                      onClick={() => handleAddCategory(category, 'more')}
+                    >
+                      更多筛选区
+                    </Button>
+                  </Space>
+                ) : (
+                  <Button
+                    aria-label={`添加${category.name}`}
+                    disabled={saving}
+                    icon={<PlusOutlined />}
+                    loading={savingKey === getAddSavingKey(category.id)}
+                    size="small"
+                    title="添加"
+                    onClick={() => handleAddCategory(category)}
+                  >
+                    添加
+                  </Button>
+                )}
               </div>
             ))}
           </Space>
         ) : (
-          <Empty
-            description="暂无可添加属性"
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-          />
+          <div className="attribute-addable-empty">
+            <div className="attribute-addable-empty-title">
+              当前场景暂无可添加属性
+            </div>
+            <Button
+              size="small"
+              type="link"
+              onClick={() => {
+                if (onOpenAttributeDefinitions) {
+                  onOpenAttributeDefinitions();
+                  return;
+                }
+
+                showActionMessage('请切换到“属性定义”页签创建属性', 'info');
+              }}
+            >
+              去属性定义创建
+            </Button>
+          </div>
         )}
       </aside>
     </div>

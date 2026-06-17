@@ -21,6 +21,7 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
   usageRules,
   onRefresh,
 }) => {
+  const [activeTab, setActiveTab] = useState<string>('definitions');
   const [activeTarget, setActiveTarget] = useState<AttributeTarget>('question');
 
   const handleSaveUsageRules = async (rules: AttributeUsageRule[]) => {
@@ -43,6 +44,7 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
   return (
     <div className="attribute-settings-shell">
       <Tabs
+        activeKey={activeTab}
         items={[
           {
             key: 'definitions',
@@ -65,11 +67,13 @@ const AttributeTagsPanel: React.FC<AttributeTagsPanelProps> = ({
               <AttributeUsageSettingsWorkspace
                 tagCategories={tagCategories}
                 usageRules={usageRules}
+                onOpenAttributeDefinitions={() => setActiveTab('definitions')}
                 onSaveUsageRules={handleSaveUsageRules}
               />
             ),
           },
         ]}
+        onChange={setActiveTab}
       />
     </div>
   );
