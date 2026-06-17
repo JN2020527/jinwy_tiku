@@ -420,22 +420,6 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
     ]),
   },
   {
-    id: 'cat-question-type',
-    name: '题型',
-    code: 'question_type',
-    description: '用于描述试题呈现与作答类型',
-    target: 'question',
-    status: 'enabled',
-    sort: 1,
-    selectionMode: 'single',
-    tags: createSeedOptions('question-type', [
-      { name: '单选题', value: 'single_choice' },
-      { name: '多选题', value: 'multiple_choice' },
-      { name: '填空题', value: 'fill_blank' },
-      { name: '解答题', value: 'answer' },
-    ]),
-  },
-  {
     id: 'cat-question-ability',
     name: '能力',
     code: 'ability',
@@ -443,7 +427,7 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
     target: 'question',
     optionAddMode: 'bySubject',
     status: 'enabled',
-    sort: 2,
+    sort: 1,
     selectionMode: 'multiple',
     tags: [],
     subjectTags: {
@@ -468,7 +452,7 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
     target: 'question',
     optionAddMode: 'bySubject',
     status: 'enabled',
-    sort: 3,
+    sort: 2,
     selectionMode: 'multiple',
     tags: [],
     subjectTags: {
@@ -492,7 +476,7 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
     target: 'question',
     optionAddMode: 'bySubject',
     status: 'enabled',
-    sort: 4,
+    sort: 3,
     selectionMode: 'multiple',
     tags: [],
     subjectTags: {
@@ -515,7 +499,7 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
     description: '用于描述试题来源类型',
     target: 'question',
     status: 'enabled',
-    sort: 5,
+    sort: 4,
     selectionMode: 'single',
     tags: createSeedOptions('source-type', [
       { name: '中考真题', value: 'entrance_exam' },
@@ -572,7 +556,7 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
     id: 'cat-topic-frequency',
     name: '考频',
     code: 'exam_frequency',
-    description: '用于标记题型或专题的考查频率',
+    description: '用于标记专题的考查频率',
     target: 'topic',
     status: 'enabled',
     sort: 0,
@@ -1144,7 +1128,7 @@ const createMockAttributeItem = (
 ): MockAttributeItem => ({
   ...tag,
   id: tag.id || `tag-${ownerKey}-${Date.now()}-${index}`,
-  name: tag.name || '未命名选项',
+  name: tag.name || '未命名枚举值',
   color: tag.color || 'default',
 });
 

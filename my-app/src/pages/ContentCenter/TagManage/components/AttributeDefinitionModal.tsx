@@ -110,9 +110,9 @@ const AttributeDefinitionModal: React.FC<AttributeDefinitionModalProps> = ({
           target === 'question' ? (
             <ProFormRadio.Group
               name="optionAddMode"
-              label="选项添加方式"
+              label="枚举值添加方式"
               options={OPTION_ADD_MODE_OPTIONS}
-              rules={[{ required: true, message: '请选择选项添加方式' }]}
+              rules={[{ required: true, message: '请选择枚举值添加方式' }]}
             />
           ) : null
         }

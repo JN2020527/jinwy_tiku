@@ -43,7 +43,7 @@ const AttributeOptionModal: React.FC<AttributeOptionModalProps> = ({
   return (
     <ModalForm<AttributeOptionFormValues>
       key={option?.id || 'attribute-option'}
-      title="编辑选项"
+      title="编辑枚举值"
       open={open}
       width={480}
       layout="vertical"
@@ -59,17 +59,17 @@ const AttributeOptionModal: React.FC<AttributeOptionModalProps> = ({
     >
       <ProFormText
         name="name"
-        label="选项名称"
-        placeholder="请输入选项名称"
+        label="枚举值名称"
+        placeholder="请输入枚举值名称"
         rules={[
-          { required: true, message: '请输入选项名称' },
+          { required: true, message: '请输入枚举值名称' },
           {
             validator: async (_, value?: string) => {
               if (value?.trim()) {
                 return;
               }
 
-              throw new Error('请输入选项名称');
+              throw new Error('请输入枚举值名称');
             },
           },
         ]}

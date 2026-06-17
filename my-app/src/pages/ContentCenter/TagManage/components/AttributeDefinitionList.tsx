@@ -1,81 +1,44 @@
 import type { AttributeTarget, TagCategory } from '@/services/tagSystem';
-import { PlusOutlined, TagsOutlined } from '@ant-design/icons';
-import { Button, Empty, Segmented } from 'antd';
+import { DeleteOutlined, EditOutlined, TagsOutlined } from '@ant-design/icons';
+import { Button, Empty, Space } from 'antd';
 import React, { useMemo } from 'react';
 import AttributeStatusPill from './AttributeStatusPill';
-import {
-  ATTRIBUTE_TARGET_OPTIONS,
-  SUBJECT_LABELS,
-} from './attributeSettingsConstants';
-import { getOptionList, sortBySort } from './attributeSettingsHelpers';
+import { ATTRIBUTE_TARGET_LABELS } from './attributeSettingsConstants';
+import { sortBySort } from './attributeSettingsHelpers';
 
 interface AttributeDefinitionListProps {
   activeTarget: AttributeTarget;
   activeCategoryId?: string;
   categories: TagCategory[];
-  selectedSubject: string;
-  onActiveTargetChange: (target: AttributeTarget) => void;
   onSelectCategory: (categoryId: string) => void;
-  onAddCategory: () => void;
+  onEditCategory: (category: TagCategory) => void;
+  onDeleteCategory: (category: TagCategory) => void;
 }
 
-const getTargetLabel = (target: AttributeTarget) =>
-  ATTRIBUTE_TARGET_OPTIONS.find((option) => option.value === target)?.label ||
-  '属性';
-
-const getCategoryMeta = (category: TagCategory, selectedSubject: string) => {
-  const optionCount = getOptionList(category, selectedSubject).length;
-
-  if (
-    category.target === 'question' &&
-    category.optionAddMode === 'bySubject'
-  ) {
-    return `按学科添加 / ${
-      SUBJECT_LABELS[selectedSubject] || selectedSubject
-    } ${optionCount} 个选项`;
-  }
-
-  return `统一添加 / ${optionCount} 个选项`;
-};
+const getOptionModeText = (category: TagCategory) =>
+  category.target === 'question' && category.optionAddMode === 'bySubject'
+    ? '按学科维护'
+    : '统一维护';
 
 const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
   activeTarget,
   activeCategoryId,
   categories,
-  selectedSubject,
-  onActiveTargetChange,
   onSelectCategory,
-  onAddCategory,
+  onEditCategory,
+  onDeleteCategory,
 }) => {
   const sortedCategories = useMemo(() => sortBySort(categories), [categories]);
-  const targetLabel = getTargetLabel(activeTarget);
+  const targetLabel = ATTRIBUTE_TARGET_LABELS[activeTarget] || '属性';
 
   return (
     <aside className="attribute-category-panel">
       <div className="attribute-panel-header">
-        <div>
-          <div className="attribute-panel-title">属性定义</div>
-          <div className="attribute-panel-meta">
-            {targetLabel} / {sortedCategories.length} 个定义
-          </div>
-        </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={onAddCategory}>
-          新增属性
-        </Button>
+        <div className="attribute-panel-title">{targetLabel}</div>
       </div>
-
       <div className="attribute-category-list">
-        <Segmented
-          block
-          value={activeTarget}
-          options={ATTRIBUTE_TARGET_OPTIONS}
-          onChange={(value) => {
-            onActiveTargetChange(value as AttributeTarget);
-          }}
-        />
-
         {sortedCategories.length ? (
-          <div style={{ marginTop: 12 }}>
+          <div className="attribute-category-stack">
             {sortedCategories.map((category) => {
               const active = category.id === activeCategoryId;
 
@@ -100,13 +63,36 @@ const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
                       <span className="attribute-category-name">
                         {category.name}
                       </span>
-                      <span className="attribute-category-count">
-                        {getCategoryMeta(category, selectedSubject)}
+                      <span className="attribute-category-meta">
+                        <span className="attribute-option-mode-pill">
+                          {getOptionModeText(category)}
+                        </span>
+                        <AttributeStatusPill status={category.status} />
                       </span>
                     </span>
                   </button>
                   <span className="attribute-category-actions">
-                    <AttributeStatusPill status={category.status} />
+                    <Space size={2}>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined />}
+                        title="编辑属性"
+                        aria-label={`编辑${category.name}`}
+                        className="attribute-category-action-button"
+                        onClick={() => onEditCategory(category)}
+                      />
+                      <Button
+                        danger
+                        type="text"
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        title="删除属性"
+                        aria-label={`删除${category.name}`}
+                        className="attribute-category-action-button"
+                        onClick={() => onDeleteCategory(category)}
+                      />
+                    </Space>
                   </span>
                 </div>
               );
@@ -114,7 +100,7 @@ const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
           </div>
         ) : (
           <div className="attribute-workspace-empty">
-            <Empty description={`暂无${targetLabel}定义`} />
+            <Empty description={`暂无${targetLabel}`} />
           </div>
         )}
       </div>

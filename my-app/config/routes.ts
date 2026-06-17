@@ -86,6 +86,11 @@ export default [
         hideInMenu: true,
       },
       {
+        path: '/question-bank/tag-system/tag-config',
+        redirect: '/tag-system/tag-config',
+        hideInMenu: true,
+      },
+      {
         path: '/question-bank/task',
         name: '题库任务',
         component: './ContentCenter/QuestionBankTask',
@@ -151,6 +156,11 @@ export default [
         path: '/tag-system/node-relations',
         name: '节点关联',
         component: './ContentCenter/TagManage/NodeRelations',
+      },
+      {
+        path: '/tag-system/tag-config',
+        name: '标签配置',
+        component: './ContentCenter/TagManage/TagConfig',
       },
     ],
   },

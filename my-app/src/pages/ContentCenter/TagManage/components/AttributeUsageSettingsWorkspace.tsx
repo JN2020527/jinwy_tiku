@@ -10,6 +10,7 @@ import {
   PlusOutlined,
   SwapOutlined,
 } from '@ant-design/icons';
+import { history } from '@umijs/max';
 import {
   Button,
   Empty,
@@ -32,6 +33,7 @@ import {
   reorder,
   sortBySort,
 } from './attributeSettingsHelpers';
+import './AttributeTagsPanel.less';
 
 interface AttributeUsageSettingsWorkspaceProps {
   tagCategories: TagCategory[];
@@ -75,13 +77,6 @@ const panelTitleStyle: React.CSSProperties = {
   fontWeight: 600,
   lineHeight: '24px',
   margin: 0,
-};
-
-const metaTextStyle: React.CSSProperties = {
-  color: '#667085',
-  fontSize: 13,
-  lineHeight: '20px',
-  margin: '4px 0 0',
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -490,7 +485,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
   const handleRemoveRule = (row: AttributeUsageRuleRow) => {
     Modal.confirm({
       cancelText: '取消',
-      content: `仅从“${sceneMeta.label}”移出，不删除属性定义。后续仍可从右侧重新加入。`,
+      content: `仅从“${sceneMeta.label}”移出，不删除字段来源。后续仍可从右侧重新加入。`,
       okButtonProps: { danger: true },
       okText: '移出当前场景',
       title: `确认将“${row.category.name}”移出当前场景？`,
@@ -598,7 +593,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
           ? '主筛选区'
           : scopeKey === 'more'
           ? '更多筛选区'
-          : '已启用属性';
+          : '已启用字段';
       showActionMessage(`${scopeLabel}排序已保存`);
     }
   };
@@ -764,7 +759,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
             <Space className="attribute-usage-row-tags" size={6}>
               <Tag>{targetLabel}</Tag>
               {row.category.status === 'disabled' && (
-                <Tag color="warning">属性已停用</Tag>
+                <Tag color="warning">字段已停用</Tag>
               )}
               {sceneMeta.usageType === 'form' && (
                 <Space size={6}>
@@ -845,7 +840,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
         </div>
       ) : (
         <Empty
-          description="暂无已启用属性"
+          description="暂无已启用字段"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         />
       )}
@@ -863,8 +858,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
     >
       <aside className="attribute-usage-scene-panel" style={panelStyle}>
         <header style={panelHeaderStyle}>
-          <h2 style={panelTitleStyle}>使用设置</h2>
-          <p style={metaTextStyle}>按场景配置属性用途</p>
+          <h2 style={panelTitleStyle}>标签配置</h2>
         </header>
 
         <Space direction="vertical" size={14} style={{ width: '100%' }}>
@@ -923,7 +917,6 @@ const AttributeUsageSettingsWorkspace: React.FC<
       <main className="attribute-usage-main" style={panelStyle}>
         <header style={panelHeaderStyle}>
           <h2 style={panelTitleStyle}>{sceneMeta.label}</h2>
-          <p style={metaTextStyle}>{sceneMeta.description}</p>
         </header>
 
         {isFilterScene ? (
@@ -932,14 +925,13 @@ const AttributeUsageSettingsWorkspace: React.FC<
             {renderRuleSection('更多筛选区', moreRows, 'more')}
           </>
         ) : (
-          renderRuleSection('已启用属性', rows, 'scene')
+          renderRuleSection('已启用字段', rows, 'scene')
         )}
       </main>
 
       <aside className="attribute-usage-side" style={panelStyle}>
         <header style={panelHeaderStyle}>
-          <h2 style={panelTitleStyle}>可添加属性</h2>
-          <p style={metaTextStyle}>{sceneMeta.description}</p>
+          <h2 style={panelTitleStyle}>可添加字段</h2>
         </header>
 
         {addableCategories.length ? (
@@ -975,7 +967,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
         ) : (
           <div className="attribute-addable-empty">
             <div className="attribute-addable-empty-title">
-              当前场景暂无可添加属性
+              当前场景暂无可添加字段
             </div>
             <Button
               size="small"
@@ -986,10 +978,10 @@ const AttributeUsageSettingsWorkspace: React.FC<
                   return;
                 }
 
-                showActionMessage('请切换到“属性定义”页签创建属性', 'info');
+                history.push('/tag-system/attributes');
               }}
             >
-              去属性定义创建
+              去属性设置创建
             </Button>
           </div>
         )}

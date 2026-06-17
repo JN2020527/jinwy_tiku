@@ -373,44 +373,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     }
   };
 
-  const handleMoveQuestionType = async (
-    node: TreeNodeData,
-    e: React.MouseEvent,
-    direction: 'up' | 'down',
-  ) => {
-    e.stopPropagation();
-    const nodeKey = String(node.key);
-    const nodeMeta = nodeMetaMap.get(nodeKey);
-    const targetId =
-      direction === 'up' ? nodeMeta?.previousKey : nodeMeta?.nextKey;
-
-    if (!targetId) {
-      return;
-    }
-
-    const res = await moveQuestionTypeNode({
-      id: nodeKey,
-      targetId,
-      position: direction === 'up' ? 'before' : 'after',
-      subject: selectedSubject,
-    });
-
-    if (res.success) {
-      message.success('移动成功');
-      onRefresh();
-    } else {
-      message.error(res.message || '移动失败');
-    }
-  };
-
-  const handleMoveQuestionTypeUp = (node: TreeNodeData, e: React.MouseEvent) =>
-    handleMoveQuestionType(node, e, 'up');
-
-  const handleMoveQuestionTypeDown = (
-    node: TreeNodeData,
-    e: React.MouseEvent,
-  ) => handleMoveQuestionType(node, e, 'down');
-
   const handleQtModalFinish = async (values: Record<string, unknown>) => {
     const formValues = values as QuestionTypeFormValues;
     const isFirstLevelSubmit =
@@ -532,13 +494,15 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
       >
         {questionTypeTree.length > 0 ? (
           <>
-            <div className="question-type-tree-table-header">
-              <span>题型名称</span>
-              <span>题型类型</span>
-              <span>答题区类型</span>
-              <span>答题区行数</span>
-              <span>操作</span>
-            </div>
+            {arrangeMode ? null : (
+              <div className="question-type-tree-table-header">
+                <span>题型名称</span>
+                <span>题型类型</span>
+                <span>答题区类型</span>
+                <span>答题区行数</span>
+                <span>操作</span>
+              </div>
+            )}
             <Tree
               key={selectedSubject}
               treeData={questionTypeTree}
@@ -581,19 +545,17 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                     }
                     nodeData={node}
                     searchValue={questionTypeSearch.searchValue}
-                    meta={getQuestionTypeNodeMeta(node, isFirstLevel)}
-                    actionsVisible
+                    meta={
+                      arrangeMode
+                        ? null
+                        : getQuestionTypeNodeMeta(node, isFirstLevel)
+                    }
+                    actionsVisible={!arrangeMode}
                     nodeActionsVisible={!arrangeMode}
-                    showAddChild={canAddChild}
+                    showAddChild={!arrangeMode && canAddChild}
                     addChildTitle="添加二级题型"
-                    canMoveUp={arrangeMode && Boolean(nodeMeta?.previousKey)}
-                    canMoveDown={arrangeMode && Boolean(nodeMeta?.nextKey)}
-                    onMoveUp={
-                      arrangeMode ? handleMoveQuestionTypeUp : undefined
-                    }
-                    onMoveDown={
-                      arrangeMode ? handleMoveQuestionTypeDown : undefined
-                    }
+                    canMoveUp={false}
+                    canMoveDown={false}
                     onAddChild={handleAddQtChild}
                     onEdit={handleEditQt}
                     onDelete={handleDeleteQt}

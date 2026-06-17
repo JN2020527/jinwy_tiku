@@ -1,11 +1,5 @@
-import type {
-  AttributeUsageRule,
-  TagCategory,
-} from '@/services/tagSystem';
-import {
-  getAttributeUsageRules,
-  getTagCategories,
-} from '@/services/tagSystem';
+import type { TagCategory } from '@/services/tagSystem';
+import { getTagCategories } from '@/services/tagSystem';
 import { PageContainer } from '@ant-design/pro-components';
 import { message, Spin } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -14,21 +8,14 @@ import AttributeTagsPanel from './components/AttributeTagsPanel';
 
 const AttributeTagPage: React.FC = () => {
   const [tagCategories, setTagCategories] = useState<TagCategory[]>([]);
-  const [usageRules, setUsageRules] = useState<AttributeUsageRule[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [categoryRes, usageRuleRes] = await Promise.all([
-        getTagCategories(),
-        getAttributeUsageRules(),
-      ]);
+      const categoryRes = await getTagCategories();
       if (categoryRes.success) {
         setTagCategories(categoryRes.data);
-      }
-      if (usageRuleRes.success) {
-        setUsageRules(usageRuleRes.data);
       }
     } catch {
       message.error('获取属性设置失败');
@@ -46,7 +33,6 @@ const AttributeTagPage: React.FC = () => {
       <Spin spinning={loading}>
         <AttributeTagsPanel
           tagCategories={tagCategories}
-          usageRules={usageRules}
           onRefresh={fetchData}
         />
       </Spin>

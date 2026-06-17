@@ -2,7 +2,6 @@ import type {
   AttributeItem,
   AttributeOptionAddMode,
   AttributeTarget,
-  AttributeUsageRule,
   TagCategory,
 } from '@/services/tagSystem';
 import {
@@ -13,24 +12,22 @@ import {
   updateAttribute,
   updateTagCategory,
 } from '@/services/tagSystem';
-import { message, Modal } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
+import { Button, Card, message, Modal, Segmented } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import AttributeDefinitionList from './AttributeDefinitionList';
 import type { AttributeDefinitionFormValues } from './AttributeDefinitionModal';
 import AttributeDefinitionModal from './AttributeDefinitionModal';
 import type { AttributeOptionFormValues } from './AttributeOptionModal';
 import AttributeOptionPanel from './AttributeOptionPanel';
-import AttributeSummaryPanel from './AttributeSummaryPanel';
-import AttributeUsageDrawer from './AttributeUsageDrawer';
+import { ATTRIBUTE_TARGET_OPTIONS } from './attributeSettingsConstants';
 import { sortBySort, withOptionList } from './attributeSettingsHelpers';
 
 interface AttributeDefinitionWorkspaceProps {
   activeTarget: AttributeTarget;
   tagCategories: TagCategory[];
-  usageRules: AttributeUsageRule[];
   onActiveTargetChange: (target: AttributeTarget) => void;
   onRefresh: () => void | Promise<void>;
-  onSaveUsageRules: (rules: AttributeUsageRule[]) => Promise<boolean>;
 }
 
 type DefinitionModalMode = 'add' | 'edit';
@@ -44,7 +41,10 @@ const normalizeOptionAddMode = (
 const getCategoryUpdatePayload = (
   category: TagCategory,
 ): UpdateTagCategoryPayload => {
-  if (category.target === 'question' && category.optionAddMode === 'bySubject') {
+  if (
+    category.target === 'question' &&
+    category.optionAddMode === 'bySubject'
+  ) {
     const { tags: _viewTags, ...payload } = category;
     return payload;
   }
@@ -55,17 +55,10 @@ const getCategoryUpdatePayload = (
 const AttributeDefinitionWorkspace: React.FC<
   AttributeDefinitionWorkspaceProps
 > = (props) => {
-  const {
-    activeTarget,
-    tagCategories,
-    usageRules,
-    onActiveTargetChange,
-    onRefresh,
-    onSaveUsageRules,
-  } = props;
+  const { activeTarget, tagCategories, onActiveTargetChange, onRefresh } =
+    props;
   const [activeCategoryId, setActiveCategoryId] = useState<string>();
   const [selectedSubject, setSelectedSubject] = useState<string>('math');
-  const [usageDrawerOpen, setUsageDrawerOpen] = useState<boolean>(false);
   const [definitionModalOpen, setDefinitionModalOpen] =
     useState<boolean>(false);
   const [definitionModalMode, setDefinitionModalMode] =
@@ -240,17 +233,17 @@ const AttributeDefinitionWorkspace: React.FC<
       });
 
       if (res.success) {
-        message.success('选项已添加');
+        message.success('枚举值已添加');
         await onRefresh();
         return;
       }
 
       notified = true;
-      message.error(res.message || '选项添加失败');
-      throw new Error(res.message || '选项添加失败');
+      message.error(res.message || '枚举值添加失败');
+      throw new Error(res.message || '枚举值添加失败');
     } catch (error: unknown) {
       if (!notified) {
-        message.error('选项添加失败');
+        message.error('枚举值添加失败');
       }
       throw error;
     }
@@ -276,17 +269,17 @@ const AttributeDefinitionWorkspace: React.FC<
       });
 
       if (res.success) {
-        message.success('选项已保存');
+        message.success('枚举值已保存');
         await onRefresh();
         return;
       }
 
       notified = true;
-      message.error(res.message || '选项保存失败');
-      throw new Error(res.message || '选项保存失败');
+      message.error(res.message || '枚举值保存失败');
+      throw new Error(res.message || '枚举值保存失败');
     } catch (error: unknown) {
       if (!notified) {
-        message.error('选项保存失败');
+        message.error('枚举值保存失败');
       }
       throw error;
     }
@@ -305,17 +298,17 @@ const AttributeDefinitionWorkspace: React.FC<
       });
 
       if (res.success) {
-        message.success('选项已删除');
+        message.success('枚举值已删除');
         await onRefresh();
         return;
       }
 
       notified = true;
-      message.error(res.message || '选项删除失败');
-      throw new Error(res.message || '选项删除失败');
+      message.error(res.message || '枚举值删除失败');
+      throw new Error(res.message || '枚举值删除失败');
     } catch (error: unknown) {
       if (!notified) {
-        message.error('选项删除失败');
+        message.error('枚举值删除失败');
       }
       throw error;
     }
@@ -335,10 +328,12 @@ const AttributeDefinitionWorkspace: React.FC<
 
     let notified = false;
     try {
-      const res = await updateTagCategory(getCategoryUpdatePayload(nextCategory));
+      const res = await updateTagCategory(
+        getCategoryUpdatePayload(nextCategory),
+      );
 
       if (res.success) {
-        message.success('排序已保存');
+        message.success('枚举值排序已保存');
         await onRefresh();
         return;
       }
@@ -352,10 +347,6 @@ const AttributeDefinitionWorkspace: React.FC<
       }
       throw error;
     }
-  };
-
-  const handleOpenUsageDrawer = () => {
-    setUsageDrawerOpen(true);
   };
 
   const modalInitialValues: Partial<AttributeDefinitionFormValues> =
@@ -377,34 +368,54 @@ const AttributeDefinitionWorkspace: React.FC<
 
   return (
     <>
-      <div className="attribute-tags-panel">
-        <AttributeDefinitionList
-          activeTarget={activeTarget}
-          activeCategoryId={activeCategoryId}
-          categories={targetCategories}
-          selectedSubject={selectedSubject}
-          onActiveTargetChange={onActiveTargetChange}
-          onSelectCategory={setActiveCategoryId}
-          onAddCategory={openAddDefinitionModal}
-        />
-        <AttributeOptionPanel
-          category={selectedCategory}
-          selectedSubject={selectedSubject}
-          onSelectedSubjectChange={setSelectedSubject}
-          onAddOption={handleAddOption}
-          onUpdateOption={handleUpdateOption}
-          onDeleteOption={handleDeleteOption}
-          onReorderOptions={handleReorderOptions}
-        />
-        <AttributeSummaryPanel
-          category={selectedCategory}
-          selectedSubject={selectedSubject}
-          usageRules={usageRules}
-          onOpenUsageDrawer={handleOpenUsageDrawer}
-          onEditCategory={openEditDefinitionModal}
-          onDeleteCategory={handleDeleteCategory}
-        />
-      </div>
+      <Card
+        className="tag-system-tree-panel tag-system-tree-panel-no-title attribute-settings-panel"
+        variant="borderless"
+        extra={
+          <div className="tag-system-tree-card-extra attribute-settings-card-extra">
+            <div className="attribute-settings-toolbar-filters">
+              <span className="attribute-settings-filter-label">属性类型</span>
+              <Segmented
+                value={activeTarget}
+                options={ATTRIBUTE_TARGET_OPTIONS}
+                onChange={(value) => {
+                  onActiveTargetChange(value as AttributeTarget);
+                }}
+              />
+            </div>
+            <div className="tag-system-tree-actions">
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                size="small"
+                onClick={openAddDefinitionModal}
+              >
+                新增属性
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="attribute-tags-panel">
+          <AttributeDefinitionList
+            activeTarget={activeTarget}
+            activeCategoryId={activeCategoryId}
+            categories={targetCategories}
+            onSelectCategory={setActiveCategoryId}
+            onEditCategory={openEditDefinitionModal}
+            onDeleteCategory={handleDeleteCategory}
+          />
+          <AttributeOptionPanel
+            category={selectedCategory}
+            selectedSubject={selectedSubject}
+            onSelectedSubjectChange={setSelectedSubject}
+            onAddOption={handleAddOption}
+            onUpdateOption={handleUpdateOption}
+            onDeleteOption={handleDeleteOption}
+            onReorderOptions={handleReorderOptions}
+          />
+        </div>
+      </Card>
 
       <AttributeDefinitionModal
         open={definitionModalOpen}
@@ -413,14 +424,6 @@ const AttributeDefinitionWorkspace: React.FC<
         initialValues={modalInitialValues}
         onOpenChange={setDefinitionModalOpen}
         onFinish={handleDefinitionFinish}
-      />
-
-      <AttributeUsageDrawer
-        category={selectedCategory}
-        open={usageDrawerOpen}
-        usageRules={usageRules}
-        onClose={() => setUsageDrawerOpen(false)}
-        onSave={onSaveUsageRules}
       />
     </>
   );

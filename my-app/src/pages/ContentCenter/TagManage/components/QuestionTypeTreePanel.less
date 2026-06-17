@@ -112,6 +112,20 @@
     color: #c0c6d0;
   }
 
+  &.tag-system-tree-panel-arranging {
+    .question-type-tree-table-row {
+      display: inline-flex;
+      width: auto;
+      margin-left: 0;
+      gap: 0;
+      grid-template-columns: none;
+    }
+
+    .question-type-tree-table-row .tag-tree-node-name {
+      padding-left: 0;
+    }
+  }
+
   @media (max-width: 900px) {
     --question-type-name-column: minmax(180px, 1fr);
     --question-type-type-column: 74px;

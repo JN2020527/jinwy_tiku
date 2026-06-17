@@ -8,10 +8,10 @@ import {
 } from '@ant-design/icons';
 import { Button, Empty, Input, Modal, Segmented, Space } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
-import AttributeOptionModal from './AttributeOptionModal';
 import type { AttributeOptionFormValues } from './AttributeOptionModal';
+import AttributeOptionModal from './AttributeOptionModal';
 import AttributeStatusPill from './AttributeStatusPill';
-import { SUBJECT_OPTIONS } from './attributeSettingsConstants';
+import { SUBJECT_LABELS, SUBJECT_OPTIONS } from './attributeSettingsConstants';
 import { getOptionList, reorder } from './attributeSettingsHelpers';
 
 interface AttributeOptionPanelProps {
@@ -50,6 +50,11 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
     [category, selectedSubject],
   );
   const showSubjectRange = shouldShowSubjectRange(category);
+  const optionCountText = showSubjectRange
+    ? `${SUBJECT_LABELS[selectedSubject] || selectedSubject} ${
+        options.length
+      }项`
+    : `${options.length}项`;
   const reordering = Boolean(reorderingOptionId);
 
   useEffect(() => {
@@ -105,8 +110,8 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
 
   const confirmDeleteOption = (option: AttributeItem) => {
     Modal.confirm({
-      title: '删除选项',
-      content: `确认删除“${option.name}”吗？删除后该选项值将不可用。`,
+      title: '删除枚举值',
+      content: `确认删除“${option.name}”吗？删除后该枚举值将不可用。`,
       okText: '删除',
       okButtonProps: { danger: true },
       cancelText: '取消',
@@ -146,8 +151,7 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
       <main className="attribute-option-panel">
         <div className="attribute-panel-header">
           <div>
-            <div className="attribute-panel-title">选项值</div>
-            <div className="attribute-panel-meta">请选择属性</div>
+            <div className="attribute-panel-title">枚举值</div>
           </div>
         </div>
         <div className="attribute-workspace-empty">
@@ -159,110 +163,112 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
 
   return (
     <main className="attribute-option-panel">
-      <div className="attribute-panel-header">
-        <div>
-          <div className="attribute-panel-title">选项值</div>
-          <div className="attribute-panel-meta">
-            {category.name} / {options.length} 个选项
+      <div className="attribute-option-workspace">
+        <div className="attribute-option-toolbar">
+          <div>
+            <div className="attribute-option-toolbar-title">枚举值</div>
+            <div className="attribute-option-toolbar-meta">
+              {optionCountText}
+            </div>
+          </div>
+          <div className="attribute-option-create">
+            <Space.Compact block>
+              <Input
+                disabled={adding}
+                value={optionName}
+                placeholder="输入枚举值名称"
+                onChange={(event) => setOptionName(event.target.value)}
+                onPressEnter={() => {
+                  if (!adding) {
+                    void handleAddOption();
+                  }
+                }}
+              />
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                loading={adding}
+                disabled={adding || !optionName.trim()}
+                onClick={handleAddOption}
+              >
+                添加
+              </Button>
+            </Space.Compact>
           </div>
         </div>
-      </div>
 
-      <div className="attribute-option-list">
         {showSubjectRange && (
-          <div>
-            <div className="attribute-option-subtitle">选项值范围</div>
+          <div className="attribute-subject-switcher">
+            <div className="attribute-option-subtitle">枚举值范围</div>
             <Segmented
               block
               value={selectedSubject}
               options={SUBJECT_OPTIONS}
               onChange={(value) => onSelectedSubjectChange(String(value))}
             />
-            <div className="attribute-option-subtitle">
-              切换范围只切换选项值，不切换属性定义
-            </div>
           </div>
         )}
 
-        <div className="attribute-option-create">
-          <Space.Compact block>
-            <Input
-              disabled={adding}
-              value={optionName}
-              placeholder="输入选项名称"
-              onChange={(event) => setOptionName(event.target.value)}
-              onPressEnter={() => {
-                if (!adding) {
-                  void handleAddOption();
-                }
-              }}
-            />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              loading={adding}
-              disabled={adding || !optionName.trim()}
-              onClick={handleAddOption}
-            >
-              添加
-            </Button>
-          </Space.Compact>
-        </div>
-
-        {options.length ? (
-          options.map((option, index) => (
-            <div key={option.id} className="attribute-option-item">
-              <div className="attribute-option-main">
-                <span className="attribute-option-sort">{index + 1}</span>
-                <span className="attribute-option-content">
-                  <span className="attribute-option-name">{option.name}</span>
-                </span>
+        <div className="attribute-option-list">
+          {options.length ? (
+            <>
+              <div className="attribute-option-table-header">
+                <span>序号</span>
+                <span>枚举值</span>
+                <span>状态</span>
+                <span>操作</span>
               </div>
-              <span className="attribute-option-status">
-                <AttributeStatusPill status={option.status} />
-              </span>
-              <Space size={4} className="attribute-option-actions">
-                <Button
-                  type="text"
-                  icon={<UpOutlined />}
-                  title="上移"
-                  aria-label="上移"
-                  loading={reorderingOptionId === option.id}
-                  disabled={reordering || index === 0}
-                  onClick={() => moveOption(index, index - 1)}
-                />
-                <Button
-                  type="text"
-                  icon={<DownOutlined />}
-                  title="下移"
-                  aria-label="下移"
-                  loading={reorderingOptionId === option.id}
-                  disabled={reordering || index === options.length - 1}
-                  onClick={() => moveOption(index, index + 1)}
-                />
-                <Button
-                  type="text"
-                  icon={<EditOutlined />}
-                  title="编辑"
-                  aria-label="编辑"
-                  onClick={() => openEditOptionModal(option)}
-                />
-                <Button
-                  danger
-                  type="text"
-                  icon={<DeleteOutlined />}
-                  title="删除"
-                  aria-label="删除"
-                  onClick={() => confirmDeleteOption(option)}
-                />
-              </Space>
+              {options.map((option, index) => (
+                <div key={option.id} className="attribute-option-item">
+                  <span className="attribute-option-sort">{index + 1}</span>
+                  <span className="attribute-option-name">{option.name}</span>
+                  <span className="attribute-option-status">
+                    <AttributeStatusPill status={option.status} />
+                  </span>
+                  <Space size={4} className="attribute-option-actions">
+                    <Button
+                      type="text"
+                      icon={<UpOutlined />}
+                      title="上移"
+                      aria-label="上移"
+                      loading={reorderingOptionId === option.id}
+                      disabled={reordering || index === 0}
+                      onClick={() => moveOption(index, index - 1)}
+                    />
+                    <Button
+                      type="text"
+                      icon={<DownOutlined />}
+                      title="下移"
+                      aria-label="下移"
+                      loading={reorderingOptionId === option.id}
+                      disabled={reordering || index === options.length - 1}
+                      onClick={() => moveOption(index, index + 1)}
+                    />
+                    <Button
+                      type="text"
+                      icon={<EditOutlined />}
+                      title="编辑"
+                      aria-label="编辑"
+                      onClick={() => openEditOptionModal(option)}
+                    />
+                    <Button
+                      danger
+                      type="text"
+                      icon={<DeleteOutlined />}
+                      title="删除"
+                      aria-label="删除"
+                      onClick={() => confirmDeleteOption(option)}
+                    />
+                  </Space>
+                </div>
+              ))}
+            </>
+          ) : (
+            <div className="attribute-workspace-empty">
+              <Empty description="暂无枚举值" />
             </div>
-          ))
-        ) : (
-          <div className="attribute-workspace-empty">
-            <Empty description="暂无选项值" />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <AttributeOptionModal
