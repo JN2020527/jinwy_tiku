@@ -180,9 +180,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   const [qtModalType, setQtModalType] = useState<'add' | 'edit'>('add');
   const [arrangeMode, setArrangeMode] = useState(false);
   const [qtForm] = Form.useForm();
-  const selectedSubjectLabel =
-    subjectOptions.find((option) => option.value === selectedSubject)?.label ||
-    selectedSubject;
   const nodeMetaMap = useMemo(
     () => buildQuestionTypeNodeMetaMap(questionTypeTree),
     [questionTypeTree],
@@ -399,13 +396,9 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         variant="borderless"
         extra={
           <div className="tag-system-tree-card-extra">
-            <div className="tag-system-tree-subject-filter">
-              <span className="tag-system-tree-subject-label">学科</span>
-              {arrangeMode ? (
-                <span className="tag-system-tree-subject-value">
-                  {selectedSubjectLabel}
-                </span>
-              ) : (
+            {arrangeMode ? null : (
+              <div className="tag-system-tree-subject-filter">
+                <span className="tag-system-tree-subject-label">学科</span>
                 <Select
                   size="small"
                   value={selectedSubject}
@@ -414,8 +407,8 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                   options={subjectOptions}
                   aria-label="选择学科"
                 />
-              )}
-            </div>
+              </div>
+            )}
             <div className="tag-system-tree-actions">
               <Button
                 type={arrangeMode ? 'primary' : 'default'}
