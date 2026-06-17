@@ -5,7 +5,7 @@ import type {
   TagCategory,
 } from '@/services/tagSystem';
 import { Button, Drawer, Empty, Select, Space, Switch, Typography } from 'antd';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { USAGE_SCENE_OPTIONS } from './attributeSettingsConstants';
 import {
   isTargetAllowedInScene,
@@ -53,7 +53,17 @@ const getRuleForScene = (
 const getNextSortForScene = (
   rules: AttributeUsageRule[],
   scene: AttributeUsageScene,
-) => rules.filter((rule) => rule.scene === scene).length;
+) => {
+  const sceneRules = rules.filter((rule) => rule.scene === scene);
+
+  if (!sceneRules.length) {
+    return 0;
+  }
+
+  return (
+    Math.max(...sceneRules.map((rule, index) => rule.sort ?? index)) + 1
+  );
+};
 
 const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
   open,
@@ -65,10 +75,30 @@ const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
   const [localRules, setLocalRules] =
     useState<AttributeUsageRule[]>(usageRules);
   const [saving, setSaving] = useState(false);
+  const categoryId = category?.id;
+  const drawerStateRef = useRef<{
+    categoryId?: string;
+    open: boolean;
+  }>({
+    categoryId,
+    open,
+  });
 
   useEffect(() => {
-    setLocalRules(usageRules);
-  }, [usageRules, open]);
+    const previousState = drawerStateRef.current;
+    const shouldInitialize =
+      open &&
+      (!previousState.open || previousState.categoryId !== categoryId);
+
+    if (shouldInitialize) {
+      setLocalRules(usageRules);
+    }
+
+    drawerStateRef.current = {
+      categoryId,
+      open,
+    };
+  }, [categoryId, open, usageRules]);
 
   const availableScenes = useMemo(
     () =>
@@ -198,6 +228,10 @@ const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
   };
 
   const handleSave = async () => {
+    if (!category || saving) {
+      return;
+    }
+
     setSaving(true);
     try {
       const success = await onSave(localRules);
@@ -209,21 +243,38 @@ const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
     }
   };
 
+  const handleClose = () => {
+    if (saving) {
+      return;
+    }
+
+    onClose();
+  };
+
   return (
     <Drawer
+      closable={!saving}
       destroyOnClose
       extra={
         <Space>
-          <Button onClick={onClose}>取消</Button>
-          <Button loading={saving} type="primary" onClick={handleSave}>
+          <Button disabled={saving} onClick={handleClose}>
+            取消
+          </Button>
+          <Button
+            disabled={!category || saving}
+            loading={saving}
+            type="primary"
+            onClick={handleSave}
+          >
             保存
           </Button>
         </Space>
       }
+      maskClosable={!saving}
       open={open}
       title={category ? `配置使用规则：${category.name}` : '配置使用规则'}
       width={560}
-      onClose={onClose}
+      onClose={handleClose}
     >
       {category && availableScenes.length ? (
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
@@ -266,6 +317,7 @@ const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
                   <Switch
                     checked={enabled}
                     checkedChildren="启用"
+                    disabled={saving}
                     unCheckedChildren="停用"
                     onChange={(checked) =>
                       handleEnabledChange(
@@ -285,7 +337,7 @@ const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
                       <Typography.Text>必填</Typography.Text>
                       <Switch
                         checked={Boolean(rule?.required)}
-                        disabled={!enabled}
+                        disabled={saving || !enabled}
                         onChange={(checked) =>
                           handleRequiredChange(sceneMeta.scene, checked)
                         }
@@ -299,7 +351,7 @@ const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
                     <Space direction="vertical" size={6}>
                       <Typography.Text>筛选位置</Typography.Text>
                       <Select
-                        disabled={!enabled}
+                        disabled={saving || !enabled}
                         options={FILTER_AREA_OPTIONS}
                         style={{ width: 180 }}
                         value={filterArea}
