@@ -1,6 +1,8 @@
 import React from 'react';
 
-const AttributeOptionPanel: React.FC<any> = () => (
+interface AttributeOptionPanelProps {}
+
+const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = () => (
   <div className="attribute-settings-stub">选项值</div>
 );
 

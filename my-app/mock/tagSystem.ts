@@ -27,6 +27,17 @@ type AttributeUsageScene =
   | 'topicTreeNodeDisplay';
 type AttributeSelectionMode = 'single' | 'multiple';
 
+const ATTRIBUTE_USAGE_SCENES: AttributeUsageScene[] = [
+  'paperUpload',
+  'paperCardDisplay',
+  'paperListFilter',
+  'questionTagging',
+  'questionCardDisplay',
+  'questionListFilter',
+  'knowledgeTreeNodeDisplay',
+  'topicTreeNodeDisplay',
+];
+
 interface AttributeUsageRule {
   id: string;
   attributeId: string;
@@ -916,6 +927,12 @@ const getTagCategoriesForResponse = (subject?: unknown) =>
 const getTagCategoryById = (categoryId: unknown) =>
   tagCategoryStore.find((category) => category.id === categoryId);
 
+const isAttributeUsageScene = (
+  scene: unknown,
+): scene is AttributeUsageScene =>
+  typeof scene === 'string' &&
+  ATTRIBUTE_USAGE_SCENES.includes(scene as AttributeUsageScene);
+
 let attributeUsageRules: AttributeUsageRule[] = [
   {
     id: 'rule-question-tagging-difficulty',
@@ -1378,14 +1395,23 @@ export default {
   'DELETE /api/tags/attribute': (req: Request, res: Response) => {
     const { id, categoryId, subject } = req.query;
     const category = getTagCategoryById(categoryId);
-    if (category) {
-      const currentTags = getCategoryOptionList(category, subject);
-      setCategoryOptionList(
-        category,
-        currentTags.filter((item) => item.id !== id),
-        subject,
-      );
+    if (!category) {
+      res.send({ success: false, message: 'Category not found' });
+      return;
     }
+
+    const currentTags = getCategoryOptionList(category, subject);
+    const targetIndex = currentTags.findIndex((item) => item.id === id);
+    if (targetIndex < 0) {
+      res.send({ success: false, message: 'Attribute not found' });
+      return;
+    }
+
+    setCategoryOptionList(
+      category,
+      currentTags.filter((_, index) => index !== targetIndex),
+      subject,
+    );
     res.send({ success: true, message: 'Attribute deleted successfully' });
   },
 
@@ -1396,16 +1422,43 @@ export default {
     });
   },
   'PUT /api/tags/attribute-usage-rules': (req: Request, res: Response) => {
-    const rules: Partial<AttributeUsageRule>[] = Array.isArray(
-      req.body?.rules,
-    )
-      ? req.body.rules
-      : [];
-    attributeUsageRules = rules.map((rule, index) => ({
-      ...(rule as AttributeUsageRule),
-      id: rule.id || `rule-${Date.now()}-${index}`,
-      sort: rule.sort ?? index,
-    }));
+    const rulesPayload: unknown = req.body?.rules;
+    if (!Array.isArray(rulesPayload)) {
+      res.send({
+        success: false,
+        message: 'Invalid usage rules payload',
+      });
+      return;
+    }
+
+    const hasInvalidRule = rulesPayload.some((rule) => {
+      if (!rule || typeof rule !== 'object') return true;
+
+      const item = rule as Partial<AttributeUsageRule>;
+      if (!item.attributeId || typeof item.attributeId !== 'string') {
+        return true;
+      }
+      if (!isAttributeUsageScene(item.scene)) return true;
+      if (typeof item.enabled !== 'boolean') return true;
+      return !getTagCategoryById(item.attributeId);
+    });
+
+    if (hasInvalidRule) {
+      res.send({
+        success: false,
+        message: 'Invalid usage rule',
+      });
+      return;
+    }
+
+    attributeUsageRules = rulesPayload.map((rule, index) => {
+      const item = rule as AttributeUsageRule;
+      return {
+        ...item,
+        id: item.id || `rule-${Date.now()}-${index}`,
+        sort: item.sort ?? index,
+      };
+    });
     res.send({
       success: true,
       message: 'Attribute usage rules updated successfully',

@@ -59,11 +59,6 @@ export interface TagCategory {
   selectionMode?: AttributeSelectionMode;
 }
 
-export interface TagContextParams {
-  grade?: string;
-  subject?: string;
-}
-
 export interface KnowledgeNode {
   id?: string;
   title: string;

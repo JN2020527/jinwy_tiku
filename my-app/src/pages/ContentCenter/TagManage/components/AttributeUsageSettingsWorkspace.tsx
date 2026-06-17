@@ -1,6 +1,19 @@
+import type {
+  AttributeUsageRule,
+  TagCategory,
+} from '@/services/tagSystem';
 import React from 'react';
 
-const AttributeUsageSettingsWorkspace: React.FC<any> = () => (
+interface AttributeUsageSettingsWorkspaceProps {
+  tagCategories: TagCategory[];
+  usageRules: AttributeUsageRule[];
+  onChange: (rules: AttributeUsageRule[]) => void;
+  onRefresh: () => void | Promise<void>;
+}
+
+const AttributeUsageSettingsWorkspace: React.FC<
+  AttributeUsageSettingsWorkspaceProps
+> = () => (
   <div className="attribute-settings-stub">使用设置</div>
 );
 
