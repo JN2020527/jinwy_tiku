@@ -15,7 +15,13 @@ import {
 import { SearchOutlined, TagsOutlined } from '@ant-design/icons';
 import type { TreeProps } from 'antd';
 import { Empty, Input, message, Segmented, Select, Spin, Tree } from 'antd';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import './AttributeTagsPanel.less';
 import './TagSystemTreePanel.less';
 import TreeNodeTitle from './TreeNodeTitle';
@@ -34,6 +40,22 @@ import { useTreeSearch } from './treeHelpers';
 
 interface NodeAttributeRelationWorkspaceProps {
   tagCategories: TagCategory[];
+}
+
+interface WorkspaceContextSnapshot {
+  targetType: NodeAttributeTargetType;
+  subject: string;
+  textbookVersion?: string;
+  activeAttributeId?: string;
+  activeOptionId?: string;
+}
+
+interface SaveContextSnapshot {
+  targetType: NodeAttributeTargetType;
+  subject: string;
+  nodeId: string;
+  attributeId: string;
+  optionId: string;
 }
 
 const noopTreeAction = () => {};
@@ -55,6 +77,13 @@ const NodeAttributeRelationWorkspace: React.FC<
   const [loadingTree, setLoadingTree] = useState(false);
   const [loadingRelations, setLoadingRelations] = useState(false);
   const [savingNodeId, setSavingNodeId] = useState<string>();
+  const relationsRequestRef = useRef(0);
+  const treeRequestRef = useRef(0);
+  const savingRequestRef = useRef(0);
+  const contextRef = useRef<WorkspaceContextSnapshot>({
+    targetType: 'knowledge',
+    subject: 'math',
+  });
 
   const categories = useMemo(
     () => getEnabledNodeAttributeCategories(tagCategories, targetType),
@@ -91,6 +120,27 @@ const NodeAttributeRelationWorkspace: React.FC<
     [activeAttributeId, activeOptionId, relations],
   );
   const treeSearch = useTreeSearch(treeData);
+
+  useEffect(() => {
+    contextRef.current = {
+      targetType,
+      subject,
+      textbookVersion,
+      activeAttributeId,
+      activeOptionId,
+    };
+  }, [activeAttributeId, activeOptionId, subject, targetType, textbookVersion]);
+
+  const isSaveContextCurrent = useCallback((snapshot: SaveContextSnapshot) => {
+    const current = contextRef.current;
+
+    return (
+      current.targetType === snapshot.targetType &&
+      current.subject === snapshot.subject &&
+      current.activeAttributeId === snapshot.attributeId &&
+      current.activeOptionId === snapshot.optionId
+    );
+  }, []);
 
   useEffect(() => {
     if (!categories.length) {
@@ -153,9 +203,15 @@ const NodeAttributeRelationWorkspace: React.FC<
   }, [targetType]);
 
   const fetchRelations = useCallback(async () => {
+    const requestId = relationsRequestRef.current + 1;
+    relationsRequestRef.current = requestId;
     setLoadingRelations(true);
     try {
       const res = await getNodeAttributeRelations({ targetType, subject });
+      if (relationsRequestRef.current !== requestId) {
+        return;
+      }
+
       if (!res.success) {
         message.error(res.message || '获取节点关联失败');
         return;
@@ -163,9 +219,13 @@ const NodeAttributeRelationWorkspace: React.FC<
 
       setRelations(res.data);
     } catch {
-      message.error('获取节点关联失败');
+      if (relationsRequestRef.current === requestId) {
+        message.error('获取节点关联失败');
+      }
     } finally {
-      setLoadingRelations(false);
+      if (relationsRequestRef.current === requestId) {
+        setLoadingRelations(false);
+      }
     }
   }, [subject, targetType]);
 
@@ -174,15 +234,23 @@ const NodeAttributeRelationWorkspace: React.FC<
   }, [fetchRelations]);
 
   const fetchTree = useCallback(async () => {
+    const requestId = treeRequestRef.current + 1;
+    treeRequestRef.current = requestId;
     setLoadingTree(true);
     try {
       if (targetType === 'knowledge') {
         if (!textbookVersion) {
-          setTreeData([]);
+          if (treeRequestRef.current === requestId) {
+            setTreeData([]);
+          }
           return;
         }
 
         const res = await getTextbookChapters(textbookVersion, subject);
+        if (treeRequestRef.current !== requestId) {
+          return;
+        }
+
         if (!res.success) {
           message.error(res.message || '获取知识点节点失败');
           return;
@@ -193,6 +261,10 @@ const NodeAttributeRelationWorkspace: React.FC<
       }
 
       const res = await getKnowledgeTree({ subject });
+      if (treeRequestRef.current !== requestId) {
+        return;
+      }
+
       if (!res.success) {
         message.error(res.message || '获取专题节点失败');
         return;
@@ -200,9 +272,13 @@ const NodeAttributeRelationWorkspace: React.FC<
 
       setTreeData(res.data as unknown as TreeNodeData[]);
     } catch {
-      message.error('获取节点树失败');
+      if (treeRequestRef.current === requestId) {
+        message.error('获取节点树失败');
+      }
     } finally {
-      setLoadingTree(false);
+      if (treeRequestRef.current === requestId) {
+        setLoadingTree(false);
+      }
     }
   }, [subject, targetType, textbookVersion]);
 
@@ -214,6 +290,13 @@ const NodeAttributeRelationWorkspace: React.FC<
     if (!activeAttributeId || !activeOptionId || !activeOption) return;
 
     const nodeId = String(info.node.key);
+    const saveContext: SaveContextSnapshot = {
+      targetType,
+      subject,
+      nodeId,
+      attributeId: activeAttributeId,
+      optionId: activeOptionId,
+    };
     const nextCheckedKeys = Array.isArray(nextChecked)
       ? nextChecked
       : nextChecked.checked;
@@ -224,28 +307,35 @@ const NodeAttributeRelationWorkspace: React.FC<
       return;
     }
 
+    const saveRequestId = savingRequestRef.current + 1;
+    savingRequestRef.current = saveRequestId;
     setSavingNodeId(nodeId);
     try {
       if (checked) {
         const res = await setNodeAttributeRelation({
-          targetType,
-          subject,
-          nodeId,
-          attributeId: activeAttributeId,
-          optionId: activeOptionId,
+          targetType: saveContext.targetType,
+          subject: saveContext.subject,
+          nodeId: saveContext.nodeId,
+          attributeId: saveContext.attributeId,
+          optionId: saveContext.optionId,
         });
         if (!res.success) {
-          message.error(res.message || '节点关联保存失败');
+          if (isSaveContextCurrent(saveContext)) {
+            message.error(res.message || '节点关联保存失败');
+          }
+          return;
+        }
+        if (!isSaveContextCurrent(saveContext)) {
           return;
         }
         setRelations((current) => [
           ...current.filter(
             (relation) =>
               !(
-                relation.targetType === targetType &&
-                relation.subject === subject &&
-                relation.nodeId === nodeId &&
-                relation.attributeId === activeAttributeId
+                relation.targetType === saveContext.targetType &&
+                relation.subject === saveContext.subject &&
+                relation.nodeId === saveContext.nodeId &&
+                relation.attributeId === saveContext.attributeId
               ),
           ),
           res.data,
@@ -255,31 +345,40 @@ const NodeAttributeRelationWorkspace: React.FC<
       }
 
       const res = await deleteNodeAttributeRelation({
-        targetType,
-        subject,
-        nodeId,
-        attributeId: activeAttributeId,
+        targetType: saveContext.targetType,
+        subject: saveContext.subject,
+        nodeId: saveContext.nodeId,
+        attributeId: saveContext.attributeId,
       });
       if (!res.success) {
-        message.error(res.message || '节点关联取消失败');
+        if (isSaveContextCurrent(saveContext)) {
+          message.error(res.message || '节点关联取消失败');
+        }
+        return;
+      }
+      if (!isSaveContextCurrent(saveContext)) {
         return;
       }
       setRelations((current) =>
         current.filter(
           (relation) =>
             !(
-              relation.targetType === targetType &&
-              relation.subject === subject &&
-              relation.nodeId === nodeId &&
-              relation.attributeId === activeAttributeId
+              relation.targetType === saveContext.targetType &&
+              relation.subject === saveContext.subject &&
+              relation.nodeId === saveContext.nodeId &&
+              relation.attributeId === saveContext.attributeId
             ),
         ),
       );
       message.success('节点关联已取消');
     } catch {
-      message.error('节点关联保存失败');
+      if (isSaveContextCurrent(saveContext)) {
+        message.error('节点关联保存失败');
+      }
     } finally {
-      setSavingNodeId(undefined);
+      if (savingRequestRef.current === saveRequestId) {
+        setSavingNodeId(undefined);
+      }
     }
   };
 
@@ -298,6 +397,7 @@ const NodeAttributeRelationWorkspace: React.FC<
         <div className="node-attribute-panel-body">
           <Segmented
             block
+            aria-label="选择关联对象类型"
             options={[...NODE_ATTRIBUTE_TARGET_OPTIONS]}
             value={targetType}
             onChange={(value) =>
@@ -315,6 +415,7 @@ const NodeAttributeRelationWorkspace: React.FC<
                     className={`node-attribute-item${
                       category.id === activeAttributeId ? ' active' : ''
                     }`}
+                    aria-pressed={category.id === activeAttributeId}
                     onClick={() => setActiveAttributeId(category.id)}
                   >
                     <span className="attribute-category-icon">
@@ -368,6 +469,7 @@ const NodeAttributeRelationWorkspace: React.FC<
                       className={`node-attribute-item${
                         option.id === activeOptionId ? ' active' : ''
                       }${option.status === 'disabled' ? ' disabled' : ''}`}
+                      aria-pressed={option.id === activeOptionId}
                       onClick={() => setActiveOptionId(option.id)}
                     >
                       <span

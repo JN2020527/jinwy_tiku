@@ -832,8 +832,10 @@
 .node-attribute-workbench {
   display: grid;
   grid-template-columns: 260px 300px minmax(420px, 1fr);
+  min-width: 980px;
   min-height: 640px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid @attribute-border;
   border-radius: 8px;
   background: #fff;
