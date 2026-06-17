@@ -235,10 +235,12 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
         }
       >
         <Input
+          name="topicSearch"
+          autoComplete="off"
           prefix={<SearchOutlined style={{ color: '#ccc' }} />}
           allowClear
           style={{ marginBottom: 8 }}
-          placeholder="搜索专题"
+          placeholder="搜索专题…"
           onChange={topicSearch.onSearch}
         />
         {displayTopicTree.length > 0 ? (
@@ -271,7 +273,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
                   inlineEdit?.key === node.key
                     ? {
                         initialValue: inlineEdit.initialValue,
-                        placeholder: '请输入专题名称',
+                        placeholder: '请输入专题名称…',
                         saving: inlineEdit.saving,
                         onSubmit: handleInlineEditSubmit,
                         onCancel: handleCancelInlineEdit,

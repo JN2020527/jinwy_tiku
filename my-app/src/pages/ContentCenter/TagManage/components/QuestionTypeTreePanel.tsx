@@ -159,29 +159,33 @@ const getQuestionTypeNodeMeta = (
   const normalizedAnswerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
   const answerAreaTypeText =
     normalizedAnswerArea.type === 'blank' ? '空白' : '横线';
-
-  if (isFirstLevel) {
-    return (
-      <span className="question-type-node-meta-list">
-        <span className="question-type-node-meta-item">
-          <span className="question-type-node-meta-label">题型类型：</span>
-          <span>
-            {getQuestionTypeAnswerCardTypeText(node.answerCardType)}题
-          </span>
-        </span>
-      </span>
-    );
-  }
+  const answerCardTypeText = isFirstLevel
+    ? `${getQuestionTypeAnswerCardTypeText(node.answerCardType)}题`
+    : '—';
+  const answerAreaTypeValue = isFirstLevel ? '—' : answerAreaTypeText;
+  const answerAreaRowsValue = isFirstLevel
+    ? '—'
+    : `${normalizedAnswerArea.rows} 行`;
 
   return (
     <span className="question-type-node-meta-list">
-      <span className="question-type-node-meta-item">
-        <span className="question-type-node-meta-label">答题区类型：</span>
-        <span>{answerAreaTypeText}</span>
+      <span
+        className="question-type-node-meta-item"
+        aria-label={`题型类型：${answerCardTypeText}`}
+      >
+        {answerCardTypeText}
       </span>
-      <span className="question-type-node-meta-item">
-        <span className="question-type-node-meta-label">答题区行数：</span>
-        <span>{normalizedAnswerArea.rows} 行</span>
+      <span
+        className="question-type-node-meta-item"
+        aria-label={`答题区类型：${answerAreaTypeValue}`}
+      >
+        {answerAreaTypeValue}
+      </span>
+      <span
+        className="question-type-node-meta-item"
+        aria-label={`答题区行数：${answerAreaRowsValue}`}
+      >
+        {answerAreaRowsValue}
       </span>
     </span>
   );
@@ -366,6 +370,44 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     }
   };
 
+  const handleMoveQuestionType = async (
+    node: TreeNodeData,
+    e: React.MouseEvent,
+    direction: 'up' | 'down',
+  ) => {
+    e.stopPropagation();
+    const nodeKey = String(node.key);
+    const nodeMeta = nodeMetaMap.get(nodeKey);
+    const targetId =
+      direction === 'up' ? nodeMeta?.previousKey : nodeMeta?.nextKey;
+
+    if (!targetId) {
+      return;
+    }
+
+    const res = await moveQuestionTypeNode({
+      id: nodeKey,
+      targetId,
+      position: direction === 'up' ? 'before' : 'after',
+      subject: selectedSubject,
+    });
+
+    if (res.success) {
+      message.success('移动成功');
+      onRefresh();
+    } else {
+      message.error(res.message || '移动失败');
+    }
+  };
+
+  const handleMoveQuestionTypeUp = (node: TreeNodeData, e: React.MouseEvent) =>
+    handleMoveQuestionType(node, e, 'up');
+
+  const handleMoveQuestionTypeDown = (
+    node: TreeNodeData,
+    e: React.MouseEvent,
+  ) => handleMoveQuestionType(node, e, 'down');
+
   const handleQtModalFinish = async (values: Record<string, unknown>) => {
     const formValues = values as QuestionTypeFormValues;
     const isFirstLevelSubmit =
@@ -469,59 +511,95 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         }
       >
         <Input
-          prefix={<SearchOutlined style={{ color: '#ccc' }} />}
+          prefix={
+            <SearchOutlined aria-hidden="true" style={{ color: '#ccc' }} />
+          }
           aria-label="搜索题型"
           allowClear
+          name="questionTypeSearch"
+          autoComplete="off"
           style={{ marginBottom: 8 }}
-          placeholder="搜索题型"
+          placeholder="搜索题型…"
           onChange={questionTypeSearch.onSearch}
         />
         {questionTypeTree.length > 0 ? (
-          <Tree
-            key={selectedSubject}
-            treeData={questionTypeTree}
-            onExpand={questionTypeSearch.onExpand}
-            expandedKeys={questionTypeSearch.expandedKeys}
-            autoExpandParent={questionTypeSearch.autoExpandParent}
-            draggable={
-              arrangeMode
-                ? {
-                    icon: (
-                      <Tooltip title="拖拽排序">
-                        <HolderOutlined className="tag-system-tree-drag-icon" />
-                      </Tooltip>
-                    ),
-                  }
-                : undefined
-            }
-            allowDrop={arrangeMode ? allowQuestionTypeDrop : undefined}
-            onDrop={arrangeMode ? handleDropQuestionType : undefined}
-            showLine
-            blockNode
-            titleRender={(node: TreeNodeData) => {
-              const canAddChild = canAddQuestionTypeChild(node.key);
-              const isFirstLevel = isFirstLevelQuestionTypeNode(node.key);
-              return (
-                <TreeNodeTitle
-                  nodeData={node}
-                  searchValue={questionTypeSearch.searchValue}
-                  meta={getQuestionTypeNodeMeta(node, isFirstLevel)}
-                  actionsVisible={!arrangeMode}
-                  showAddChild={canAddChild}
-                  addChildTitle="添加二级题型"
-                  onAddChild={handleAddQtChild}
-                  onEdit={handleEditQt}
-                  onDelete={handleDeleteQt}
-                />
-              );
-            }}
-            fieldNames={{
-              title: 'title',
-              key: 'key',
-              children: 'children',
-            }}
-            height={600}
-          />
+          <>
+            <div className="question-type-tree-table-header">
+              <span>题型名称</span>
+              <span>题型类型</span>
+              <span>答题区类型</span>
+              <span>答题区行数</span>
+              <span>操作</span>
+            </div>
+            <Tree
+              key={selectedSubject}
+              treeData={questionTypeTree}
+              onExpand={questionTypeSearch.onExpand}
+              expandedKeys={questionTypeSearch.expandedKeys}
+              autoExpandParent={questionTypeSearch.autoExpandParent}
+              draggable={
+                arrangeMode
+                  ? {
+                      icon: (
+                        <Tooltip title="拖拽排序">
+                          <HolderOutlined
+                            aria-hidden="true"
+                            className="tag-system-tree-drag-icon"
+                          />
+                        </Tooltip>
+                      ),
+                    }
+                  : undefined
+              }
+              allowDrop={arrangeMode ? allowQuestionTypeDrop : undefined}
+              onDrop={arrangeMode ? handleDropQuestionType : undefined}
+              showLine
+              blockNode
+              titleRender={(node: TreeNodeData) => {
+                const canAddChild = canAddQuestionTypeChild(node.key);
+                const isFirstLevel = isFirstLevelQuestionTypeNode(node.key);
+                const nodeMeta = nodeMetaMap.get(String(node.key));
+                const nodeLevel = nodeMeta?.level ?? 1;
+                return (
+                  <TreeNodeTitle
+                    className="question-type-tree-table-row"
+                    style={
+                      {
+                        '--question-type-node-indent': `${Math.max(
+                          nodeLevel - 1,
+                          0,
+                        ) * 24}px`,
+                      } as React.CSSProperties
+                    }
+                    nodeData={node}
+                    searchValue={questionTypeSearch.searchValue}
+                    meta={getQuestionTypeNodeMeta(node, isFirstLevel)}
+                    actionsVisible
+                    nodeActionsVisible={!arrangeMode}
+                    showAddChild={canAddChild}
+                    addChildTitle="添加二级题型"
+                    canMoveUp={arrangeMode && Boolean(nodeMeta?.previousKey)}
+                    canMoveDown={arrangeMode && Boolean(nodeMeta?.nextKey)}
+                    onMoveUp={
+                      arrangeMode ? handleMoveQuestionTypeUp : undefined
+                    }
+                    onMoveDown={
+                      arrangeMode ? handleMoveQuestionTypeDown : undefined
+                    }
+                    onAddChild={handleAddQtChild}
+                    onEdit={handleEditQt}
+                    onDelete={handleDeleteQt}
+                  />
+                );
+              }}
+              fieldNames={{
+                title: 'title',
+                key: 'key',
+                children: 'children',
+              }}
+              height={600}
+            />
+          </>
         ) : (
           <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>
             当前学科暂无题型

@@ -23,10 +23,13 @@ interface TreeNodeInlineEditConfig {
 
 export interface TreeNodeTitleProps {
   nodeData: TreeNodeData;
+  className?: string;
+  style?: React.CSSProperties;
   searchValue?: string;
   meta?: React.ReactNode;
   inlineEdit?: TreeNodeInlineEditConfig;
   actionsVisible?: boolean;
+  nodeActionsVisible?: boolean;
   showAddChild?: boolean;
   addChildTitle?: string;
   canMoveUp?: boolean;
@@ -40,10 +43,13 @@ export interface TreeNodeTitleProps {
 
 const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
   nodeData,
+  className,
+  style,
   searchValue = '',
   meta,
   inlineEdit,
   actionsVisible = true,
+  nodeActionsVisible = true,
   showAddChild = true,
   addChildTitle = '添加子节点',
   canMoveUp = false,
@@ -81,6 +87,8 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
       >
         <Input
           ref={inlineInputRef}
+          name="treeNodeTitle"
+          autoComplete="off"
           size="small"
           value={inlineValue}
           placeholder={inlineEdit.placeholder}
@@ -139,8 +147,14 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
       <span>{nodeData.title}</span>
     );
 
+  const shouldRenderActions =
+    actionsVisible && (Boolean(onMoveUp || onMoveDown) || nodeActionsVisible);
+
   return (
-    <div className="tag-tree-node-title">
+    <div
+      className={`tag-tree-node-title${className ? ` ${className}` : ''}`}
+      style={style}
+    >
       <span
         className={`tag-tree-node-content${
           meta ? ' tag-tree-node-content-with-meta' : ''
@@ -149,7 +163,7 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
         <span className="tag-tree-node-name">{title}</span>
         {meta ? <span className="tag-tree-node-meta">{meta}</span> : null}
       </span>
-      {actionsVisible ? (
+      {shouldRenderActions ? (
         <Space className="tag-tree-node-actions" size={2}>
           {onMoveUp ? (
             <Tooltip title="上移">
@@ -175,7 +189,7 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
               />
             </Tooltip>
           ) : null}
-          {showAddChild ? (
+          {nodeActionsVisible && showAddChild ? (
             <Tooltip title={addChildTitle}>
               <Button
                 type="text"
@@ -186,25 +200,29 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
               />
             </Tooltip>
           ) : null}
-          <Tooltip title="编辑">
-            <Button
-              type="text"
-              size="small"
-              aria-label="编辑"
-              icon={<EditOutlined />}
-              onClick={(e) => onEdit(nodeData, e)}
-            />
-          </Tooltip>
-          <Tooltip title="删除">
-            <Button
-              danger
-              type="text"
-              size="small"
-              aria-label="删除"
-              icon={<DeleteOutlined />}
-              onClick={(e) => onDelete(nodeData, e)}
-            />
-          </Tooltip>
+          {nodeActionsVisible ? (
+            <>
+              <Tooltip title="编辑">
+                <Button
+                  type="text"
+                  size="small"
+                  aria-label="编辑"
+                  icon={<EditOutlined />}
+                  onClick={(e) => onEdit(nodeData, e)}
+                />
+              </Tooltip>
+              <Tooltip title="删除">
+                <Button
+                  danger
+                  type="text"
+                  size="small"
+                  aria-label="删除"
+                  icon={<DeleteOutlined />}
+                  onClick={(e) => onDelete(nodeData, e)}
+                />
+              </Tooltip>
+            </>
+          ) : null}
         </Space>
       ) : null}
     </div>

@@ -277,10 +277,12 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
         }
       >
         <Input
+          name="knowledgeNodeSearch"
+          autoComplete="off"
           prefix={<SearchOutlined style={{ color: '#ccc' }} />}
           allowClear
           style={{ marginBottom: 8 }}
-          placeholder="搜索知识节点"
+          placeholder="搜索知识节点…"
           onChange={textbookSearch.onSearch}
         />
         {displayChapterTree.length > 0 ? (
@@ -313,7 +315,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
                   inlineEdit?.key === node.key
                     ? {
                         initialValue: inlineEdit.initialValue,
-                        placeholder: '请输入知识节点名称',
+                        placeholder: '请输入知识节点名称…',
                         saving: inlineEdit.saving,
                         onSubmit: handleInlineEditSubmit,
                         onCancel: handleCancelInlineEdit,
