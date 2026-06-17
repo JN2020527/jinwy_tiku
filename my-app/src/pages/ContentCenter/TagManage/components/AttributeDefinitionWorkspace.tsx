@@ -1,12 +1,16 @@
 import type {
+  AttributeItem,
   AttributeOptionAddMode,
   AttributeTarget,
   AttributeUsageRule,
   TagCategory,
 } from '@/services/tagSystem';
 import {
+  addAttribute,
   addTagCategory,
+  deleteAttribute,
   deleteTagCategory,
+  updateAttribute,
   updateTagCategory,
 } from '@/services/tagSystem';
 import { message, Modal } from 'antd';
@@ -14,9 +18,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import AttributeDefinitionList from './AttributeDefinitionList';
 import type { AttributeDefinitionFormValues } from './AttributeDefinitionModal';
 import AttributeDefinitionModal from './AttributeDefinitionModal';
+import type { AttributeOptionFormValues } from './AttributeOptionModal';
 import AttributeOptionPanel from './AttributeOptionPanel';
 import AttributeSummaryPanel from './AttributeSummaryPanel';
-import { sortBySort } from './attributeSettingsHelpers';
+import { sortBySort, withOptionList } from './attributeSettingsHelpers';
 
 interface AttributeDefinitionWorkspaceProps {
   activeTarget: AttributeTarget;
@@ -199,6 +204,141 @@ const AttributeDefinitionWorkspace: React.FC<
     });
   };
 
+  const getSubjectForOptionMutation = (category: TagCategory) =>
+    category.target === 'question' && category.optionAddMode === 'bySubject'
+      ? selectedSubject
+      : undefined;
+
+  const handleAddOption = async (name: string) => {
+    if (!selectedCategory) {
+      message.error('请选择属性');
+      throw new Error('请选择属性');
+    }
+
+    let notified = false;
+    try {
+      const res = await addAttribute({
+        categoryId: selectedCategory.id,
+        name,
+        subject: getSubjectForOptionMutation(selectedCategory),
+        status: 'enabled',
+      });
+
+      if (res.success) {
+        message.success('选项已添加');
+        await onRefresh();
+        return;
+      }
+
+      notified = true;
+      message.error(res.message || '选项添加失败');
+      throw new Error(res.message || '选项添加失败');
+    } catch (error: unknown) {
+      if (!notified) {
+        message.error('选项添加失败');
+      }
+      throw error;
+    }
+  };
+
+  const handleUpdateOption = async (
+    option: AttributeItem,
+    values: AttributeOptionFormValues,
+  ) => {
+    if (!selectedCategory) {
+      message.error('请选择属性');
+      throw new Error('请选择属性');
+    }
+
+    let notified = false;
+    try {
+      const res = await updateAttribute({
+        id: option.id,
+        categoryId: selectedCategory.id,
+        subject: getSubjectForOptionMutation(selectedCategory),
+        name: values.name,
+        status: values.status,
+      });
+
+      if (res.success) {
+        message.success('选项已保存');
+        await onRefresh();
+        return;
+      }
+
+      notified = true;
+      message.error(res.message || '选项保存失败');
+      throw new Error(res.message || '选项保存失败');
+    } catch (error: unknown) {
+      if (!notified) {
+        message.error('选项保存失败');
+      }
+      throw error;
+    }
+  };
+
+  const handleDeleteOption = async (option: AttributeItem) => {
+    if (!selectedCategory) {
+      message.error('请选择属性');
+      throw new Error('请选择属性');
+    }
+
+    let notified = false;
+    try {
+      const res = await deleteAttribute(option.id, selectedCategory.id, {
+        subject: getSubjectForOptionMutation(selectedCategory),
+      });
+
+      if (res.success) {
+        message.success('选项已删除');
+        await onRefresh();
+        return;
+      }
+
+      notified = true;
+      message.error(res.message || '选项删除失败');
+      throw new Error(res.message || '选项删除失败');
+    } catch (error: unknown) {
+      if (!notified) {
+        message.error('选项删除失败');
+      }
+      throw error;
+    }
+  };
+
+  const handleReorderOptions = async (nextOptions: AttributeItem[]) => {
+    if (!selectedCategory) {
+      message.error('请选择属性');
+      throw new Error('请选择属性');
+    }
+
+    const nextCategory = withOptionList(
+      selectedCategory,
+      nextOptions,
+      selectedSubject,
+    );
+
+    let notified = false;
+    try {
+      const res = await updateTagCategory(nextCategory);
+
+      if (res.success) {
+        message.success('排序已保存');
+        await onRefresh();
+        return;
+      }
+
+      notified = true;
+      message.error(res.message || '排序保存失败');
+      throw new Error(res.message || '排序保存失败');
+    } catch (error: unknown) {
+      if (!notified) {
+        message.error('排序保存失败');
+      }
+      throw error;
+    }
+  };
+
   const handleOpenUsageDrawer = () => {
     message.info('使用规则配置将在下一步接入');
   };
@@ -236,7 +376,15 @@ const AttributeDefinitionWorkspace: React.FC<
           category={selectedCategory}
           selectedSubject={selectedSubject}
           onSelectedSubjectChange={setSelectedSubject}
-          onEditCategory={openEditDefinitionModal}
+          onAddOption={handleAddOption}
+          onUpdateOption={handleUpdateOption}
+          onDeleteOption={handleDeleteOption}
+          onReorderOptions={handleReorderOptions}
+          onEditCategory={() => {
+            if (selectedCategory) {
+              openEditDefinitionModal(selectedCategory);
+            }
+          }}
         />
         <AttributeSummaryPanel
           category={selectedCategory}
