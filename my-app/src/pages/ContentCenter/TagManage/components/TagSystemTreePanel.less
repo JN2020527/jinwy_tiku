@@ -50,7 +50,7 @@
   .tag-system-tree-subject-filter {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
     color: #202733;
     font-size: 14px;
     line-height: 22px;
@@ -64,6 +64,11 @@
   .tag-system-tree-subject-select {
     width: 128px;
     text-align: left;
+
+    .ant-select-selector {
+      height: 32px;
+      align-items: center;
+    }
   }
 
   .tag-system-tree-actions {
@@ -72,6 +77,11 @@
     align-items: center;
     justify-content: flex-end;
     gap: 12px;
+
+    .ant-btn {
+      height: 32px;
+      padding-inline: 14px;
+    }
   }
 
   .ant-tree {
