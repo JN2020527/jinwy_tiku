@@ -53,6 +53,7 @@ interface WorkspaceContextSnapshot {
 interface SaveContextSnapshot {
   targetType: NodeAttributeTargetType;
   subject: string;
+  textbookVersion?: string;
   nodeId: string;
   attributeId: string;
   optionId: string;
@@ -77,6 +78,7 @@ const NodeAttributeRelationWorkspace: React.FC<
   const [loadingTree, setLoadingTree] = useState(false);
   const [loadingRelations, setLoadingRelations] = useState(false);
   const [savingNodeId, setSavingNodeId] = useState<string>();
+  const versionsRequestRef = useRef(0);
   const relationsRequestRef = useRef(0);
   const treeRequestRef = useRef(0);
   const savingRequestRef = useRef(0);
@@ -137,6 +139,8 @@ const NodeAttributeRelationWorkspace: React.FC<
     return (
       current.targetType === snapshot.targetType &&
       current.subject === snapshot.subject &&
+      (snapshot.targetType !== 'knowledge' ||
+        current.textbookVersion === snapshot.textbookVersion) &&
       current.activeAttributeId === snapshot.attributeId &&
       current.activeOptionId === snapshot.optionId
     );
@@ -171,13 +175,24 @@ const NodeAttributeRelationWorkspace: React.FC<
   }, [activeOptionId, options]);
 
   useEffect(() => {
+    const requestId = versionsRequestRef.current + 1;
+    versionsRequestRef.current = requestId;
+
     if (targetType !== 'knowledge') {
       return;
     }
 
+    const isCurrentKnowledgeRequest = () =>
+      versionsRequestRef.current === requestId &&
+      contextRef.current.targetType === 'knowledge';
+
     const fetchVersions = async () => {
       try {
         const res = await getTextbookVersions();
+        if (!isCurrentKnowledgeRequest()) {
+          return;
+        }
+
         if (!res.success) {
           message.error(res.message || '获取教材版本失败');
           return;
@@ -195,7 +210,9 @@ const NodeAttributeRelationWorkspace: React.FC<
             : res.data[0].value,
         );
       } catch {
-        message.error('获取教材版本失败');
+        if (isCurrentKnowledgeRequest()) {
+          message.error('获取教材版本失败');
+        }
       }
     };
 
@@ -293,6 +310,7 @@ const NodeAttributeRelationWorkspace: React.FC<
     const saveContext: SaveContextSnapshot = {
       targetType,
       subject,
+      textbookVersion,
       nodeId,
       attributeId: activeAttributeId,
       optionId: activeOptionId,
