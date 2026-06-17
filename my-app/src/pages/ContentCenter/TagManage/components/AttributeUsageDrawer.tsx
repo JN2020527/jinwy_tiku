@@ -129,6 +129,17 @@ const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
     };
   };
 
+  const getUsageRuleId = (
+    scene: AttributeUsageScene,
+    filterArea?: AttributeFilterArea,
+  ) => {
+    if (!category) {
+      return '';
+    }
+
+    return makeUsageRuleId(scene, category.id, filterArea);
+  };
+
   const handleEnabledChange = (
     scene: AttributeUsageScene,
     enabled: boolean,
@@ -136,10 +147,14 @@ const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
   ) => {
     upsertRule(scene, (currentRule, currentRules) => {
       if (currentRule) {
+        const ruleWithoutFilterArea = { ...currentRule };
+        delete ruleWithoutFilterArea.filterArea;
+
         return {
-          ...currentRule,
+          ...ruleWithoutFilterArea,
+          id: getUsageRuleId(scene, defaultFilterArea),
           enabled,
-          ...(defaultFilterArea && !currentRule.filterArea
+          ...(defaultFilterArea
             ? { filterArea: defaultFilterArea }
             : {}),
         };
@@ -175,6 +190,7 @@ const AttributeUsageDrawer: React.FC<AttributeUsageDrawerProps> = ({
       currentRule
         ? {
             ...currentRule,
+            id: getUsageRuleId(scene, filterArea),
             filterArea,
           }
         : createRule(scene, currentRules, filterArea),
