@@ -1210,6 +1210,29 @@ const getRelationQueryValue = (value: unknown, fallback = '') => {
   return typeof value === 'string' && value ? value : fallback;
 };
 
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim() !== '';
+
+const collectTreeNodeKeys = (
+  node: { key?: unknown; children?: unknown },
+  keys = new Set<string>(),
+) => {
+  if (typeof node.key === 'string') {
+    keys.add(node.key);
+  }
+  if (Array.isArray(node.children)) {
+    node.children.forEach((child) => {
+      if (child && typeof child === 'object') {
+        collectTreeNodeKeys(
+          child as { key?: unknown; children?: unknown },
+          keys,
+        );
+      }
+    });
+  }
+  return keys;
+};
+
 const findRelationIndex = (
   targetType: NodeAttributeTargetType,
   subject: string,
@@ -1525,11 +1548,13 @@ export default {
     const { id } = req.query;
     const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
+    let deletedNodeKeys = new Set<string>();
     const deleteNode = (nodes: MockKnowledgeNode[]) => {
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
         if (!node) continue;
         if (node.key === id) {
+          deletedNodeKeys = collectTreeNodeKeys(node);
           nodes.splice(i, 1);
           return true;
         }
@@ -1545,7 +1570,7 @@ export default {
         (relation) =>
           relation.targetType === 'topic' &&
           relation.subject === context.subject &&
-          relation.nodeId === id,
+          deletedNodeKeys.has(relation.nodeId),
       );
     }
     res.send({ success: true, message: 'Node deleted successfully' });
@@ -1821,7 +1846,12 @@ export default {
       currentTags.filter((_, index) => index !== targetIndex),
       subject,
     );
-    removeNodeAttributeRelations((relation) => relation.optionId === id);
+    const deletedOptionId = currentTags[targetIndex].id;
+    removeNodeAttributeRelations(
+      (relation) =>
+        relation.attributeId === category.id &&
+        relation.optionId === deletedOptionId,
+    );
     res.send({ success: true, message: 'Attribute deleted successfully' });
   },
 
@@ -1904,22 +1934,30 @@ export default {
   'PUT /api/tags/node-attribute-relation': (req: Request, res: Response) => {
     const { targetType, nodeId, attributeId, optionId } = req.body || {};
     const subject = normalizeQueryValue(req.body?.subject, DEFAULT_SUBJECT);
+
+    if (
+      !isNodeAttributeTargetType(targetType) ||
+      !isNonEmptyString(nodeId) ||
+      !isNonEmptyString(attributeId) ||
+      !isNonEmptyString(optionId)
+    ) {
+      res.send({
+        success: false,
+        message: 'Invalid node attribute relation',
+      });
+      return;
+    }
+
     const category = getTagCategoryById(attributeId);
     const optionExists = Boolean(
       category &&
+        category.target === targetType &&
         getCategoryOptionList(category, subject).some(
           (item) => item.id === optionId,
         ),
     );
 
-    if (
-      !isNodeAttributeTargetType(targetType) ||
-      typeof nodeId !== 'string' ||
-      typeof attributeId !== 'string' ||
-      typeof optionId !== 'string' ||
-      !category ||
-      !optionExists
-    ) {
+    if (!category || category.target !== targetType || !optionExists) {
       res.send({
         success: false,
         message: 'Invalid node attribute relation',
@@ -2060,14 +2098,17 @@ export default {
   'DELETE /api/tags/textbook-chapter': (req: Request, res: Response) => {
     const { id, version, subject } = req.query;
     const chapters = getTextbookChaptersByContext(version, subject);
+    let deletedNodeKeys = new Set<string>();
     const deleteNode = (nodes: any[]) => {
       for (let i = 0; i < nodes.length; i++) {
-        if (nodes[i].key === id) {
+        const node = nodes[i];
+        if (node.key === id) {
+          deletedNodeKeys = collectTreeNodeKeys(node);
           nodes.splice(i, 1);
           return true;
         }
-        if (nodes[i].children && nodes[i].children.length > 0) {
-          if (deleteNode(nodes[i].children)) return true;
+        if (node.children && node.children.length > 0) {
+          if (deleteNode(node.children)) return true;
         }
       }
       return false;
@@ -2078,7 +2119,7 @@ export default {
         (relation) =>
           relation.targetType === 'knowledge' &&
           relation.subject === getSubjectKey(subject) &&
-          relation.nodeId === id,
+          deletedNodeKeys.has(relation.nodeId),
       );
     }
     res.send({ success: true, message: 'Chapter deleted successfully' });
