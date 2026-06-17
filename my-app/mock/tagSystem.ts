@@ -26,6 +26,7 @@ type AttributeUsageScene =
   | 'knowledgeTreeNodeDisplay'
   | 'topicTreeNodeDisplay';
 type AttributeSelectionMode = 'single' | 'multiple';
+type NodeAttributeTargetType = 'knowledge' | 'topic';
 
 const ATTRIBUTE_USAGE_SCENES: AttributeUsageScene[] = [
   'paperUpload',
@@ -60,6 +61,16 @@ interface MockTagCategory {
   status?: AttributeStatus;
   sort?: number;
   selectionMode?: AttributeSelectionMode;
+}
+
+interface MockNodeAttributeRelation {
+  id: string;
+  targetType: NodeAttributeTargetType;
+  subject: string;
+  nodeId: string;
+  attributeId: string;
+  optionId: string;
+  updatedAt?: string;
 }
 
 interface KnowledgeContext {
@@ -1181,6 +1192,51 @@ const getTagCategoriesForResponse = (subject?: unknown) =>
 const getTagCategoryById = (categoryId: unknown) =>
   tagCategoryStore.find((category) => category.id === categoryId);
 
+const NODE_ATTRIBUTE_TARGET_TYPES: NodeAttributeTargetType[] = [
+  'knowledge',
+  'topic',
+];
+
+const isNodeAttributeTargetType = (
+  targetType: unknown,
+): targetType is NodeAttributeTargetType =>
+  typeof targetType === 'string' &&
+  NODE_ATTRIBUTE_TARGET_TYPES.includes(targetType as NodeAttributeTargetType);
+
+const getRelationQueryValue = (value: unknown, fallback = '') => {
+  if (Array.isArray(value)) {
+    return getRelationQueryValue(value[0], fallback);
+  }
+  return typeof value === 'string' && value ? value : fallback;
+};
+
+const findRelationIndex = (
+  targetType: NodeAttributeTargetType,
+  subject: string,
+  nodeId: string,
+  attributeId: string,
+) =>
+  nodeAttributeRelationStore.findIndex(
+    (relation) =>
+      relation.targetType === targetType &&
+      relation.subject === subject &&
+      relation.nodeId === nodeId &&
+      relation.attributeId === attributeId,
+  );
+
+const removeNodeAttributeRelations = (
+  predicate: (relation: MockNodeAttributeRelation) => boolean,
+) => {
+  const nextRelations = nodeAttributeRelationStore.filter(
+    (relation) => !predicate(relation),
+  );
+  nodeAttributeRelationStore.splice(
+    0,
+    nodeAttributeRelationStore.length,
+    ...nextRelations,
+  );
+};
+
 const isAttributeUsageScene = (scene: unknown): scene is AttributeUsageScene =>
   typeof scene === 'string' &&
   ATTRIBUTE_USAGE_SCENES.includes(scene as AttributeUsageScene);
@@ -1209,6 +1265,41 @@ let attributeUsageRules: AttributeUsageRule[] = [
     enabled: true,
     filterArea: 'more',
     sort: 1,
+  },
+  {
+    id: 'rule-knowledge-tree-display-emphasis',
+    attributeId: 'cat-knowledge-emphasis',
+    scene: 'knowledgeTreeNodeDisplay',
+    enabled: true,
+    sort: 0,
+  },
+  {
+    id: 'rule-topic-tree-display-frequency',
+    attributeId: 'cat-topic-frequency',
+    scene: 'topicTreeNodeDisplay',
+    enabled: true,
+    sort: 0,
+  },
+];
+
+let nodeAttributeRelationStore: MockNodeAttributeRelation[] = [
+  {
+    id: 'rel-knowledge-math-rj-7-1-1-emphasis-key',
+    targetType: 'knowledge',
+    subject: 'math',
+    nodeId: 'rj-7-1-1',
+    attributeId: 'cat-knowledge-emphasis',
+    optionId: 'knowledge-emphasis-1',
+    updatedAt: '2026-06-17T00:00:00.000Z',
+  },
+  {
+    id: 'rel-topic-math-kp-1-frequency-high',
+    targetType: 'topic',
+    subject: 'math',
+    nodeId: 'kp-1',
+    attributeId: 'cat-topic-frequency',
+    optionId: 'topic-frequency-1',
+    updatedAt: '2026-06-17T00:00:00.000Z',
   },
 ];
 
@@ -1366,6 +1457,7 @@ export default {
       attributeUsageRules = attributeUsageRules.filter(
         (rule) => rule.attributeId !== id,
       );
+      removeNodeAttributeRelations((relation) => relation.attributeId === id);
     }
     res.send({
       success: deleted,
@@ -1447,7 +1539,15 @@ export default {
       }
       return false;
     };
-    deleteNode(knowledgePoints);
+    const deleted = deleteNode(knowledgePoints);
+    if (deleted) {
+      removeNodeAttributeRelations(
+        (relation) =>
+          relation.targetType === 'topic' &&
+          relation.subject === context.subject &&
+          relation.nodeId === id,
+      );
+    }
     res.send({ success: true, message: 'Node deleted successfully' });
   },
   'PUT /api/tags/knowledge-node/move': (req: Request, res: Response) => {
@@ -1721,6 +1821,7 @@ export default {
       currentTags.filter((_, index) => index !== targetIndex),
       subject,
     );
+    removeNodeAttributeRelations((relation) => relation.optionId === id);
     res.send({ success: true, message: 'Attribute deleted successfully' });
   },
 
@@ -1772,6 +1873,128 @@ export default {
       success: true,
       message: 'Attribute usage rules updated successfully',
       data: [...attributeUsageRules].sort((a, b) => a.sort - b.sort),
+    });
+  },
+
+  'GET /api/tags/node-attribute-relations': (req: Request, res: Response) => {
+    const targetType = getRelationQueryValue(req.query.targetType);
+    const subject = getRelationQueryValue(req.query.subject, DEFAULT_SUBJECT);
+    const attributeId = getRelationQueryValue(req.query.attributeId);
+
+    if (!isNodeAttributeTargetType(targetType)) {
+      res.send({
+        success: false,
+        message: 'Invalid node attribute target type',
+        data: [],
+      });
+      return;
+    }
+
+    res.send({
+      success: true,
+      data: nodeAttributeRelationStore.filter((relation) => {
+        if (relation.targetType !== targetType) return false;
+        if (relation.subject !== subject) return false;
+        if (attributeId && relation.attributeId !== attributeId) return false;
+        return true;
+      }),
+    });
+  },
+
+  'PUT /api/tags/node-attribute-relation': (req: Request, res: Response) => {
+    const { targetType, nodeId, attributeId, optionId } = req.body || {};
+    const subject = normalizeQueryValue(req.body?.subject, DEFAULT_SUBJECT);
+    const category = getTagCategoryById(attributeId);
+    const optionExists = Boolean(
+      category &&
+        getCategoryOptionList(category, subject).some(
+          (item) => item.id === optionId,
+        ),
+    );
+
+    if (
+      !isNodeAttributeTargetType(targetType) ||
+      typeof nodeId !== 'string' ||
+      typeof attributeId !== 'string' ||
+      typeof optionId !== 'string' ||
+      !category ||
+      !optionExists
+    ) {
+      res.send({
+        success: false,
+        message: 'Invalid node attribute relation',
+      });
+      return;
+    }
+
+    const relationPayload = {
+      targetType,
+      subject,
+      nodeId,
+      attributeId,
+    };
+    const relationIndex = findRelationIndex(
+      targetType,
+      subject,
+      nodeId,
+      attributeId,
+    );
+    const relation: MockNodeAttributeRelation = {
+      ...relationPayload,
+      id:
+        relationIndex >= 0
+          ? nodeAttributeRelationStore[relationIndex].id
+          : `rel-${Date.now()}`,
+      optionId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (relationIndex >= 0) {
+      nodeAttributeRelationStore[relationIndex] = relation;
+    } else {
+      nodeAttributeRelationStore.push(relation);
+    }
+
+    res.send({
+      success: true,
+      message: 'Node attribute relation saved successfully',
+      data: relation,
+    });
+  },
+
+  'DELETE /api/tags/node-attribute-relation': (req: Request, res: Response) => {
+    const targetType = getRelationQueryValue(req.query.targetType);
+    const subject = getRelationQueryValue(req.query.subject, DEFAULT_SUBJECT);
+    const nodeId = getRelationQueryValue(req.query.nodeId);
+    const attributeId = getRelationQueryValue(req.query.attributeId);
+
+    if (!isNodeAttributeTargetType(targetType) || !nodeId || !attributeId) {
+      res.send({
+        success: false,
+        message: 'Invalid node attribute relation',
+      });
+      return;
+    }
+
+    const relationIndex = findRelationIndex(
+      targetType,
+      subject,
+      nodeId,
+      attributeId,
+    );
+
+    if (relationIndex < 0) {
+      res.send({
+        success: true,
+        message: 'Node attribute relation already removed',
+      });
+      return;
+    }
+
+    nodeAttributeRelationStore.splice(relationIndex, 1);
+    res.send({
+      success: true,
+      message: 'Node attribute relation removed successfully',
     });
   },
 
@@ -1849,7 +2072,15 @@ export default {
       }
       return false;
     };
-    deleteNode(chapters);
+    const deleted = deleteNode(chapters);
+    if (deleted) {
+      removeNodeAttributeRelations(
+        (relation) =>
+          relation.targetType === 'knowledge' &&
+          relation.subject === getSubjectKey(subject) &&
+          relation.nodeId === id,
+      );
+    }
     res.send({ success: true, message: 'Chapter deleted successfully' });
   },
   'PUT /api/tags/textbook-chapter/move': (req: Request, res: Response) => {
