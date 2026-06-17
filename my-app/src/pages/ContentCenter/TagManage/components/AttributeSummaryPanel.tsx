@@ -42,6 +42,22 @@ const AttributeSummaryPanel: React.FC<AttributeSummaryPanelProps> = ({
     [category, usageRules],
   );
 
+  const getUsageRuleSummary = (rule: AttributeUsageRule) => {
+    if (rule.required) {
+      return '启用 / 必填';
+    }
+
+    if (rule.filterArea === 'primary') {
+      return '主筛选区';
+    }
+
+    if (rule.filterArea === 'more') {
+      return '更多筛选区';
+    }
+
+    return '启用';
+  };
+
   return (
     <aside className="attribute-rule-panel">
       <div className="attribute-panel-header">
@@ -109,7 +125,9 @@ const AttributeSummaryPanel: React.FC<AttributeSummaryPanelProps> = ({
                 {enabledUsageRules.map((rule) => (
                   <div key={rule.id} className="attribute-scene-item">
                     <span>{USAGE_SCENE_LABELS[rule.scene]}</span>
-                    {rule.required && <Tag color="red">必填</Tag>}
+                    <Tag color={rule.required ? 'red' : 'blue'}>
+                      {getUsageRuleSummary(rule)}
+                    </Tag>
                   </div>
                 ))}
               </div>

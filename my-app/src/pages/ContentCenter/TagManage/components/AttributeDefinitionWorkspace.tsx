@@ -21,6 +21,7 @@ import AttributeDefinitionModal from './AttributeDefinitionModal';
 import type { AttributeOptionFormValues } from './AttributeOptionModal';
 import AttributeOptionPanel from './AttributeOptionPanel';
 import AttributeSummaryPanel from './AttributeSummaryPanel';
+import AttributeUsageDrawer from './AttributeUsageDrawer';
 import { sortBySort, withOptionList } from './attributeSettingsHelpers';
 
 interface AttributeDefinitionWorkspaceProps {
@@ -48,9 +49,11 @@ const AttributeDefinitionWorkspace: React.FC<
     usageRules,
     onActiveTargetChange,
     onRefresh,
+    onSaveUsageRules,
   } = props;
   const [activeCategoryId, setActiveCategoryId] = useState<string>();
   const [selectedSubject, setSelectedSubject] = useState<string>('math');
+  const [usageDrawerOpen, setUsageDrawerOpen] = useState<boolean>(false);
   const [definitionModalOpen, setDefinitionModalOpen] =
     useState<boolean>(false);
   const [definitionModalMode, setDefinitionModalMode] =
@@ -340,7 +343,7 @@ const AttributeDefinitionWorkspace: React.FC<
   };
 
   const handleOpenUsageDrawer = () => {
-    message.info('使用规则配置将在下一步接入');
+    setUsageDrawerOpen(true);
   };
 
   const modalInitialValues: Partial<AttributeDefinitionFormValues> =
@@ -403,6 +406,14 @@ const AttributeDefinitionWorkspace: React.FC<
         initialValues={modalInitialValues}
         onOpenChange={setDefinitionModalOpen}
         onFinish={handleDefinitionFinish}
+      />
+
+      <AttributeUsageDrawer
+        category={selectedCategory}
+        open={usageDrawerOpen}
+        usageRules={usageRules}
+        onClose={() => setUsageDrawerOpen(false)}
+        onSave={onSaveUsageRules}
       />
     </>
   );
