@@ -152,16 +152,40 @@ const getQuestionTypeAnswerAreaFormValues = (
   };
 };
 
-const getQuestionTypeAnswerAreaText = (answerArea?: QuestionTypeAnswerArea) => {
-  const normalizedAnswerArea = normalizeQuestionTypeAnswerArea(answerArea);
-  const typeText = normalizedAnswerArea.type === 'blank' ? '空白' : '横线';
-  return `${typeText} · 额外 ${normalizedAnswerArea.rows} 行`;
-};
+const getQuestionTypeNodeMeta = (
+  node: TreeNodeData,
+  isFirstLevel: boolean,
+) => {
+  const normalizedAnswerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
+  const answerAreaTypeText =
+    normalizedAnswerArea.type === 'blank' ? '空白' : '横线';
 
-const getQuestionTypeNodeMetaText = (node: TreeNodeData) =>
-  `${getQuestionTypeAnswerCardTypeText(
-    node.answerCardType,
-  )} · ${getQuestionTypeAnswerAreaText(node.answerArea)}`;
+  if (isFirstLevel) {
+    return (
+      <span className="question-type-node-meta-list">
+        <span className="question-type-node-meta-item">
+          <span className="question-type-node-meta-label">题型类型：</span>
+          <span>
+            {getQuestionTypeAnswerCardTypeText(node.answerCardType)}题
+          </span>
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="question-type-node-meta-list">
+      <span className="question-type-node-meta-item">
+        <span className="question-type-node-meta-label">答题区类型：</span>
+        <span>{answerAreaTypeText}</span>
+      </span>
+      <span className="question-type-node-meta-item">
+        <span className="question-type-node-meta-label">答题区行数：</span>
+        <span>{normalizedAnswerArea.rows} 行</span>
+      </span>
+    </span>
+  );
+};
 
 const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   questionTypeTree,
@@ -208,11 +232,17 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     [nodeMetaMap],
   );
 
-  const shouldShowQuestionTypeSettings =
+  const shouldShowAnswerCardTypeSettings =
     qtModalType === 'add'
       ? !selectedQtNode
       : selectedQtNode
       ? isFirstLevelQuestionTypeNode(selectedQtNode.key)
+      : false;
+  const shouldShowAnswerAreaSettings =
+    qtModalType === 'add'
+      ? Boolean(selectedQtNode)
+      : selectedQtNode
+      ? !isFirstLevelQuestionTypeNode(selectedQtNode.key)
       : false;
 
   const allowQuestionTypeDrop: TreeProps['allowDrop'] = ({
@@ -232,7 +262,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     qtForm.resetFields();
     qtForm.setFieldsValue({
       ...getQuestionTypeAnswerCardTypeFormValues(),
-      ...getQuestionTypeAnswerAreaFormValues(),
     });
     setQtModalVisible(true);
   };
@@ -254,6 +283,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     qtForm.setFieldsValue({
       parentId: node.key,
       parentName: node.title,
+      ...getQuestionTypeAnswerAreaFormValues(),
     });
     setQtModalVisible(true);
   };
@@ -273,9 +303,11 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         ? {
             ...baseValues,
             ...getQuestionTypeAnswerCardTypeFormValues(node.answerCardType),
-            ...getQuestionTypeAnswerAreaFormValues(node.answerArea),
           }
-        : baseValues,
+        : {
+            ...baseValues,
+            ...getQuestionTypeAnswerAreaFormValues(node.answerArea),
+          },
     );
     setQtModalVisible(true);
   };
@@ -342,6 +374,12 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         : selectedQtNode
         ? isFirstLevelQuestionTypeNode(selectedQtNode.key)
         : false;
+    const isChildLevelSubmit =
+      qtModalType === 'add'
+        ? Boolean(formValues.parentId)
+        : selectedQtNode
+        ? !isFirstLevelQuestionTypeNode(selectedQtNode.key)
+        : false;
     let res;
     if (qtModalType === 'add') {
       const payload: Parameters<typeof addQuestionTypeNode>[0] = {
@@ -354,6 +392,8 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         payload.answerCardType = normalizeQuestionTypeAnswerCardType(
           formValues.answerCardType,
         );
+      }
+      if (isChildLevelSubmit) {
         payload.answerArea = normalizeQuestionTypeAnswerArea({
           type: formValues.answerAreaType,
           rows: formValues.answerAreaRows,
@@ -371,6 +411,8 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         payload.answerCardType = normalizeQuestionTypeAnswerCardType(
           formValues.answerCardType,
         );
+      }
+      if (isChildLevelSubmit) {
         payload.answerArea = normalizeQuestionTypeAnswerArea({
           type: formValues.answerAreaType,
           rows: formValues.answerAreaRows,
@@ -463,7 +505,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                 <TreeNodeTitle
                   nodeData={node}
                   searchValue={questionTypeSearch.searchValue}
-                  meta={isFirstLevel ? getQuestionTypeNodeMetaText(node) : null}
+                  meta={getQuestionTypeNodeMeta(node, isFirstLevel)}
                   actionsVisible={!arrangeMode}
                   showAddChild={canAddChild}
                   addChildTitle="添加二级题型"
@@ -500,7 +542,11 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         onOpenChange={setQtModalVisible}
         form={qtForm}
         onFinish={handleQtModalFinish}
-        width={shouldShowQuestionTypeSettings ? 640 : 560}
+        width={
+          shouldShowAnswerCardTypeSettings || shouldShowAnswerAreaSettings
+            ? 640
+            : 560
+        }
       >
         <div className="question-type-modal-basic-grid">
           {qtModalType === 'add' && selectedQtNode && (
@@ -521,7 +567,8 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
           )}
           <ProFormText
             className={
-              !shouldShowQuestionTypeSettings &&
+              !shouldShowAnswerCardTypeSettings &&
+              !shouldShowAnswerAreaSettings &&
               !(qtModalType === 'add' && selectedQtNode)
                 ? 'question-type-modal-full-field'
                 : ''
@@ -530,10 +577,10 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
             label="题型名称"
             rules={[{ required: true, message: '请输入题型名称' }]}
           />
-          {shouldShowQuestionTypeSettings ? (
+          {shouldShowAnswerCardTypeSettings ? (
             <ProFormRadio.Group
               name="answerCardType"
-              label="题型属性"
+              label="题型类型"
               radioType="button"
               fieldProps={{
                 className: 'question-type-answer-card-radio',
@@ -542,34 +589,34 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                 { label: '主观题', value: 'subjective' },
                 { label: '客观题', value: 'objective' },
               ]}
-              rules={[{ required: true, message: '请选择题型属性' }]}
+              rules={[{ required: true, message: '请选择题型类型' }]}
             />
           ) : null}
         </div>
-        {shouldShowQuestionTypeSettings ? (
+        {shouldShowAnswerAreaSettings ? (
           <section className="question-type-answer-config">
             <div className="question-type-answer-config-grid">
               <ProFormRadio.Group
                 name="answerAreaType"
-                label="答题区样式"
+                label="答题区类型"
                 radioType="button"
                 options={[
                   { label: '横线', value: 'line' },
                   { label: '空白', value: 'blank' },
                 ]}
-                rules={[{ required: true, message: '请选择答题区样式' }]}
+                rules={[{ required: true, message: '请选择答题区类型' }]}
               />
               <ProFormDigit
                 className="question-type-answer-rows-field"
                 name="answerAreaRows"
-                label="额外答题行数"
+                label="答题区行数"
                 extra="填 0 表示带题干时不额外留空；无题干答题卡生成时系统至少保留 1 行。"
                 min={MIN_QUESTION_TYPE_ANSWER_ROWS}
                 max={MAX_QUESTION_TYPE_ANSWER_ROWS}
                 fieldProps={{
                   precision: 0,
                 }}
-                rules={[{ required: true, message: '请输入额外答题行数' }]}
+                rules={[{ required: true, message: '请输入答题区行数' }]}
               />
             </div>
           </section>

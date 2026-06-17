@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a frontend-only Umi Max 4 + React 18 + TypeScript prototype for a K12 question-bank management system. It does not require or assume a real backend. Runtime code lives in `src/`: pages in `src/pages`, UI in `src/components`, hooks in `src/hooks`, services in `src/services`, and HTML utilities in `src/utils`. Routes are configured in `config/routes.ts`; layout and Umi settings live in `.umirc.ts` and `config/defaultSettings.ts`. Mock API handlers are in `mock/`; some pages keep local mock data beside the feature, such as `src/pages/QuestionTagging/mockData.ts`. Assets belong in `Public/`.
+This is a frontend-only Umi Max 4 + React 18 + TypeScript K12 question-bank prototype. It does not require a real backend. Runtime code lives in `src/`: pages in `src/pages`, UI in `src/components`, hooks in `src/hooks`, services in `src/services`, and HTML utilities in `src/utils`. Routes are configured in `config/routes.ts`; layout and Umi settings live in `.umirc.ts` and `config/defaultSettings.ts`. Mock API handlers are in `mock/`; some pages keep local mock data beside the feature, such as `src/pages/QuestionTagging/mockData.ts`. Assets belong in `Public/`.
 
 ## Build, Test, and Development Commands
 
@@ -15,11 +15,11 @@ There is currently no `npm test` script or configured test runner.
 
 ## Coding Style & Naming Conventions
 
-Use TypeScript and React function components. Follow the existing feature-first structure: complex pages should have an `index.tsx`, optional `components/`, `types.ts`, and related `.less` files. Component names use PascalCase, hooks use `useXxx`, and service functions should describe the API action. Prettier enforces single quotes, trailing commas, 80-character print width, package sorting, and organized imports. ESLint and Stylelint extend `@umijs/max`.
+Use TypeScript and React function components. Follow the existing feature-first structure: complex pages should have an `index.tsx`, optional `components/`, `types.ts`, and related `.less` files. Before adding a component, search `src/components` and feature-local `components/`; reuse or extend existing components when behavior and layout match. Component names use PascalCase, hooks use `useXxx`, and service functions should describe the API action. Prettier enforces single quotes, trailing commas, 80-character print width, package sorting, and organized imports. ESLint and Stylelint extend `@umijs/max`.
 
 ## Testing Guidelines
 
-Because no test framework is configured, verify changes with `npm run build` and targeted manual checks in the browser. For data flows, update the matching `mock/*.ts` service data or the feature-local `mockData.ts` file at the same time as UI changes. If tests are introduced later, colocate them near the feature and add a package script before relying on them in CI.
+Because no test framework is configured, verify changes with `npm run build` and targeted browser checks. For data flows, update the matching `mock/*.ts` or feature-local `mockData.ts` with UI changes. If tests are introduced later, colocate them near the feature and add a package script before relying on CI.
 
 ## Commit & Pull Request Guidelines
 

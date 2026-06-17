@@ -141,7 +141,11 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
 
   return (
     <div className="tag-tree-node-title">
-      <span className="tag-tree-node-content">
+      <span
+        className={`tag-tree-node-content${
+          meta ? ' tag-tree-node-content-with-meta' : ''
+        }`}
+      >
         <span className="tag-tree-node-name">{title}</span>
         {meta ? <span className="tag-tree-node-meta">{meta}</span> : null}
       </span>

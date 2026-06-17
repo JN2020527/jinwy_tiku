@@ -701,10 +701,10 @@ const normalizeQuestionTypeTreeSettings = (
         node.title,
         node.key,
       );
-      node.answerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
+      delete node.answerArea;
     } else {
       delete node.answerCardType;
-      delete node.answerArea;
+      node.answerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
     }
     if (node.children?.length) {
       normalizeQuestionTypeTreeSettings(node.children, level + 1);
@@ -767,6 +767,7 @@ const applyQuestionTypeScope = (
         node.title,
         key,
       );
+    } else {
       scopedNode.answerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
     }
 
@@ -1504,6 +1505,7 @@ export default {
       }
 
       if (!parentNode.children) parentNode.children = [];
+      newNode.answerArea = normalizeQuestionTypeAnswerArea(answerArea);
       parentNode.children.push(newNode);
       added = true;
     } else {
@@ -1512,7 +1514,6 @@ export default {
         title,
         nodeId,
       );
-      newNode.answerArea = normalizeQuestionTypeAnswerArea(answerArea);
       questionTypeTree.push(newNode);
       added = true;
     }
@@ -1539,12 +1540,12 @@ export default {
               title,
               id,
             );
+            delete node.answerArea;
+          } else {
+            delete node.answerCardType;
             node.answerArea = normalizeQuestionTypeAnswerArea(
               answerArea || node.answerArea,
             );
-          } else {
-            delete node.answerCardType;
-            delete node.answerArea;
           }
           return true;
         }
