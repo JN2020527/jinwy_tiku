@@ -28,7 +28,13 @@ import {
   Tooltip,
   Tree,
 } from 'antd';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   getCategoryMap,
   getDisplayAttributeIds,
@@ -78,6 +84,8 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   const [nodeRelations, setNodeRelations] = useState<NodeAttributeRelation[]>(
     [],
   );
+  const chapterRequestIdRef = useRef(0);
+  const nodeRelationMetaRequestIdRef = useRef(0);
   const chapterTreeData = chapterTree as unknown as TreeNodeData[];
   const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
   const [arrangeMode, setArrangeMode] = useState(false);
@@ -115,14 +123,25 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   }, []);
 
   const fetchChapters = useCallback(async () => {
-    if (!selectedVersion) return;
+    const requestId = (chapterRequestIdRef.current += 1);
+
+    if (!selectedVersion) {
+      setChapterTree([]);
+      return;
+    }
+
     try {
       const res = await getTextbookChapters(selectedVersion, selectedSubject);
+      if (chapterRequestIdRef.current !== requestId) {
+        return;
+      }
       if (res.success) {
         setChapterTree(res.data);
       }
     } catch {
-      message.error('获取知识体系失败');
+      if (chapterRequestIdRef.current === requestId) {
+        message.error('获取知识体系失败');
+      }
     }
   }, [selectedSubject, selectedVersion]);
 
@@ -131,6 +150,8 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   }, [fetchChapters]);
 
   const fetchNodeRelationMeta = useCallback(async () => {
+    const requestId = (nodeRelationMetaRequestIdRef.current += 1);
+
     try {
       const [categoryRes, usageRuleRes, relationRes] = await Promise.all([
         getTagCategories(),
@@ -140,6 +161,10 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
           subject: selectedSubject,
         }),
       ]);
+
+      if (nodeRelationMetaRequestIdRef.current !== requestId) {
+        return;
+      }
 
       if (categoryRes.success) {
         setTagCategories(categoryRes.data);
@@ -151,7 +176,9 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
         setNodeRelations(relationRes.data);
       }
     } catch {
-      message.error('获取知识节点属性失败');
+      if (nodeRelationMetaRequestIdRef.current === requestId) {
+        message.error('获取知识节点属性失败');
+      }
     }
   }, [selectedSubject]);
 
@@ -173,11 +200,20 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   );
   const relationMapByNode = useMemo(() => {
     const map = new Map<string, NodeAttributeRelation[]>();
-    nodeRelations.forEach((relation) => {
-      map.set(relation.nodeId, [...(map.get(relation.nodeId) || []), relation]);
-    });
+    nodeRelations
+      .filter(
+        (relation) =>
+          relation.targetType === 'knowledge' &&
+          relation.subject === selectedSubject,
+      )
+      .forEach((relation) => {
+        map.set(relation.nodeId, [
+          ...(map.get(relation.nodeId) || []),
+          relation,
+        ]);
+      });
     return map;
-  }, [nodeRelations]);
+  }, [nodeRelations, selectedSubject]);
 
   const renderNodeRelationMeta = useCallback(
     (nodeKey: React.Key) => {

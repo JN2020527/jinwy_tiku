@@ -12,7 +12,7 @@ import {
 } from '@/services/tagSystem';
 import { PageContainer } from '@ant-design/pro-components';
 import { message, Spin } from 'antd';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import TopicTreePanel from './components/TopicTreePanel';
 
 const SUBJECT_OPTIONS = [
@@ -36,8 +36,11 @@ const TopicTagPage: React.FC = () => {
   );
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedSubject, setSelectedSubject] = useState<string>('math');
+  const fetchRequestIdRef = useRef(0);
 
   const fetchData = useCallback(async () => {
+    const requestId = (fetchRequestIdRef.current += 1);
+
     setLoading(true);
     try {
       const [treeRes, categoryRes, usageRuleRes, relationRes] =
@@ -53,6 +56,10 @@ const TopicTagPage: React.FC = () => {
           }),
         ]);
 
+      if (fetchRequestIdRef.current !== requestId) {
+        return;
+      }
+
       if (treeRes.success) {
         setTopicTree(treeRes.data);
       }
@@ -66,9 +73,13 @@ const TopicTagPage: React.FC = () => {
         setNodeRelations(relationRes.data);
       }
     } catch {
-      message.error('获取专题体系失败');
+      if (fetchRequestIdRef.current === requestId) {
+        message.error('获取专题体系失败');
+      }
     } finally {
-      setLoading(false);
+      if (fetchRequestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }, [selectedSubject]);
 

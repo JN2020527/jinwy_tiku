@@ -111,11 +111,20 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   );
   const relationMapByNode = useMemo(() => {
     const map = new Map<string, NodeAttributeRelation[]>();
-    nodeRelations.forEach((relation) => {
-      map.set(relation.nodeId, [...(map.get(relation.nodeId) || []), relation]);
-    });
+    nodeRelations
+      .filter(
+        (relation) =>
+          relation.targetType === 'topic' &&
+          relation.subject === selectedSubject,
+      )
+      .forEach((relation) => {
+        map.set(relation.nodeId, [
+          ...(map.get(relation.nodeId) || []),
+          relation,
+        ]);
+      });
     return map;
-  }, [nodeRelations]);
+  }, [nodeRelations, selectedSubject]);
 
   const renderNodeRelationMeta = useCallback(
     (nodeKey: React.Key) => {
