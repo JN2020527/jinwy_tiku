@@ -29,12 +29,28 @@
 
 .attribute-tags-panel {
   display: grid;
-  grid-template-columns: 280px minmax(520px, 1fr) 320px;
+  grid-template-columns: 260px minmax(340px, 1fr) 280px;
   min-height: 640px;
   overflow: hidden;
   border: 1px solid @attribute-border;
   border-radius: 8px;
   background: #fff;
+}
+
+.attribute-rule-panel {
+  .attribute-panel-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+
+    .ant-space {
+      flex: 1 0 100%;
+      justify-content: flex-start;
+
+      .ant-btn {
+        padding-inline: 8px;
+      }
+    }
+  }
 }
 
 .attribute-category-panel,
@@ -113,6 +129,13 @@
 
   .ant-segmented {
     width: 100%;
+  }
+
+  .ant-segmented-item-label {
+    min-height: 30px;
+    padding: 0 6px;
+    font-size: 13px;
+    line-height: 30px;
   }
 }
 
@@ -484,8 +507,8 @@
 
 .attribute-usage-workbench {
   display: grid !important;
-  grid-template-columns: 240px minmax(520px, 1fr) 300px !important;
-  gap: 16px !important;
+  grid-template-columns: 220px minmax(300px, 1fr) 260px !important;
+  gap: 12px !important;
   align-items: start;
   min-width: 0;
 }
