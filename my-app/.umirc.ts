@@ -48,6 +48,7 @@ export default defineConfig({
   },
   routes,
   npmClient: 'npm',
+  esbuildMinifyIIFE: true,
   // API proxy configuration (used when backend is running)
   // When mock files exist in mock/, mock takes priority over proxy
   proxy: {
