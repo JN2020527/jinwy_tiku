@@ -1,7 +1,15 @@
-import type { TextbookChapter } from '@/services/tagSystem';
+import type {
+  AttributeUsageRule,
+  NodeAttributeRelation,
+  TagCategory,
+  TextbookChapter,
+} from '@/services/tagSystem';
 import {
   addTextbookChapter,
   deleteTextbookChapter,
+  getAttributeUsageRules,
+  getNodeAttributeRelations,
+  getTagCategories,
   getTextbookChapters,
   getTextbookVersions,
   moveTextbookChapter,
@@ -16,12 +24,17 @@ import {
   message,
   Modal,
   Select,
+  Tag,
   Tooltip,
   Tree,
 } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  getCategoryMap,
+  getDisplayAttributeIds,
+  getOptionMap,
+} from './nodeAttributeRelationHelpers';
 import './TagSystemTreePanel.less';
-import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
@@ -29,6 +42,7 @@ import {
   getTreeMoveRequest,
   useTreeSearch,
 } from './treeHelpers';
+import TreeNodeTitle from './TreeNodeTitle';
 
 interface SelectOption {
   label: string;
@@ -59,6 +73,11 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
 }) => {
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const [chapterTree, setChapterTree] = useState<TextbookChapter[]>([]);
+  const [tagCategories, setTagCategories] = useState<TagCategory[]>([]);
+  const [usageRules, setUsageRules] = useState<AttributeUsageRule[]>([]);
+  const [nodeRelations, setNodeRelations] = useState<NodeAttributeRelation[]>(
+    [],
+  );
   const chapterTreeData = chapterTree as unknown as TreeNodeData[];
   const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
   const [arrangeMode, setArrangeMode] = useState(false);
@@ -110,6 +129,89 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   useEffect(() => {
     fetchChapters();
   }, [fetchChapters]);
+
+  const fetchNodeRelationMeta = useCallback(async () => {
+    try {
+      const [categoryRes, usageRuleRes, relationRes] = await Promise.all([
+        getTagCategories(),
+        getAttributeUsageRules(),
+        getNodeAttributeRelations({
+          targetType: 'knowledge',
+          subject: selectedSubject,
+        }),
+      ]);
+
+      if (categoryRes.success) {
+        setTagCategories(categoryRes.data);
+      }
+      if (usageRuleRes.success) {
+        setUsageRules(usageRuleRes.data);
+      }
+      if (relationRes.success) {
+        setNodeRelations(relationRes.data);
+      }
+    } catch {
+      message.error('获取知识节点属性失败');
+    }
+  }, [selectedSubject]);
+
+  useEffect(() => {
+    void fetchNodeRelationMeta();
+  }, [fetchNodeRelationMeta]);
+
+  const displayAttributeIds = useMemo(
+    () => getDisplayAttributeIds(usageRules, 'knowledge'),
+    [usageRules],
+  );
+  const categoryMap = useMemo(
+    () => getCategoryMap(tagCategories),
+    [tagCategories],
+  );
+  const optionMap = useMemo(
+    () => getOptionMap(tagCategories, selectedSubject),
+    [selectedSubject, tagCategories],
+  );
+  const relationMapByNode = useMemo(() => {
+    const map = new Map<string, NodeAttributeRelation[]>();
+    nodeRelations.forEach((relation) => {
+      map.set(relation.nodeId, [...(map.get(relation.nodeId) || []), relation]);
+    });
+    return map;
+  }, [nodeRelations]);
+
+  const renderNodeRelationMeta = useCallback(
+    (nodeKey: React.Key) => {
+      const relationsForNode = relationMapByNode.get(String(nodeKey)) || [];
+      const tags = displayAttributeIds.flatMap((attributeId) => {
+        const category = categoryMap.get(attributeId);
+        const relation = relationsForNode.find(
+          (item) => item.attributeId === attributeId,
+        );
+        const option = relation ? optionMap.get(relation.optionId) : undefined;
+
+        if (!category || category.status === 'disabled') {
+          return [];
+        }
+        if (!option || option.status === 'disabled') {
+          return [];
+        }
+
+        return [
+          <Tag
+            key={`${attributeId}-${option.id}`}
+            className="tag-tree-node-tag"
+          >
+            {option.name}
+          </Tag>,
+        ];
+      });
+
+      return tags.length ? (
+        <span className="tag-tree-node-tags">{tags}</span>
+      ) : null;
+    },
+    [categoryMap, displayAttributeIds, optionMap, relationMapByNode],
+  );
 
   const handleAddTextbookRoot = () => {
     setInlineEdit({
@@ -332,6 +434,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
                     : undefined
                 }
                 actionsVisible={!arrangeMode}
+                meta={renderNodeRelationMeta(node.key)}
                 onAddChild={handleAddTextbookChild}
                 onEdit={handleEditTextbook}
                 onDelete={handleDeleteTextbook}

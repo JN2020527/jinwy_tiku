@@ -1,4 +1,9 @@
-import type { KnowledgeNode } from '@/services/tagSystem';
+import type {
+  AttributeUsageRule,
+  KnowledgeNode,
+  NodeAttributeRelation,
+  TagCategory,
+} from '@/services/tagSystem';
 import {
   addKnowledgeNode,
   deleteKnowledgeNode,
@@ -14,12 +19,17 @@ import {
   message,
   Modal,
   Select,
+  Tag,
   Tooltip,
   Tree,
 } from 'antd';
 import React, { useCallback, useMemo, useState } from 'react';
+import {
+  getCategoryMap,
+  getDisplayAttributeIds,
+  getOptionMap,
+} from './nodeAttributeRelationHelpers';
 import './TagSystemTreePanel.less';
-import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
@@ -27,6 +37,7 @@ import {
   getTreeMoveRequest,
   useTreeSearch,
 } from './treeHelpers';
+import TreeNodeTitle from './TreeNodeTitle';
 
 interface SelectOption {
   label: string;
@@ -35,6 +46,9 @@ interface SelectOption {
 
 interface TopicTreePanelProps {
   topicTree: KnowledgeNode[];
+  tagCategories: TagCategory[];
+  usageRules: AttributeUsageRule[];
+  nodeRelations: NodeAttributeRelation[];
   selectedSubject: string;
   subjectOptions: SelectOption[];
   onSubjectChange: (subject: string) => void;
@@ -54,6 +68,9 @@ const createDraftNodeKey = () => `draft-${Date.now()}`;
 
 const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   topicTree,
+  tagCategories,
+  usageRules,
+  nodeRelations,
   selectedSubject,
   subjectOptions,
   onSubjectChange,
@@ -79,6 +96,60 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
     );
   }, [inlineEdit, topicTreeData]);
   const topicSearch = useTreeSearch(displayTopicTree);
+
+  const displayAttributeIds = useMemo(
+    () => getDisplayAttributeIds(usageRules, 'topic'),
+    [usageRules],
+  );
+  const categoryMap = useMemo(
+    () => getCategoryMap(tagCategories),
+    [tagCategories],
+  );
+  const optionMap = useMemo(
+    () => getOptionMap(tagCategories, selectedSubject),
+    [selectedSubject, tagCategories],
+  );
+  const relationMapByNode = useMemo(() => {
+    const map = new Map<string, NodeAttributeRelation[]>();
+    nodeRelations.forEach((relation) => {
+      map.set(relation.nodeId, [...(map.get(relation.nodeId) || []), relation]);
+    });
+    return map;
+  }, [nodeRelations]);
+
+  const renderNodeRelationMeta = useCallback(
+    (nodeKey: React.Key) => {
+      const relationsForNode = relationMapByNode.get(String(nodeKey)) || [];
+      const tags = displayAttributeIds.flatMap((attributeId) => {
+        const category = categoryMap.get(attributeId);
+        const relation = relationsForNode.find(
+          (item) => item.attributeId === attributeId,
+        );
+        const option = relation ? optionMap.get(relation.optionId) : undefined;
+
+        if (!category || category.status === 'disabled') {
+          return [];
+        }
+        if (!option || option.status === 'disabled') {
+          return [];
+        }
+
+        return [
+          <Tag
+            key={`${attributeId}-${option.id}`}
+            className="tag-tree-node-tag"
+          >
+            {option.name}
+          </Tag>,
+        ];
+      });
+
+      return tags.length ? (
+        <span className="tag-tree-node-tags">{tags}</span>
+      ) : null;
+    },
+    [categoryMap, displayAttributeIds, optionMap, relationMapByNode],
+  );
 
   const handleAddRoot = () => {
     setInlineEdit({
@@ -290,6 +361,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
                     : undefined
                 }
                 actionsVisible={!arrangeMode}
+                meta={renderNodeRelationMeta(node.key)}
                 onAddChild={handleAddChild}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
