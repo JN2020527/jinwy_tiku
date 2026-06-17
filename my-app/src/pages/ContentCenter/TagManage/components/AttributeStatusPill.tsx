@@ -14,8 +14,8 @@ const AttributeStatusPill: React.FC<AttributeStatusPillProps> = ({
     <span
       className={
         enabled
-          ? 'attribute-status-pill attribute-status-pill--enabled'
-          : 'attribute-status-pill attribute-status-pill--disabled'
+          ? 'attribute-status-pill enabled'
+          : 'attribute-status-pill disabled'
       }
     >
       {enabled ? '启用' : '停用'}
