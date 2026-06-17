@@ -23,17 +23,33 @@ import {
   ProFormTextArea,
 } from '@ant-design/pro-components';
 import type { TreeProps } from 'antd';
-import { Button, Card, Form, Input, message, Modal, Tooltip, Tree } from 'antd';
+import {
+  Button,
+  Card,
+  Form,
+  Input,
+  message,
+  Modal,
+  Select,
+  Tooltip,
+  Tree,
+} from 'antd';
 import React, { useCallback, useMemo, useState } from 'react';
 import './QuestionTypeTreePanel.less';
 import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
 import { useTreeSearch } from './treeHelpers';
 
+interface SelectOption {
+  label: string;
+  value: string;
+}
+
 interface QuestionTypeTreePanelProps {
   questionTypeTree: QuestionTypeNode[];
   selectedSubject: string;
-  selectedSubjectLabel: string;
+  subjectOptions: SelectOption[];
+  onSubjectChange: (subject: string) => void;
   onRefresh: () => void;
 }
 
@@ -150,7 +166,8 @@ const getQuestionTypeNodeMetaText = (node: TreeNodeData) =>
 const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   questionTypeTree,
   selectedSubject,
-  selectedSubjectLabel,
+  subjectOptions,
+  onSubjectChange,
   onRefresh,
 }) => {
   const questionTypeSearch = useTreeSearch(
@@ -408,9 +425,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         className="question-type-tree-panel"
         title={
           <div className="question-type-card-title">
-            <span className="question-type-card-title-text">
-              {selectedSubjectLabel}题型结构树
-            </span>
+            <span className="question-type-card-title-text">题型结构树</span>
             <span className="question-type-rule-inline">
               <InfoCircleFilled aria-hidden="true" />
               最多 {MAX_QUESTION_TYPE_LEVEL}{' '}
@@ -420,9 +435,21 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         }
         variant="borderless"
         extra={
-          <Button type="primary" size="small" onClick={handleAddQtRoot}>
-            添加一级题型
-          </Button>
+          <div className="question-type-card-extra">
+            <div className="question-type-subject-filter">
+              <span className="question-type-subject-label">学科</span>
+              <Select
+                value={selectedSubject}
+                onChange={onSubjectChange}
+                className="question-type-subject-select"
+                options={subjectOptions}
+                aria-label="选择学科"
+              />
+            </div>
+            <Button type="primary" size="small" onClick={handleAddQtRoot}>
+              添加一级题型
+            </Button>
+          </div>
         }
       >
         <Input

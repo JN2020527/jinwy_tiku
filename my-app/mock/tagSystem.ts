@@ -62,8 +62,7 @@ interface MockTagCategory {
   selectionMode?: AttributeSelectionMode;
 }
 
-interface TagContext {
-  grade: string;
+interface KnowledgeContext {
   subject: string;
 }
 
@@ -93,7 +92,6 @@ interface MockKnowledgeNode {
   title: string;
   key: string;
   value?: string;
-  grade: string;
   subject: string;
   description?: string;
   children?: MockKnowledgeNode[];
@@ -575,10 +573,11 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
   },
 ];
 
-const DEFAULT_TAG_CONTEXT: TagContext = {
-  grade: 'grade-7',
+const DEFAULT_KNOWLEDGE_CONTEXT: KnowledgeContext = {
   subject: 'math',
 };
+
+const DEFAULT_SUBJECT = 'math';
 
 const normalizeQueryValue = (value: unknown, fallback: string) => {
   if (Array.isArray(value)) {
@@ -587,26 +586,21 @@ const normalizeQueryValue = (value: unknown, fallback: string) => {
   return typeof value === 'string' && value ? value : fallback;
 };
 
-const getTagContext = (req: Request): TagContext => ({
-  grade: normalizeQueryValue(
-    req.body?.grade ?? req.query.grade,
-    DEFAULT_TAG_CONTEXT.grade,
-  ),
+const getKnowledgeContext = (req: Request): KnowledgeContext => ({
   subject: normalizeQueryValue(
     req.body?.subject ?? req.query.subject,
-    DEFAULT_TAG_CONTEXT.subject,
+    DEFAULT_KNOWLEDGE_CONTEXT.subject,
   ),
 });
 
 const getQuestionTypeContext = (req: Request): QuestionTypeContext => ({
   subject: normalizeQueryValue(
     req.body?.subject ?? req.query.subject,
-    DEFAULT_TAG_CONTEXT.subject,
+    DEFAULT_SUBJECT,
   ),
 });
 
-const getTagContextKey = ({ grade, subject }: TagContext) =>
-  `${grade}__${subject}`;
+const getKnowledgeContextKey = ({ subject }: KnowledgeContext) => subject;
 
 const getQuestionTypeContextKey = ({ subject }: QuestionTypeContext) => subject;
 
@@ -720,15 +714,14 @@ const normalizeQuestionTypeTreeSettings = (
 
 const applyKnowledgeScope = (
   nodes: KnowledgeSeedNode[],
-  context: TagContext,
+  context: KnowledgeContext,
 ): MockKnowledgeNode[] => {
-  const contextKey = getTagContextKey(context);
+  const contextKey = getKnowledgeContextKey(context);
   return nodes.map((node) => ({
     id: node.id ? `${node.id}-${contextKey}` : undefined,
     title: node.title,
     key: `${node.key}-${contextKey}`,
     value: node.value ? `${node.value}-${contextKey}` : undefined,
-    grade: context.grade,
     subject: context.subject,
     description: node.description,
     children: node.children
@@ -739,8 +732,8 @@ const applyKnowledgeScope = (
 
 const knowledgeTreeStore: Record<string, MockKnowledgeNode[]> = {};
 
-const getKnowledgeTreeByContext = (context: TagContext) => {
-  const contextKey = getTagContextKey(context);
+const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
+  const contextKey = getKnowledgeContextKey(context);
   if (!knowledgeTreeStore[contextKey]) {
     knowledgeTreeStore[contextKey] = applyKnowledgeScope(
       defaultKnowledgePointTemplates,
@@ -1137,7 +1130,7 @@ let textbookChapters: any = {
 
 export default {
   'GET /api/tags/knowledge-tree': (req: Request, res: Response) => {
-    const context = getTagContext(req);
+    const context = getKnowledgeContext(req);
     res.send({
       success: true,
       data: getKnowledgeTreeByContext(context),
@@ -1243,16 +1236,15 @@ export default {
 
   'POST /api/tags/knowledge-node': (req: Request, res: Response) => {
     const { parentId, title, description } = req.body;
-    const context = getTagContext(req);
+    const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
-    const contextKey = getTagContextKey(context);
+    const contextKey = getKnowledgeContextKey(context);
     const nodeId = `kp-${contextKey}-${Date.now()}`;
     const newNode: MockKnowledgeNode = {
       id: nodeId,
       key: nodeId,
       title,
       value: nodeId,
-      grade: context.grade,
       subject: context.subject,
       description,
       children: [],
@@ -1280,7 +1272,7 @@ export default {
   },
   'PUT /api/tags/knowledge-node': (req: Request, res: Response) => {
     const { id, title, description } = req.body;
-    const context = getTagContext(req);
+    const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
     const updateNode = (nodes: MockKnowledgeNode[]) => {
       for (const node of nodes) {
@@ -1300,7 +1292,7 @@ export default {
   },
   'DELETE /api/tags/knowledge-node': (req: Request, res: Response) => {
     const { id } = req.query;
-    const context = getTagContext(req);
+    const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
     const deleteNode = (nodes: MockKnowledgeNode[]) => {
       for (let i = 0; i < nodes.length; i++) {

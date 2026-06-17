@@ -113,8 +113,8 @@ const rowStyle: React.CSSProperties = {
   display: 'flex',
   gap: 12,
   justifyContent: 'space-between',
-  minHeight: 72,
-  padding: '12px 14px',
+  minHeight: 54,
+  padding: '10px 14px',
 };
 
 const addableRowStyle: React.CSSProperties = {
@@ -739,7 +739,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
       >
         <div
           style={{
-            alignItems: 'flex-start',
+            alignItems: 'center',
             display: 'flex',
             flex: 1,
             gap: 10,
@@ -759,22 +759,14 @@ const AttributeUsageSettingsWorkspace: React.FC<
             </span>
             <span className="attribute-usage-sort-index">{index + 1}</span>
           </span>
-          <div style={{ minWidth: 0 }}>
+          <div className="attribute-usage-row-main">
             <div
-              style={{
-                color: '#1f2a37',
-                fontSize: 14,
-                fontWeight: 600,
-                lineHeight: '22px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
+              className="attribute-usage-row-name"
               title={row.category.name}
             >
               {row.category.name}
             </div>
-            <Space size={6} style={{ flexWrap: 'wrap', marginTop: 6 }}>
+            <Space className="attribute-usage-row-tags" size={6}>
               <Tag>{targetLabel}</Tag>
               {row.category.status === 'disabled' && (
                 <Tag color="warning">属性已停用</Tag>

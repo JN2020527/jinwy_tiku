@@ -665,6 +665,29 @@
   text-align: right;
 }
 
+.attribute-usage-row-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.attribute-usage-row-name {
+  min-width: 0;
+  overflow: hidden;
+  color: @attribute-text;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attribute-usage-row-tags {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+
 .attribute-usage-rule-row > div:first-child,
 .attribute-addable-row > div:first-child {
   min-width: 0;

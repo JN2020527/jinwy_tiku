@@ -64,7 +64,6 @@ export interface KnowledgeNode {
   title: string;
   key: string;
   value?: string;
-  grade?: string;
   subject?: string;
   description?: string;
   children?: KnowledgeNode[];
@@ -104,10 +103,7 @@ export interface TextbookChapter {
 
 // --- Knowledge Tree ---
 
-export async function getKnowledgeTree(params?: {
-  grade?: string;
-  subject?: string;
-}) {
+export async function getKnowledgeTree(params?: { subject?: string }) {
   return request<ApiResponse<KnowledgeNode[]>>('/api/tags/knowledge-tree', {
     method: 'GET',
     params,
@@ -159,7 +155,6 @@ export async function deleteTagCategory(id: string) {
 export async function addKnowledgeNode(data: {
   title: string;
   parentId?: string | null;
-  grade: string;
   subject: string;
   description?: string;
 }) {
@@ -172,7 +167,6 @@ export async function addKnowledgeNode(data: {
 export async function updateKnowledgeNode(data: {
   id: string;
   title: string;
-  grade?: string;
   subject?: string;
   description?: string;
 }) {
@@ -184,7 +178,7 @@ export async function updateKnowledgeNode(data: {
 
 export async function deleteKnowledgeNode(
   id: string,
-  params?: { grade?: string; subject?: string },
+  params?: { subject?: string },
 ) {
   return request<ApiResponse<void>>('/api/tags/knowledge-node', {
     method: 'DELETE',
@@ -329,12 +323,12 @@ export async function getTextbookVersions() {
   );
 }
 
-export async function getTextbookChapters(version: string) {
+export async function getTextbookChapters(version: string, subject?: string) {
   return request<ApiResponse<TextbookChapter[]>>(
     '/api/tags/textbook-chapters',
     {
       method: 'GET',
-      params: { version },
+      params: { version, subject },
     },
   );
 }

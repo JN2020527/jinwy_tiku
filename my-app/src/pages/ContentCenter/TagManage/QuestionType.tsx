@@ -1,7 +1,7 @@
 import type { QuestionTypeNode } from '@/services/tagSystem';
 import { getQuestionTypeTree } from '@/services/tagSystem';
 import { PageContainer } from '@ant-design/pro-components';
-import { Card, message, Select, Space, Spin } from 'antd';
+import { message, Spin } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
 import QuestionTypeTreePanel from './components/QuestionTypeTreePanel';
 
@@ -44,34 +44,14 @@ const QuestionTypeTagPage: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  const selectedSubjectLabel =
-    SUBJECT_OPTIONS.find((item) => item.value === selectedSubject)?.label ||
-    selectedSubject;
-
   return (
     <PageContainer>
-      <Card
-        style={{ marginBottom: 16 }}
-        styles={{ body: { padding: '16px 24px' } }}
-      >
-        <Space size="large" wrap>
-          <Space>
-            <span>学科：</span>
-            <Select
-              value={selectedSubject}
-              onChange={setSelectedSubject}
-              style={{ width: 120 }}
-              options={SUBJECT_OPTIONS}
-            />
-          </Space>
-        </Space>
-      </Card>
-
       <Spin spinning={loading}>
         <QuestionTypeTreePanel
           questionTypeTree={questionTypeTree}
           selectedSubject={selectedSubject}
-          selectedSubjectLabel={selectedSubjectLabel}
+          subjectOptions={SUBJECT_OPTIONS}
+          onSubjectChange={setSelectedSubject}
           onRefresh={fetchData}
         />
       </Spin>
