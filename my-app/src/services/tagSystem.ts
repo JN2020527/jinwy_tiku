@@ -57,6 +57,9 @@ export interface TagCategory {
   status?: AttributeStatus;
   sort?: number;
   selectionMode?: AttributeSelectionMode;
+  [legacyRulesField: `${string}Rules`]:
+    | Array<{ scene: string; enabled: boolean; required?: boolean }>
+    | undefined;
   [legacyField: string]: any;
 }
 
@@ -79,32 +82,6 @@ export type AttributeControlType =
   | 'rate'
   | 'treeSelect';
 export type AttributeScene = 'contentCompletion' | 'tagging' | 'frontDisplay';
-
-export interface AttributeSceneRule {
-  scene: AttributeScene;
-  enabled: boolean;
-  required?: boolean;
-}
-
-export interface AttributeDisplayRule {
-  visible: boolean;
-  filterable?: boolean;
-  displayName?: string;
-}
-
-type LegacySettingsPanelSceneRule = {
-  scene: AttributeScene;
-  enabled: boolean;
-  required?: boolean;
-};
-
-declare const legacySceneRulesField: 'sceneRules';
-
-declare module '@/services/tagSystem' {
-  interface TagCategory {
-    [legacySceneRulesField]?: LegacySettingsPanelSceneRule[];
-  }
-}
 
 export interface KnowledgeNode {
   id?: string;
@@ -139,6 +116,10 @@ export interface TextbookChapter {
   children?: TextbookChapter[];
 }
 
+type CompatibleCallable<T extends (...args: any[]) => any> = T & {
+  (...args: any[]): ReturnType<T>;
+};
+
 // --- Knowledge Tree ---
 
 export async function getKnowledgeTree(params?: {
@@ -153,11 +134,14 @@ export async function getKnowledgeTree(params?: {
 
 // --- Tag Category CRUD ---
 
-export async function getTagCategories(..._legacyArgs: unknown[]) {
+const getTagCategoriesRequest = async () => {
   return request<ApiResponse<TagCategory[]>>('/api/tags/categories', {
     method: 'GET',
   });
-}
+};
+
+export const getTagCategories =
+  getTagCategoriesRequest as CompatibleCallable<typeof getTagCategoriesRequest>;
 
 export async function addTagCategory(
   data: {
@@ -184,15 +168,17 @@ export async function updateTagCategory(
   });
 }
 
-export async function deleteTagCategory(
-  id: string,
-  ..._legacyArgs: unknown[]
-) {
+const deleteTagCategoryRequest = async (id: string) => {
   return request<ApiResponse<void>>('/api/tags/category', {
     method: 'DELETE',
     params: { id },
   });
-}
+};
+
+export const deleteTagCategory =
+  deleteTagCategoryRequest as CompatibleCallable<
+    typeof deleteTagCategoryRequest
+  >;
 
 // --- Knowledge Node CRUD ---
 
