@@ -57,16 +57,7 @@ export interface TagCategory {
   status?: AttributeStatus;
   sort?: number;
   selectionMode?: AttributeSelectionMode;
-  /** @deprecated Legacy settings-panel compatibility only. */
-  valueType?: AttributeValueType;
-  /** @deprecated Legacy settings-panel compatibility only. */
-  controlType?: AttributeControlType;
-  /** @deprecated Legacy settings-panel compatibility only. */
-  required?: boolean;
-  /** @deprecated Legacy settings-panel compatibility only. */
-  sceneRules?: AttributeSceneRule[];
-  /** @deprecated Legacy settings-panel compatibility only. */
-  displayRule?: AttributeDisplayRule;
+  [legacyField: string]: any;
 }
 
 export interface TagContextParams {
@@ -99,6 +90,20 @@ export interface AttributeDisplayRule {
   visible: boolean;
   filterable?: boolean;
   displayName?: string;
+}
+
+type LegacySettingsPanelSceneRule = {
+  scene: AttributeScene;
+  enabled: boolean;
+  required?: boolean;
+};
+
+declare const legacySceneRulesField: 'sceneRules';
+
+declare module '@/services/tagSystem' {
+  interface TagCategory {
+    [legacySceneRulesField]?: LegacySettingsPanelSceneRule[];
+  }
 }
 
 export interface KnowledgeNode {
@@ -148,7 +153,7 @@ export async function getKnowledgeTree(params?: {
 
 // --- Tag Category CRUD ---
 
-export async function getTagCategories(_params?: TagContextParams) {
+export async function getTagCategories(..._legacyArgs: unknown[]) {
   return request<ApiResponse<TagCategory[]>>('/api/tags/categories', {
     method: 'GET',
   });
@@ -158,8 +163,7 @@ export async function addTagCategory(
   data: {
     name: string;
     tags?: AttributeItem[];
-  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>> &
-    TagContextParams,
+  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>>,
 ) {
   return request<ApiResponse<TagCategory>>('/api/tags/category', {
     method: 'POST',
@@ -172,8 +176,7 @@ export async function updateTagCategory(
     id: string;
     name: string;
     tags?: AttributeItem[];
-  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>> &
-    TagContextParams,
+  } & Partial<Omit<TagCategory, 'id' | 'name' | 'tags'>>,
 ) {
   return request<ApiResponse<TagCategory>>('/api/tags/category', {
     method: 'PUT',
@@ -183,7 +186,7 @@ export async function updateTagCategory(
 
 export async function deleteTagCategory(
   id: string,
-  _params?: TagContextParams,
+  ..._legacyArgs: unknown[]
 ) {
   return request<ApiResponse<void>>('/api/tags/category', {
     method: 'DELETE',
@@ -301,8 +304,7 @@ export async function addAttribute(
     name: string;
     subject?: string;
     color?: string;
-  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>> &
-    Pick<TagContextParams, 'grade'>,
+  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>>,
 ) {
   return request<ApiResponse<AttributeItem>>('/api/tags/attribute', {
     method: 'POST',
@@ -317,8 +319,7 @@ export async function updateAttribute(
     name?: string;
     subject?: string;
     color?: string;
-  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>> &
-    Pick<TagContextParams, 'grade'>,
+  } & Partial<Omit<AttributeItem, 'id' | 'name' | 'color'>>,
 ) {
   return request<ApiResponse<AttributeItem>>('/api/tags/attribute', {
     method: 'PUT',
@@ -329,7 +330,7 @@ export async function updateAttribute(
 export async function deleteAttribute(
   id: string,
   categoryId: string,
-  params?: { subject?: string; grade?: string },
+  params?: { subject?: string },
 ) {
   return request<ApiResponse<void>>('/api/tags/attribute', {
     method: 'DELETE',
