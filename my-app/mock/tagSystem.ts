@@ -71,6 +71,14 @@ interface QuestionTypeContext {
   subject: string;
 }
 
+type QuestionTypeAnswerAreaType = 'line' | 'blank';
+type QuestionTypeAnswerCardType = 'objective' | 'subjective';
+
+interface MockQuestionTypeAnswerArea {
+  type: QuestionTypeAnswerAreaType;
+  rows: number;
+}
+
 interface KnowledgeSeedNode {
   id?: string;
   title: string;
@@ -95,6 +103,8 @@ interface QuestionTypeSeedNode {
   title: string;
   key: string;
   description?: string;
+  answerCardType?: QuestionTypeAnswerCardType;
+  answerArea?: Partial<MockQuestionTypeAnswerArea>;
   children?: QuestionTypeSeedNode[];
 }
 
@@ -103,12 +113,22 @@ interface MockQuestionTypeNode {
   key: string;
   subject: string;
   description?: string;
+  answerCardType?: QuestionTypeAnswerCardType;
+  answerArea?: MockQuestionTypeAnswerArea;
   children?: MockQuestionTypeNode[];
 }
 
 type QuestionTypeDropPosition = 'before' | 'after';
 
 const MAX_QUESTION_TYPE_LEVEL = 2;
+const MIN_QUESTION_TYPE_ANSWER_ROWS = 1;
+const MAX_QUESTION_TYPE_ANSWER_ROWS = 20;
+const DEFAULT_QUESTION_TYPE_ANSWER_AREA: MockQuestionTypeAnswerArea = {
+  type: 'line',
+  rows: 1,
+};
+const DEFAULT_QUESTION_TYPE_ANSWER_CARD_TYPE: QuestionTypeAnswerCardType =
+  'subjective';
 
 // Mock Data for Knowledge Points (Tree Structure)
 const defaultKnowledgePointTemplates: KnowledgeSeedNode[] = [
@@ -588,8 +608,115 @@ const getQuestionTypeContext = (req: Request): QuestionTypeContext => ({
 const getTagContextKey = ({ grade, subject }: TagContext) =>
   `${grade}__${subject}`;
 
-const getQuestionTypeContextKey = ({ subject }: QuestionTypeContext) =>
-  subject;
+const getQuestionTypeContextKey = ({ subject }: QuestionTypeContext) => subject;
+
+const normalizeQuestionTypeAnswerRows = (rows: unknown) => {
+  const parsedRows = Number(rows);
+  if (!Number.isFinite(parsedRows))
+    return DEFAULT_QUESTION_TYPE_ANSWER_AREA.rows;
+  return Math.min(
+    Math.max(Math.trunc(parsedRows), MIN_QUESTION_TYPE_ANSWER_ROWS),
+    MAX_QUESTION_TYPE_ANSWER_ROWS,
+  );
+};
+
+const normalizeQuestionTypeAnswerArea = (
+  answerArea?: Partial<MockQuestionTypeAnswerArea>,
+): MockQuestionTypeAnswerArea => ({
+  type: answerArea?.type === 'blank' ? 'blank' : 'line',
+  rows: normalizeQuestionTypeAnswerRows(answerArea?.rows),
+});
+
+const inferQuestionTypeAnswerCardType = (
+  title?: string,
+  key?: string,
+): QuestionTypeAnswerCardType | undefined => {
+  const normalizedText = `${title || ''} ${key || ''}`.toLowerCase();
+  if (
+    [
+      '客观',
+      '选择',
+      '单选',
+      '多选',
+      '判断',
+      '单项',
+      '完形',
+      'objective',
+      'choice',
+      'true-false',
+    ].some((keyword) => normalizedText.includes(keyword))
+  ) {
+    return 'objective';
+  }
+  if (
+    [
+      '主观',
+      '填空',
+      '默写',
+      '表达',
+      '写作',
+      '作文',
+      '解答',
+      '计算',
+      '证明',
+      '应用',
+      '分析',
+      '探究',
+      'subjective',
+      'blank',
+      'writing',
+      'answer',
+      'calculation',
+      'proof',
+      'application',
+      'analysis',
+      'experiment',
+      'inquiry',
+    ].some((keyword) => normalizedText.includes(keyword))
+  ) {
+    return 'subjective';
+  }
+  return undefined;
+};
+
+const normalizeQuestionTypeAnswerCardType = (
+  answerCardType?: QuestionTypeAnswerCardType,
+  title?: string,
+  key?: string,
+  fallback?: QuestionTypeAnswerCardType,
+): QuestionTypeAnswerCardType => {
+  if (answerCardType === 'objective' || answerCardType === 'subjective') {
+    return answerCardType;
+  }
+  return (
+    inferQuestionTypeAnswerCardType(title, key) ||
+    fallback ||
+    DEFAULT_QUESTION_TYPE_ANSWER_CARD_TYPE
+  );
+};
+
+const normalizeQuestionTypeTreeSettings = (
+  nodes: MockQuestionTypeNode[],
+  level = 1,
+) => {
+  nodes.forEach((node) => {
+    if (level === 1) {
+      node.answerCardType = normalizeQuestionTypeAnswerCardType(
+        node.answerCardType,
+        node.title,
+        node.key,
+      );
+      node.answerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
+    } else {
+      delete node.answerCardType;
+      delete node.answerArea;
+    }
+    if (node.children?.length) {
+      normalizeQuestionTypeTreeSettings(node.children, level + 1);
+    }
+  });
+  return nodes;
+};
 
 const applyKnowledgeScope = (
   nodes: KnowledgeSeedNode[],
@@ -626,16 +753,31 @@ const getKnowledgeTreeByContext = (context: TagContext) => {
 const applyQuestionTypeScope = (
   nodes: QuestionTypeSeedNode[],
   context: QuestionTypeContext,
+  level = 1,
 ): MockQuestionTypeNode[] =>
-  nodes.map((node) => ({
-    title: node.title,
-    key: `${context.subject}-${node.key}`,
-    subject: context.subject,
-    description: node.description,
-    children: node.children
-      ? applyQuestionTypeScope(node.children, context)
-      : undefined,
-  }));
+  nodes.map((node) => {
+    const key = `${context.subject}-${node.key}`;
+    const scopedNode: MockQuestionTypeNode = {
+      title: node.title,
+      key,
+      subject: context.subject,
+      description: node.description,
+      children: node.children
+        ? applyQuestionTypeScope(node.children, context, level + 1)
+        : undefined,
+    };
+
+    if (level === 1) {
+      scopedNode.answerCardType = normalizeQuestionTypeAnswerCardType(
+        node.answerCardType,
+        node.title,
+        key,
+      );
+      scopedNode.answerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
+    }
+
+    return scopedNode;
+  });
 
 const createQuestionTypeNodeKey = (context: QuestionTypeContext) => {
   const contextKey = getQuestionTypeContextKey(context);
@@ -652,7 +794,7 @@ const getQuestionTypeTreeByContext = (context: QuestionTypeContext) => {
       context,
     );
   }
-  return questionTypeTreeStore[contextKey];
+  return normalizeQuestionTypeTreeSettings(questionTypeTreeStore[contextKey]);
 };
 
 const findQuestionTypeNode = (
@@ -1187,7 +1329,8 @@ export default {
     });
   },
   'POST /api/tags/question-type-node': (req: Request, res: Response) => {
-    const { parentId, title, description } = req.body;
+    const { parentId, title, description, answerCardType, answerArea } =
+      req.body;
     const context = getQuestionTypeContext(req);
     const questionTypeTree = getQuestionTypeTreeByContext(context);
     const nodeId = createQuestionTypeNodeKey(context);
@@ -1221,6 +1364,12 @@ export default {
       parentNode.children.push(newNode);
       added = true;
     } else {
+      newNode.answerCardType = normalizeQuestionTypeAnswerCardType(
+        answerCardType,
+        title,
+        nodeId,
+      );
+      newNode.answerArea = normalizeQuestionTypeAnswerArea(answerArea);
       questionTypeTree.push(newNode);
       added = true;
     }
@@ -1232,14 +1381,28 @@ export default {
     res.send({ success: true, message: 'Question Type created successfully' });
   },
   'PUT /api/tags/question-type-node': (req: Request, res: Response) => {
-    const { id, title, description } = req.body;
+    const { id, title, description, answerCardType, answerArea } = req.body;
     const context = getQuestionTypeContext(req);
     const scopedTree = getQuestionTypeTreeByContext(context);
+    const updateLevel = getQuestionTypeNodeLevel(scopedTree, id);
     const updateNode = (nodes: MockQuestionTypeNode[]) => {
       for (const node of nodes) {
         if (node.key === id) {
           node.title = title;
           node.description = description;
+          if (updateLevel === 1) {
+            node.answerCardType = normalizeQuestionTypeAnswerCardType(
+              answerCardType || node.answerCardType,
+              title,
+              id,
+            );
+            node.answerArea = normalizeQuestionTypeAnswerArea(
+              answerArea || node.answerArea,
+            );
+          } else {
+            delete node.answerCardType;
+            delete node.answerArea;
+          }
           return true;
         }
         if (node.children && node.children.length > 0) {
@@ -1363,9 +1526,7 @@ export default {
     }
     res.send({
       success: !!newTag,
-      message: newTag
-        ? 'Attribute created successfully'
-        : 'Category not found',
+      message: newTag ? 'Attribute created successfully' : 'Category not found',
       data: newTag,
     });
   },

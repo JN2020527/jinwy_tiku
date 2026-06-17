@@ -72,7 +72,6 @@ const QuestionTypeTagPage: React.FC = () => {
           questionTypeTree={questionTypeTree}
           selectedSubject={selectedSubject}
           selectedSubjectLabel={selectedSubjectLabel}
-          subjectOptions={SUBJECT_OPTIONS}
           onRefresh={fetchData}
         />
       </Spin>

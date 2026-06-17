@@ -70,11 +70,21 @@ export interface KnowledgeNode {
   children?: KnowledgeNode[];
 }
 
+export type AnswerAreaType = 'line' | 'blank';
+export type QuestionTypeAnswerCardType = 'objective' | 'subjective';
+
+export interface QuestionTypeAnswerArea {
+  type: AnswerAreaType;
+  rows: number;
+}
+
 export interface QuestionTypeNode {
   title: string;
   key: string;
   subject?: string;
   description?: string;
+  answerCardType?: QuestionTypeAnswerCardType;
+  answerArea?: QuestionTypeAnswerArea;
   children?: QuestionTypeNode[];
 }
 
@@ -199,6 +209,8 @@ export async function addQuestionTypeNode(data: {
   parentId?: string | null;
   subject: string;
   description?: string;
+  answerCardType?: QuestionTypeAnswerCardType;
+  answerArea?: QuestionTypeAnswerArea;
 }) {
   return request<ApiResponse<QuestionTypeNode>>(
     '/api/tags/question-type-node',
@@ -214,6 +226,8 @@ export async function updateQuestionTypeNode(data: {
   title: string;
   subject?: string;
   description?: string;
+  answerCardType?: QuestionTypeAnswerCardType;
+  answerArea?: QuestionTypeAnswerArea;
 }) {
   return request<ApiResponse<QuestionTypeNode>>(
     '/api/tags/question-type-node',

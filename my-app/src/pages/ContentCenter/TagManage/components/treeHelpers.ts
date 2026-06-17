@@ -11,6 +11,11 @@ export interface TreeNodeData {
   grade?: string;
   subject?: string;
   description?: string;
+  answerCardType?: 'objective' | 'subjective';
+  answerArea?: {
+    type: 'line' | 'blank';
+    rows: number;
+  };
   children?: TreeNodeData[];
 }
 

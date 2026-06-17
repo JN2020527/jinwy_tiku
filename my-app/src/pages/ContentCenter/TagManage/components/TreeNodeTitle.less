@@ -7,13 +7,31 @@
   gap: 12px;
 }
 
+.tag-tree-node-content {
+  display: inline-flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
 .tag-tree-node-name {
+  display: block;
   min-width: 0;
   overflow: hidden;
   color: #202733;
   font-size: 14px;
   line-height: 24px;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-tree-node-meta {
+  flex: 0 0 auto;
+  color: #667085;
+  font-size: 12px;
+  line-height: 20px;
   white-space: nowrap;
 }
 

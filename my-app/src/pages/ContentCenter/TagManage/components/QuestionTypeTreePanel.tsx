@@ -1,4 +1,9 @@
-import type { QuestionTypeNode } from '@/services/tagSystem';
+import type {
+  AnswerAreaType,
+  QuestionTypeAnswerArea,
+  QuestionTypeAnswerCardType,
+  QuestionTypeNode,
+} from '@/services/tagSystem';
 import {
   addQuestionTypeNode,
   deleteQuestionTypeNode,
@@ -12,7 +17,8 @@ import {
 } from '@ant-design/icons';
 import {
   ModalForm,
-  ProFormSelect,
+  ProFormDigit,
+  ProFormRadio,
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
@@ -24,27 +30,41 @@ import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
 import { useTreeSearch } from './treeHelpers';
 
-interface SelectOption {
-  label: string;
-  value: string;
-}
-
 interface QuestionTypeTreePanelProps {
   questionTypeTree: QuestionTypeNode[];
   selectedSubject: string;
   selectedSubjectLabel: string;
-  subjectOptions: SelectOption[];
   onRefresh: () => void;
 }
 
 const SAME_LEVEL_DROP_WARNING =
   '只能在同一层级内调整顺序，请拖到目标题型的上方或下方';
 const MAX_QUESTION_TYPE_LEVEL = 2;
+const MIN_QUESTION_TYPE_ANSWER_ROWS = 1;
+const MAX_QUESTION_TYPE_ANSWER_ROWS = 20;
+const DEFAULT_QUESTION_TYPE_ANSWER_AREA: QuestionTypeAnswerArea = {
+  type: 'line',
+  rows: 1,
+};
+const DEFAULT_QUESTION_TYPE_ANSWER_CARD_TYPE: QuestionTypeAnswerCardType =
+  'subjective';
 const MAX_LEVEL_ADD_WARNING = `题型最多支持 ${MAX_QUESTION_TYPE_LEVEL} 层结构，当前节点不能继续添加子级`;
 
 interface QuestionTypeNodeMeta {
   parentKey: string | null;
   level: number;
+  previousKey: string | null;
+  nextKey: string | null;
+}
+
+interface QuestionTypeFormValues {
+  id?: React.Key;
+  title?: string;
+  parentId?: string | null;
+  description?: string;
+  answerCardType?: QuestionTypeAnswerCardType;
+  answerAreaType?: AnswerAreaType;
+  answerAreaRows?: number;
 }
 
 const buildQuestionTypeNodeMetaMap = (
@@ -53,9 +73,14 @@ const buildQuestionTypeNodeMetaMap = (
   level = 1,
   map = new Map<string, QuestionTypeNodeMeta>(),
 ) => {
-  nodes.forEach((node) => {
+  nodes.forEach((node, index) => {
     const currentKey = String(node.key);
-    map.set(currentKey, { parentKey, level });
+    map.set(currentKey, {
+      parentKey,
+      level,
+      previousKey: nodes[index - 1] ? String(nodes[index - 1].key) : null,
+      nextKey: nodes[index + 1] ? String(nodes[index + 1].key) : null,
+    });
     if (node.children?.length) {
       buildQuestionTypeNodeMetaMap(node.children, currentKey, level + 1, map);
     }
@@ -63,11 +88,69 @@ const buildQuestionTypeNodeMetaMap = (
   return map;
 };
 
+const normalizeQuestionTypeAnswerRows = (rows: unknown) => {
+  const parsedRows = Number(rows);
+  if (!Number.isFinite(parsedRows)) {
+    return DEFAULT_QUESTION_TYPE_ANSWER_AREA.rows;
+  }
+  return Math.min(
+    Math.max(Math.trunc(parsedRows), MIN_QUESTION_TYPE_ANSWER_ROWS),
+    MAX_QUESTION_TYPE_ANSWER_ROWS,
+  );
+};
+
+const normalizeQuestionTypeAnswerArea = (
+  answerArea?: Partial<QuestionTypeAnswerArea>,
+): QuestionTypeAnswerArea => ({
+  type: answerArea?.type === 'blank' ? 'blank' : 'line',
+  rows: normalizeQuestionTypeAnswerRows(answerArea?.rows),
+});
+
+const normalizeQuestionTypeAnswerCardType = (
+  answerCardType?: QuestionTypeAnswerCardType,
+): QuestionTypeAnswerCardType =>
+  answerCardType === 'objective'
+    ? 'objective'
+    : DEFAULT_QUESTION_TYPE_ANSWER_CARD_TYPE;
+
+const getQuestionTypeAnswerCardTypeFormValues = (
+  answerCardType?: QuestionTypeAnswerCardType,
+) => ({
+  answerCardType: normalizeQuestionTypeAnswerCardType(answerCardType),
+});
+
+const getQuestionTypeAnswerCardTypeText = (
+  answerCardType?: QuestionTypeAnswerCardType,
+) =>
+  normalizeQuestionTypeAnswerCardType(answerCardType) === 'objective'
+    ? '客观'
+    : '主观';
+
+const getQuestionTypeAnswerAreaFormValues = (
+  answerArea?: QuestionTypeAnswerArea,
+) => {
+  const normalizedAnswerArea = normalizeQuestionTypeAnswerArea(answerArea);
+  return {
+    answerAreaType: normalizedAnswerArea.type,
+    answerAreaRows: normalizedAnswerArea.rows,
+  };
+};
+
+const getQuestionTypeAnswerAreaText = (answerArea?: QuestionTypeAnswerArea) => {
+  const normalizedAnswerArea = normalizeQuestionTypeAnswerArea(answerArea);
+  const typeText = normalizedAnswerArea.type === 'blank' ? '空白' : '横线';
+  return `${typeText} ${normalizedAnswerArea.rows} 行`;
+};
+
+const getQuestionTypeNodeMetaText = (node: TreeNodeData) =>
+  `${getQuestionTypeAnswerCardTypeText(
+    node.answerCardType,
+  )} · ${getQuestionTypeAnswerAreaText(node.answerArea)}`;
+
 const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   questionTypeTree,
   selectedSubject,
   selectedSubjectLabel,
-  subjectOptions,
   onRefresh,
 }) => {
   const questionTypeSearch = useTreeSearch(
@@ -101,6 +184,30 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     [nodeMetaMap],
   );
 
+  const isFirstLevelQuestionTypeNode = useCallback(
+    (nodeKey: React.Key) =>
+      (nodeMetaMap.get(String(nodeKey))?.level ?? 1) === 1,
+    [nodeMetaMap],
+  );
+
+  const canMoveQuestionTypeNodeUp = useCallback(
+    (nodeKey: React.Key) =>
+      Boolean(nodeMetaMap.get(String(nodeKey))?.previousKey),
+    [nodeMetaMap],
+  );
+
+  const canMoveQuestionTypeNodeDown = useCallback(
+    (nodeKey: React.Key) => Boolean(nodeMetaMap.get(String(nodeKey))?.nextKey),
+    [nodeMetaMap],
+  );
+
+  const shouldShowQuestionTypeSettings =
+    qtModalType === 'add'
+      ? !selectedQtNode
+      : selectedQtNode
+      ? isFirstLevelQuestionTypeNode(selectedQtNode.key)
+      : false;
+
   const allowQuestionTypeDrop: TreeProps['allowDrop'] = ({
     dragNode,
     dropNode,
@@ -117,7 +224,8 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     setSelectedQtNode(null);
     qtForm.resetFields();
     qtForm.setFieldsValue({
-      subject: selectedSubject,
+      ...getQuestionTypeAnswerCardTypeFormValues(),
+      ...getQuestionTypeAnswerAreaFormValues(),
     });
     setQtModalVisible(true);
   };
@@ -134,7 +242,6 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     qtForm.setFieldsValue({
       parentId: node.key,
       parentName: node.title,
-      subject: node.subject || selectedSubject,
     });
     setQtModalVisible(true);
   };
@@ -143,12 +250,21 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     e.stopPropagation();
     setQtModalType('edit');
     setSelectedQtNode(node);
-    qtForm.setFieldsValue({
+    qtForm.resetFields();
+    const baseValues: QuestionTypeFormValues = {
       id: node.key,
       title: node.title,
-      subject: node.subject || selectedSubject,
       description: node.description,
-    });
+    };
+    qtForm.setFieldsValue(
+      isFirstLevelQuestionTypeNode(node.key)
+        ? {
+            ...baseValues,
+            ...getQuestionTypeAnswerCardTypeFormValues(node.answerCardType),
+            ...getQuestionTypeAnswerAreaFormValues(node.answerArea),
+          }
+        : baseValues,
+    );
     setQtModalVisible(true);
   };
 
@@ -204,21 +320,78 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     }
   };
 
-  const handleQtModalFinish = async (values: Record<string, unknown>) => {
-    const payload = {
-      ...values,
+  const handleMoveQuestionTypeByButton = async (
+    node: TreeNodeData,
+    direction: 'up' | 'down',
+    e: React.MouseEvent,
+  ) => {
+    e.stopPropagation();
+    const nodeMeta = nodeMetaMap.get(String(node.key));
+    const targetId =
+      direction === 'up' ? nodeMeta?.previousKey : nodeMeta?.nextKey;
+
+    if (!targetId) {
+      return;
+    }
+
+    const res = await moveQuestionTypeNode({
+      id: String(node.key),
+      targetId,
+      position: direction === 'up' ? 'before' : 'after',
       subject: selectedSubject,
-    };
+    });
+
+    if (res.success) {
+      message.success(direction === 'up' ? '已上移' : '已下移');
+      onRefresh();
+    } else {
+      message.error(res.message || '移动失败');
+    }
+  };
+
+  const handleQtModalFinish = async (values: Record<string, unknown>) => {
+    const formValues = values as QuestionTypeFormValues;
+    const isFirstLevelSubmit =
+      qtModalType === 'add'
+        ? !formValues.parentId
+        : selectedQtNode
+        ? isFirstLevelQuestionTypeNode(selectedQtNode.key)
+        : false;
     let res;
     if (qtModalType === 'add') {
-      res = await addQuestionTypeNode(
-        payload as Parameters<typeof addQuestionTypeNode>[0],
-      );
+      const payload: Parameters<typeof addQuestionTypeNode>[0] = {
+        title: String(formValues.title || ''),
+        parentId: formValues.parentId ? String(formValues.parentId) : null,
+        subject: selectedSubject,
+        description: formValues.description,
+      };
+      if (isFirstLevelSubmit) {
+        payload.answerCardType = normalizeQuestionTypeAnswerCardType(
+          formValues.answerCardType,
+        );
+        payload.answerArea = normalizeQuestionTypeAnswerArea({
+          type: formValues.answerAreaType,
+          rows: formValues.answerAreaRows,
+        });
+      }
+      res = await addQuestionTypeNode(payload);
     } else {
-      res = await updateQuestionTypeNode({
-        ...(payload as Parameters<typeof updateQuestionTypeNode>[0]),
+      const payload: Parameters<typeof updateQuestionTypeNode>[0] = {
         id: String(selectedQtNode?.key),
-      });
+        title: String(formValues.title || ''),
+        subject: selectedSubject,
+        description: formValues.description,
+      };
+      if (isFirstLevelSubmit) {
+        payload.answerCardType = normalizeQuestionTypeAnswerCardType(
+          formValues.answerCardType,
+        );
+        payload.answerArea = normalizeQuestionTypeAnswerArea({
+          type: formValues.answerAreaType,
+          rows: formValues.answerAreaRows,
+        });
+      }
+      res = await updateQuestionTypeNode(payload);
     }
     if (res.success) {
       message.success(qtModalType === 'add' ? '添加成功' : '修改成功');
@@ -239,7 +412,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
               {selectedSubjectLabel}题型结构树
             </span>
             <span className="question-type-rule-inline">
-              <InfoCircleFilled />
+              <InfoCircleFilled aria-hidden="true" />
               最多 {MAX_QUESTION_TYPE_LEVEL}{' '}
               层：一级=父题型，二级=子题型；拖拽仅支持同层排序。
             </span>
@@ -254,6 +427,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
       >
         <Input
           prefix={<SearchOutlined style={{ color: '#ccc' }} />}
+          aria-label="搜索题型"
           allowClear
           style={{ marginBottom: 8 }}
           placeholder="搜索题型"
@@ -275,14 +449,23 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
             }}
             allowDrop={allowQuestionTypeDrop}
             onDrop={handleDropQuestionType}
-            showLine
             blockNode
             titleRender={(node: TreeNodeData) => {
               const canAddChild = canAddQuestionTypeChild(node.key);
+              const isFirstLevel = isFirstLevelQuestionTypeNode(node.key);
               return (
                 <TreeNodeTitle
                   nodeData={node}
                   searchValue={questionTypeSearch.searchValue}
+                  meta={isFirstLevel ? getQuestionTypeNodeMetaText(node) : null}
+                  canMoveUp={canMoveQuestionTypeNodeUp(node.key)}
+                  canMoveDown={canMoveQuestionTypeNodeDown(node.key)}
+                  onMoveUp={(targetNode, e) =>
+                    handleMoveQuestionTypeByButton(targetNode, 'up', e)
+                  }
+                  onMoveDown={(targetNode, e) =>
+                    handleMoveQuestionTypeByButton(targetNode, 'down', e)
+                  }
                   showAddChild={canAddChild}
                   addChildTitle="添加二级题型"
                   onAddChild={handleAddQtChild}
@@ -318,37 +501,85 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         onOpenChange={setQtModalVisible}
         form={qtForm}
         onFinish={handleQtModalFinish}
+        width={shouldShowQuestionTypeSettings ? 640 : 560}
       >
-        <ProFormSelect
-          name="subject"
-          label="学科"
-          disabled
-          options={subjectOptions}
-          initialValue={selectedSubject}
-          rules={[{ required: true, message: '请选择学科' }]}
-        />
-        {qtModalType === 'add' && selectedQtNode && (
+        <div className="question-type-modal-basic-grid">
+          {qtModalType === 'add' && selectedQtNode && (
+            <ProFormText
+              name="parentName"
+              label="一级题型"
+              disabled
+              initialValue={selectedQtNode.title}
+            />
+          )}
+          {qtModalType === 'add' && selectedQtNode && (
+            <ProFormText
+              name="parentId"
+              label="父节点ID"
+              hidden
+              initialValue={selectedQtNode.key}
+            />
+          )}
           <ProFormText
-            name="parentName"
-            label="一级题型"
-            disabled
-            initialValue={selectedQtNode.title}
+            className={
+              !shouldShowQuestionTypeSettings &&
+              !(qtModalType === 'add' && selectedQtNode)
+                ? 'question-type-modal-full-field'
+                : ''
+            }
+            name="title"
+            label="题型名称"
+            rules={[{ required: true, message: '请输入题型名称' }]}
           />
-        )}
-        {qtModalType === 'add' && selectedQtNode && (
-          <ProFormText
-            name="parentId"
-            label="父节点ID"
-            hidden
-            initialValue={selectedQtNode.key}
-          />
-        )}
-        <ProFormText
-          name="title"
-          label="题型名称"
-          rules={[{ required: true, message: '请输入题型名称' }]}
+          {shouldShowQuestionTypeSettings ? (
+            <ProFormRadio.Group
+              name="answerCardType"
+              label="题型属性"
+              radioType="button"
+              fieldProps={{
+                className: 'question-type-answer-card-radio',
+              }}
+              options={[
+                { label: '主观题', value: 'subjective' },
+                { label: '客观题', value: 'objective' },
+              ]}
+              rules={[{ required: true, message: '请选择题型属性' }]}
+            />
+          ) : null}
+        </div>
+        {shouldShowQuestionTypeSettings ? (
+          <section className="question-type-answer-config">
+            <div className="question-type-answer-config-grid">
+              <ProFormRadio.Group
+                name="answerAreaType"
+                label="答题区样式"
+                radioType="button"
+                options={[
+                  { label: '横线', value: 'line' },
+                  { label: '空白', value: 'blank' },
+                ]}
+                rules={[{ required: true, message: '请选择答题区样式' }]}
+              />
+              <ProFormDigit
+                className="question-type-answer-rows-field"
+                name="answerAreaRows"
+                label="答题区行数"
+                min={MIN_QUESTION_TYPE_ANSWER_ROWS}
+                max={MAX_QUESTION_TYPE_ANSWER_ROWS}
+                fieldProps={{
+                  precision: 0,
+                }}
+                rules={[{ required: true, message: '请输入答题区行数' }]}
+              />
+            </div>
+          </section>
+        ) : null}
+        <ProFormTextArea
+          name="description"
+          label="描述"
+          placeholder="补充说明…"
+          fieldProps={{ rows: 3 }}
         />
-        <ProFormTextArea name="description" label="描述" />
       </ModalForm>
     </>
   );
