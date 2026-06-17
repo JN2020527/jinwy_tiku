@@ -4,14 +4,16 @@ import {
   deleteTextbookChapter,
   getTextbookChapters,
   getTextbookVersions,
+  moveTextbookChapter,
   updateTextbookChapter,
 } from '@/services/tagSystem';
-import { SearchOutlined } from '@ant-design/icons';
+import { HolderOutlined, SearchOutlined } from '@ant-design/icons';
 import {
   ModalForm,
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
+import type { TreeProps } from 'antd';
 import {
   Button,
   Card,
@@ -19,25 +21,40 @@ import {
   Input,
   message,
   Modal,
+  Select,
+  Tooltip,
   Tree,
 } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
+import './TagSystemTreePanel.less';
 import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
-import { useTreeSearch } from './treeHelpers';
+import {
+  allowCrossParentTreeDrop,
+  getTreeMovePosition,
+  useTreeSearch,
+} from './treeHelpers';
+
+interface SelectOption {
+  label: string;
+  value: string;
+}
 
 interface KnowledgeTreePanelProps {
   selectedSubject: string;
+  subjectOptions: SelectOption[];
+  onSubjectChange: (subject: string) => void;
 }
 
 const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   selectedSubject,
+  subjectOptions,
+  onSubjectChange,
 }) => {
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const [chapterTree, setChapterTree] = useState<TextbookChapter[]>([]);
-  const textbookSearch = useTreeSearch(
-    chapterTree as unknown as TreeNodeData[],
-  );
+  const chapterTreeData = chapterTree as unknown as TreeNodeData[];
+  const textbookSearch = useTreeSearch(chapterTreeData);
   const [selectedTextbookNode, setSelectedTextbookNode] =
     useState<TreeNodeData | null>(null);
   const [textbookModalVisible, setTextbookModalVisible] =
@@ -114,7 +131,10 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
       title: '确认删除',
       content: `确定要删除知识节点 "${node.title}" 吗？`,
       onOk: async () => {
-        const res = await deleteTextbookChapter(String(node.key));
+        const res = await deleteTextbookChapter(String(node.key), {
+          version: selectedVersion,
+          subject: selectedSubject,
+        });
         if (res.success) {
           message.success('删除成功');
           fetchChapters();
@@ -125,11 +145,37 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     });
   };
 
+  const allowTextbookDrop = useCallback<NonNullable<TreeProps['allowDrop']>>(
+    ({ dragNode, dropNode }) =>
+      allowCrossParentTreeDrop(chapterTreeData, dragNode.key, dropNode.key),
+    [chapterTreeData],
+  );
+
+  const handleDropTextbook: TreeProps['onDrop'] = async (info) => {
+    if (!selectedVersion) return;
+
+    const res = await moveTextbookChapter({
+      id: String(info.dragNode.key),
+      targetId: String(info.node.key),
+      position: getTreeMovePosition(info),
+      version: selectedVersion,
+      subject: selectedSubject,
+    });
+
+    if (res.success) {
+      message.success('移动成功');
+      fetchChapters();
+    } else {
+      message.error(res.message || '移动失败');
+    }
+  };
+
   const handleTextbookModalFinish = async (values: Record<string, unknown>) => {
     let res;
     const payload = {
       ...(values as Parameters<typeof addTextbookChapter>[0]),
       version: selectedVersion,
+      subject: selectedSubject,
     };
     if (textbookModalType === 'add') {
       res = await addTextbookChapter(payload);
@@ -138,6 +184,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
         ...(values as Parameters<typeof updateTextbookChapter>[0]),
         id: String(selectedTextbookNode?.key),
         version: selectedVersion,
+        subject: selectedSubject,
       });
     }
     if (res.success) {
@@ -152,17 +199,30 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   return (
     <>
       <Card
+        className="tag-system-tree-panel"
         title="知识体系"
         variant="borderless"
         extra={
-          <Button
-            type="primary"
-            size="small"
-            onClick={handleAddTextbookRoot}
-            disabled={!selectedVersion}
-          >
-            添加根节点
-          </Button>
+          <div className="tag-system-tree-card-extra">
+            <div className="tag-system-tree-subject-filter">
+              <span className="tag-system-tree-subject-label">学科</span>
+              <Select
+                value={selectedSubject}
+                onChange={onSubjectChange}
+                className="tag-system-tree-subject-select"
+                options={subjectOptions}
+                aria-label="选择学科"
+              />
+            </div>
+            <Button
+              type="primary"
+              size="small"
+              onClick={handleAddTextbookRoot}
+              disabled={!selectedVersion}
+            >
+              添加根节点
+            </Button>
+          </div>
         }
       >
         <Input
@@ -174,10 +234,20 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
         />
         {chapterTree.length > 0 ? (
           <Tree
+            key={selectedSubject}
             treeData={chapterTree}
             onExpand={textbookSearch.onExpand}
             expandedKeys={textbookSearch.expandedKeys}
             autoExpandParent={textbookSearch.autoExpandParent}
+            draggable={{
+              icon: (
+                <Tooltip title="拖拽移动">
+                  <HolderOutlined className="tag-system-tree-drag-icon" />
+                </Tooltip>
+              ),
+            }}
+            allowDrop={allowTextbookDrop}
+            onDrop={handleDropTextbook}
             showLine
             blockNode
             titleRender={(node: TreeNodeData) => (

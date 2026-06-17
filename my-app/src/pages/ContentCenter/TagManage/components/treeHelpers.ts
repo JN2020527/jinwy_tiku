@@ -1,3 +1,5 @@
+import type { TreeMovePosition } from '@/services/tagSystem';
+import type { TreeProps } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -39,6 +41,55 @@ export const getParentKey = (
     }
   }
   return undefined;
+};
+
+export const isTreeDescendant = (
+  tree: TreeNodeData[],
+  ancestorKey: React.Key,
+  targetKey: React.Key,
+): boolean => {
+  const findNode = (nodes: TreeNodeData[]): TreeNodeData | null => {
+    for (const node of nodes) {
+      if (node.key === ancestorKey) {
+        return node;
+      }
+      if (node.children?.length) {
+        const found = findNode(node.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const containsTarget = (nodes: TreeNodeData[]): boolean =>
+    nodes.some(
+      (node) =>
+        node.key === targetKey ||
+        Boolean(node.children?.length && containsTarget(node.children)),
+    );
+
+  const ancestorNode = findNode(tree);
+  return Boolean(
+    ancestorNode?.children?.length && containsTarget(ancestorNode.children),
+  );
+};
+
+export const allowCrossParentTreeDrop = (
+  tree: TreeNodeData[],
+  dragKey: React.Key,
+  dropKey: React.Key,
+) => dragKey !== dropKey && !isTreeDescendant(tree, dragKey, dropKey);
+
+export const getTreeMovePosition = (
+  info: Parameters<NonNullable<TreeProps['onDrop']>>[0],
+): TreeMovePosition => {
+  if (!info.dropToGap) {
+    return 'inside';
+  }
+
+  const dropPos = info.node.pos.split('-');
+  const dropPosition = info.dropPosition - Number(dropPos[dropPos.length - 1]);
+  return dropPosition < 0 ? 'before' : 'after';
 };
 
 /**

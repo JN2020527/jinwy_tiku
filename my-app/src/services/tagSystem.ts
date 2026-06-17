@@ -87,6 +87,7 @@ export interface QuestionTypeNode {
   children?: QuestionTypeNode[];
 }
 
+export type TreeMovePosition = 'before' | 'after' | 'inside';
 export type QuestionTypeDropPosition = 'before' | 'after';
 
 export interface TextbookVersion {
@@ -183,6 +184,18 @@ export async function deleteKnowledgeNode(
   return request<ApiResponse<void>>('/api/tags/knowledge-node', {
     method: 'DELETE',
     params: { id, ...params },
+  });
+}
+
+export async function moveKnowledgeNode(data: {
+  id: string;
+  targetId: string;
+  position: TreeMovePosition;
+  subject: string;
+}) {
+  return request<ApiResponse<void>>('/api/tags/knowledge-node/move', {
+    method: 'PUT',
+    data,
   });
 }
 
@@ -337,6 +350,7 @@ export async function addTextbookChapter(data: {
   title: string;
   parentId?: string | null;
   version: string;
+  subject?: string;
   description?: string;
 }) {
   return request<ApiResponse<TextbookChapter>>('/api/tags/textbook-chapter', {
@@ -349,6 +363,7 @@ export async function updateTextbookChapter(data: {
   id: string;
   title: string;
   version?: string;
+  subject?: string;
   description?: string;
 }) {
   return request<ApiResponse<TextbookChapter>>('/api/tags/textbook-chapter', {
@@ -357,9 +372,25 @@ export async function updateTextbookChapter(data: {
   });
 }
 
-export async function deleteTextbookChapter(id: string) {
+export async function deleteTextbookChapter(
+  id: string,
+  params?: { version?: string; subject?: string },
+) {
   return request<ApiResponse<void>>('/api/tags/textbook-chapter', {
     method: 'DELETE',
-    params: { id },
+    params: { id, ...params },
+  });
+}
+
+export async function moveTextbookChapter(data: {
+  id: string;
+  targetId: string;
+  position: TreeMovePosition;
+  version: string;
+  subject?: string;
+}) {
+  return request<ApiResponse<void>>('/api/tags/textbook-chapter/move', {
+    method: 'PUT',
+    data,
   });
 }

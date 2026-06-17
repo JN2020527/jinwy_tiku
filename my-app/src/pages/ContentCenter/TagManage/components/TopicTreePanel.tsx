@@ -2,35 +2,62 @@ import type { KnowledgeNode } from '@/services/tagSystem';
 import {
   addKnowledgeNode,
   deleteKnowledgeNode,
+  moveKnowledgeNode,
   updateKnowledgeNode,
 } from '@/services/tagSystem';
-import { SearchOutlined } from '@ant-design/icons';
+import { HolderOutlined, SearchOutlined } from '@ant-design/icons';
 import {
   ModalForm,
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import { Button, Card, Form, Input, message, Modal, Tree } from 'antd';
-import React, { useState } from 'react';
+import type { TreeProps } from 'antd';
+import {
+  Button,
+  Card,
+  Form,
+  Input,
+  message,
+  Modal,
+  Select,
+  Tooltip,
+  Tree,
+} from 'antd';
+import React, { useCallback, useState } from 'react';
+import './TagSystemTreePanel.less';
 import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
-import { useTreeSearch } from './treeHelpers';
+import {
+  allowCrossParentTreeDrop,
+  getTreeMovePosition,
+  useTreeSearch,
+} from './treeHelpers';
+
+interface SelectOption {
+  label: string;
+  value: string;
+}
 
 interface TopicTreePanelProps {
   topicTree: KnowledgeNode[];
   selectedSubject: string;
+  subjectOptions: SelectOption[];
+  onSubjectChange: (subject: string) => void;
   onRefresh: () => void;
 }
 
 const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   topicTree,
   selectedSubject,
+  subjectOptions,
+  onSubjectChange,
   onRefresh,
 }) => {
   const tagContext = {
     subject: selectedSubject,
   };
-  const topicSearch = useTreeSearch(topicTree as unknown as TreeNodeData[]);
+  const topicTreeData = topicTree as unknown as TreeNodeData[];
+  const topicSearch = useTreeSearch(topicTreeData);
   const [selectedNode, setSelectedNode] = useState<TreeNodeData | null>(null);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [modalType, setModalType] = useState<'add' | 'edit'>('add');
@@ -82,6 +109,28 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
     });
   };
 
+  const allowTopicDrop = useCallback<NonNullable<TreeProps['allowDrop']>>(
+    ({ dragNode, dropNode }) =>
+      allowCrossParentTreeDrop(topicTreeData, dragNode.key, dropNode.key),
+    [topicTreeData],
+  );
+
+  const handleDropTopic: TreeProps['onDrop'] = async (info) => {
+    const res = await moveKnowledgeNode({
+      id: String(info.dragNode.key),
+      targetId: String(info.node.key),
+      position: getTreeMovePosition(info),
+      subject: selectedSubject,
+    });
+
+    if (res.success) {
+      message.success('移动成功');
+      onRefresh();
+    } else {
+      message.error(res.message || '移动失败');
+    }
+  };
+
   const handleModalFinish = async (values: Record<string, unknown>) => {
     let res;
     const payload = {
@@ -110,12 +159,25 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   return (
     <>
       <Card
+        className="tag-system-tree-panel"
         title="专题体系"
         variant="borderless"
         extra={
-          <Button type="primary" size="small" onClick={handleAddRoot}>
-            添加根节点
-          </Button>
+          <div className="tag-system-tree-card-extra">
+            <div className="tag-system-tree-subject-filter">
+              <span className="tag-system-tree-subject-label">学科</span>
+              <Select
+                value={selectedSubject}
+                onChange={onSubjectChange}
+                className="tag-system-tree-subject-select"
+                options={subjectOptions}
+                aria-label="选择学科"
+              />
+            </div>
+            <Button type="primary" size="small" onClick={handleAddRoot}>
+              添加根节点
+            </Button>
+          </div>
         }
       >
         <Input
@@ -127,10 +189,20 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
         />
         {topicTree.length > 0 ? (
           <Tree
+            key={selectedSubject}
             treeData={topicTree}
             onExpand={topicSearch.onExpand}
             expandedKeys={topicSearch.expandedKeys}
             autoExpandParent={topicSearch.autoExpandParent}
+            draggable={{
+              icon: (
+                <Tooltip title="拖拽移动">
+                  <HolderOutlined className="tag-system-tree-drag-icon" />
+                </Tooltip>
+              ),
+            }}
+            allowDrop={allowTopicDrop}
+            onDrop={handleDropTopic}
             showLine
             blockNode
             titleRender={(node: TreeNodeData) => (

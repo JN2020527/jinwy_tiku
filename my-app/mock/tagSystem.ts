@@ -117,6 +117,7 @@ interface MockQuestionTypeNode {
 }
 
 type QuestionTypeDropPosition = 'before' | 'after';
+type TreeMovePosition = 'before' | 'after' | 'inside';
 
 const MAX_QUESTION_TYPE_LEVEL = 2;
 const MIN_QUESTION_TYPE_ANSWER_ROWS = 1;
@@ -870,6 +871,123 @@ const reorderQuestionTypeNode = (
   return true;
 };
 
+const findTreeNode = <T extends { key: string; children?: T[] }>(
+  nodes: T[],
+  id: string,
+): T | null => {
+  for (const node of nodes) {
+    if (node.key === id) {
+      return node;
+    }
+    if (node.children?.length) {
+      const found = findTreeNode(node.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const findTreeParentList = <T extends { key: string; children?: T[] }>(
+  nodes: T[],
+  id: string,
+  parentList: T[] = nodes,
+): T[] | null => {
+  for (const node of nodes) {
+    if (node.key === id) {
+      return parentList;
+    }
+    if (node.children?.length) {
+      const found = findTreeParentList(node.children, id, node.children);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const isTreeDescendant = <T extends { key: string; children?: T[] }>(
+  nodes: T[],
+  ancestorId: string,
+  descendantId: string,
+) => {
+  const ancestorNode = findTreeNode(nodes, ancestorId);
+  if (!ancestorNode?.children?.length) return false;
+  return Boolean(findTreeNode(ancestorNode.children, descendantId));
+};
+
+const moveTreeNode = <T extends { key: string; children?: T[] }>(
+  nodes: T[],
+  id: string,
+  targetId: string,
+  position: TreeMovePosition,
+  label: string,
+) => {
+  if (id === targetId) {
+    return { success: false, message: `Cannot move ${label} into itself` };
+  }
+
+  if (!['before', 'after', 'inside'].includes(position)) {
+    return { success: false, message: `Invalid ${label} move position` };
+  }
+
+  if (isTreeDescendant(nodes, id, targetId)) {
+    return {
+      success: false,
+      message: `Cannot move ${label} into its descendant`,
+    };
+  }
+
+  const sourceParentList = findTreeParentList(nodes, id);
+  if (!sourceParentList) {
+    return { success: false, message: `${label} not found` };
+  }
+
+  const sourceIndex = sourceParentList.findIndex((node) => node.key === id);
+  if (sourceIndex < 0) {
+    return { success: false, message: `${label} not found` };
+  }
+
+  const [nodeToMove] = sourceParentList.splice(sourceIndex, 1);
+  if (!nodeToMove) {
+    return { success: false, message: `${label} not found` };
+  }
+
+  const restoreSourceNode = () => {
+    sourceParentList.splice(sourceIndex, 0, nodeToMove);
+  };
+
+  if (position === 'inside') {
+    const targetNode = findTreeNode(nodes, targetId);
+    if (!targetNode) {
+      restoreSourceNode();
+      return { success: false, message: `Target ${label} not found` };
+    }
+    if (!targetNode.children) targetNode.children = [];
+    targetNode.children.push(nodeToMove);
+    return { success: true, message: `${label} moved successfully` };
+  }
+
+  const targetParentList = findTreeParentList(nodes, targetId);
+  if (!targetParentList) {
+    restoreSourceNode();
+    return { success: false, message: `Target ${label} not found` };
+  }
+
+  const targetIndex = targetParentList.findIndex(
+    (node) => node.key === targetId,
+  );
+  if (targetIndex < 0) {
+    restoreSourceNode();
+    return { success: false, message: `Target ${label} not found` };
+  }
+
+  targetParentList.splice(
+    position === 'before' ? targetIndex : targetIndex + 1,
+    0,
+    nodeToMove,
+  );
+  return { success: true, message: `${label} moved successfully` };
+};
+
 const SUBJECT_KEYS = [
   'math',
   'chinese',
@@ -1062,9 +1180,7 @@ const getTagCategoriesForResponse = (subject?: unknown) =>
 const getTagCategoryById = (categoryId: unknown) =>
   tagCategoryStore.find((category) => category.id === categoryId);
 
-const isAttributeUsageScene = (
-  scene: unknown,
-): scene is AttributeUsageScene =>
+const isAttributeUsageScene = (scene: unknown): scene is AttributeUsageScene =>
   typeof scene === 'string' &&
   ATTRIBUTE_USAGE_SCENES.includes(scene as AttributeUsageScene);
 
@@ -1126,6 +1242,30 @@ let textbookChapters: any = {
       children: [{ title: '第一章 丰富的图形世界', key: 'bsd-7-1-1' }],
     },
   ],
+};
+
+const cloneTextbookChapterTree = (nodes: any[] = []): any[] =>
+  nodes.map((node) => ({
+    ...node,
+    children: node.children
+      ? cloneTextbookChapterTree(node.children)
+      : undefined,
+  }));
+
+const getTextbookChapterStoreKey = (version: unknown, subject?: unknown) =>
+  `${normalizeQueryValue(version, '')}__${getSubjectKey(subject)}`;
+
+const scopedTextbookChapterStore: Record<string, any[]> = {};
+
+const getTextbookChaptersByContext = (version: unknown, subject?: unknown) => {
+  const versionKey = normalizeQueryValue(version, '');
+  const storeKey = getTextbookChapterStoreKey(versionKey, subject);
+  if (!scopedTextbookChapterStore[storeKey]) {
+    scopedTextbookChapterStore[storeKey] = cloneTextbookChapterTree(
+      textbookChapters[versionKey] || [],
+    );
+  }
+  return scopedTextbookChapterStore[storeKey];
 };
 
 export default {
@@ -1228,9 +1368,7 @@ export default {
     }
     res.send({
       success: deleted,
-      message: deleted
-        ? 'Category deleted successfully'
-        : 'Category not found',
+      message: deleted ? 'Category deleted successfully' : 'Category not found',
     });
   },
 
@@ -1310,6 +1448,19 @@ export default {
     };
     deleteNode(knowledgePoints);
     res.send({ success: true, message: 'Node deleted successfully' });
+  },
+  'PUT /api/tags/knowledge-node/move': (req: Request, res: Response) => {
+    const { id, targetId, position } = req.body;
+    const context = getKnowledgeContext(req);
+    const knowledgePoints = getKnowledgeTreeByContext(context);
+    const result = moveTreeNode(
+      knowledgePoints,
+      String(id),
+      String(targetId),
+      position as TreeMovePosition,
+      'Knowledge node',
+    );
+    res.send(result);
   },
 
   // Question Type CRUD
@@ -1628,17 +1779,18 @@ export default {
     res.send({ success: true, data: textbookVersions });
   },
   'GET /api/tags/textbook-chapters': (req: Request, res: Response) => {
-    const { version } = req.query;
-    const data = textbookChapters[version as string] || [];
+    const { version, subject } = req.query;
+    const data = getTextbookChaptersByContext(version, subject);
     res.send({ success: true, data });
   },
   // Textbook Chapter CRUD
   'POST /api/tags/textbook-chapter': (req: Request, res: Response) => {
-    const { version, parentId, title, description } = req.body;
-    const chapters = textbookChapters[version];
+    const { version, parentId, title, description, subject } = req.body;
+    const chapters = getTextbookChaptersByContext(version, subject);
     const newNode = {
       title,
       key: `ch-${Date.now()}`,
+      description,
       children: [],
     };
 
@@ -1656,19 +1808,20 @@ export default {
         }
         return false;
       };
-      if (chapters) addNode(chapters);
+      addNode(chapters);
     } else {
-      if (chapters) chapters.push(newNode);
+      chapters.push(newNode);
     }
     res.send({ success: true, message: 'Chapter created successfully' });
   },
   'PUT /api/tags/textbook-chapter': (req: Request, res: Response) => {
-    const { version, id, title, description } = req.body;
-    const chapters = textbookChapters[version];
+    const { version, id, title, description, subject } = req.body;
+    const chapters = getTextbookChaptersByContext(version, subject);
     const updateNode = (nodes: any[]) => {
       for (const node of nodes) {
         if (node.key === id) {
           node.title = title;
+          node.description = description;
           return true;
         }
         if (node.children && node.children.length > 0) {
@@ -1677,28 +1830,37 @@ export default {
       }
       return false;
     };
-    if (chapters) updateNode(chapters);
+    updateNode(chapters);
     res.send({ success: true, message: 'Chapter updated successfully' });
   },
   'DELETE /api/tags/textbook-chapter': (req: Request, res: Response) => {
-    const { id } = req.query; // Note: In real app, we might need version here too if IDs aren't globally unique
-    // For mock, we'll search all versions or assume version is passed.
-    // Let's iterate all versions for simplicity in mock
-    Object.values(textbookChapters).forEach((chapters: any) => {
-      const deleteNode = (nodes: any[]) => {
-        for (let i = 0; i < nodes.length; i++) {
-          if (nodes[i].key === id) {
-            nodes.splice(i, 1);
-            return true;
-          }
-          if (nodes[i].children && nodes[i].children.length > 0) {
-            if (deleteNode(nodes[i].children)) return true;
-          }
+    const { id, version, subject } = req.query;
+    const chapters = getTextbookChaptersByContext(version, subject);
+    const deleteNode = (nodes: any[]) => {
+      for (let i = 0; i < nodes.length; i++) {
+        if (nodes[i].key === id) {
+          nodes.splice(i, 1);
+          return true;
         }
-        return false;
-      };
-      deleteNode(chapters);
-    });
+        if (nodes[i].children && nodes[i].children.length > 0) {
+          if (deleteNode(nodes[i].children)) return true;
+        }
+      }
+      return false;
+    };
+    deleteNode(chapters);
     res.send({ success: true, message: 'Chapter deleted successfully' });
+  },
+  'PUT /api/tags/textbook-chapter/move': (req: Request, res: Response) => {
+    const { version, id, targetId, position, subject } = req.body;
+    const chapters = getTextbookChaptersByContext(version, subject);
+    const result = moveTreeNode(
+      chapters,
+      String(id),
+      String(targetId),
+      position as TreeMovePosition,
+      'Textbook chapter',
+    );
+    res.send(result);
   },
 };

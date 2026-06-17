@@ -1,26 +1,4 @@
 .question-type-tree-panel {
-  .ant-card-head-title {
-    min-width: 0;
-  }
-
-  .ant-card-head-wrapper {
-    align-items: center;
-    gap: 16px;
-  }
-
-  .ant-card-extra {
-    flex: 0 0 auto;
-    margin-inline-start: 16px;
-  }
-
-  .ant-card-body {
-    padding-top: 16px;
-  }
-
-  .ant-tree {
-    padding: 6px 0;
-  }
-
   .question-type-card-title {
     display: flex;
     min-width: 0;
@@ -48,88 +26,6 @@
     flex: 0 0 auto;
     color: #1677ff;
     font-size: 14px;
-  }
-
-  .question-type-card-extra {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  .question-type-subject-filter {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: #202733;
-    font-size: 14px;
-    line-height: 22px;
-  }
-
-  .question-type-subject-label {
-    flex: 0 0 auto;
-    font-weight: 500;
-  }
-
-  .question-type-subject-select {
-    width: 128px;
-    text-align: left;
-  }
-
-  .ant-tree-treenode {
-    min-height: 34px;
-    align-items: center;
-    padding: 2px 0;
-    border-radius: 6px;
-    transition: opacity 0.18s;
-  }
-
-  .ant-tree-treenode:hover {
-    background: #f7f9fc;
-  }
-
-  .ant-tree-treenode.dragging {
-    opacity: 0.46;
-  }
-
-  .ant-tree-treenode.drag-over-gap-top,
-  .ant-tree-treenode.drag-over-gap-bottom {
-    background: #f5f9ff;
-  }
-
-  .ant-tree-draggable-icon {
-    display: inline-flex;
-    width: 24px;
-    align-self: center;
-    align-items: center;
-    justify-content: center;
-    color: #98a2b3;
-    cursor: grab;
-  }
-
-  .ant-tree-treenode:active .ant-tree-draggable-icon {
-    cursor: grabbing;
-  }
-
-  .question-type-drag-icon {
-    font-size: 14px;
-  }
-
-  .ant-tree-node-content-wrapper {
-    min-width: 0;
-    padding-inline: 4px 8px;
-    border-radius: 6px;
-  }
-
-  .ant-tree-node-content-wrapper:hover {
-    background: transparent;
-  }
-
-  .ant-tree-drop-indicator {
-    height: 3px;
-    border-radius: 999px;
-    background-color: #1677ff;
   }
 }
 
@@ -182,24 +78,5 @@
 
   .question-type-answer-rows-field .ant-input-number {
     width: 100%;
-  }
-}
-
-@media (max-width: 900px) {
-  .question-type-tree-panel {
-    .ant-card-head-wrapper {
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-
-    .ant-card-extra {
-      width: 100%;
-      margin-inline-start: 0;
-    }
-
-    .question-type-card-extra {
-      width: 100%;
-      justify-content: flex-start;
-    }
   }
 }

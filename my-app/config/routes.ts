@@ -109,23 +109,28 @@ export default [
       },
       {
         path: '/tag-system/question-bank-system',
-        name: '题库体系',
-        routes: [
-          {
-            path: '/tag-system/question-bank-system',
-            redirect: '/tag-system/knowledge',
-          },
-          {
-            path: '/tag-system/knowledge',
-            name: '知识体系',
-            component: './ContentCenter/TagManage/Knowledge',
-          },
-          {
-            path: '/tag-system/topic',
-            name: '专题体系',
-            component: './ContentCenter/TagManage/Topic',
-          },
-        ],
+        redirect: '/tag-system/knowledge',
+        hideInMenu: true,
+      },
+      {
+        path: '/tag-system/question-bank-system/knowledge',
+        redirect: '/tag-system/knowledge',
+        hideInMenu: true,
+      },
+      {
+        path: '/tag-system/question-bank-system/topic',
+        redirect: '/tag-system/topic',
+        hideInMenu: true,
+      },
+      {
+        path: '/tag-system/knowledge',
+        name: '知识体系',
+        component: './ContentCenter/TagManage/Knowledge',
+      },
+      {
+        path: '/tag-system/topic',
+        name: '专题体系',
+        component: './ContentCenter/TagManage/Topic',
       },
       {
         path: '/tag-system/question-type',

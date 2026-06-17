@@ -36,6 +36,7 @@ import {
 } from 'antd';
 import React, { useCallback, useMemo, useState } from 'react';
 import './QuestionTypeTreePanel.less';
+import './TagSystemTreePanel.less';
 import TreeNodeTitle from './TreeNodeTitle';
 import type { TreeNodeData } from './treeHelpers';
 import { useTreeSearch } from './treeHelpers';
@@ -422,7 +423,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
   return (
     <>
       <Card
-        className="question-type-tree-panel"
+        className="tag-system-tree-panel question-type-tree-panel"
         title={
           <div className="question-type-card-title">
             <span className="question-type-card-title-text">题型结构树</span>
@@ -435,13 +436,13 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         }
         variant="borderless"
         extra={
-          <div className="question-type-card-extra">
-            <div className="question-type-subject-filter">
-              <span className="question-type-subject-label">学科</span>
+          <div className="tag-system-tree-card-extra">
+            <div className="tag-system-tree-subject-filter">
+              <span className="tag-system-tree-subject-label">学科</span>
               <Select
                 value={selectedSubject}
                 onChange={onSubjectChange}
-                className="question-type-subject-select"
+                className="tag-system-tree-subject-select"
                 options={subjectOptions}
                 aria-label="选择学科"
               />
@@ -470,7 +471,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
             draggable={{
               icon: (
                 <Tooltip title="拖拽排序">
-                  <HolderOutlined className="question-type-drag-icon" />
+                  <HolderOutlined className="tag-system-tree-drag-icon" />
                 </Tooltip>
               ),
             }}

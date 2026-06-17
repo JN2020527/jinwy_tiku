@@ -1,7 +1,7 @@
 import type { KnowledgeNode } from '@/services/tagSystem';
 import { getKnowledgeTree } from '@/services/tagSystem';
 import { PageContainer } from '@ant-design/pro-components';
-import { Card, message, Select, Space, Spin } from 'antd';
+import { message, Spin } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
 import TopicTreePanel from './components/TopicTreePanel';
 
@@ -44,31 +44,14 @@ const TopicTagPage: React.FC = () => {
 
   return (
     <PageContainer>
-      <Card
-        style={{ marginBottom: 16 }}
-        styles={{ body: { padding: '16px 24px' } }}
-      >
-        <Space size="large">
-          <Space>
-            <span>学科：</span>
-            <Select
-              value={selectedSubject}
-              onChange={setSelectedSubject}
-              style={{ width: 120 }}
-              options={SUBJECT_OPTIONS}
-            />
-          </Space>
-        </Space>
-      </Card>
-
       <Spin spinning={loading}>
-        <Card>
-          <TopicTreePanel
-            topicTree={topicTree}
-            selectedSubject={selectedSubject}
-            onRefresh={fetchData}
-          />
-        </Card>
+        <TopicTreePanel
+          topicTree={topicTree}
+          selectedSubject={selectedSubject}
+          subjectOptions={SUBJECT_OPTIONS}
+          onSubjectChange={setSelectedSubject}
+          onRefresh={fetchData}
+        />
       </Spin>
     </PageContainer>
   );
