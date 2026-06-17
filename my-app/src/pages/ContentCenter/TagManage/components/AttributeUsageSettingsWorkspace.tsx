@@ -539,7 +539,18 @@ const AttributeUsageSettingsWorkspace: React.FC<
                       type={active ? 'primary' : 'default'}
                       onClick={() => setActiveScene(scene.scene)}
                     >
-                      <span>{scene.label}</span>
+                      <span style={{ display: 'grid', gap: 2 }}>
+                        <span>{scene.label}</span>
+                        <small
+                          style={{
+                            fontWeight: 400,
+                            lineHeight: '18px',
+                            opacity: 0.78,
+                          }}
+                        >
+                          {scene.description}
+                        </small>
+                      </span>
                       <Tag
                         color={active ? 'processing' : 'default'}
                         style={{ marginInlineEnd: 0 }}
