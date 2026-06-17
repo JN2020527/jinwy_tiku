@@ -143,6 +143,19 @@ const USAGE_SCENE_GROUP_DEFINITIONS = [
   scenes: readonly AttributeUsageScene[];
 }>;
 
+type GroupedUsageScene =
+  (typeof USAGE_SCENE_GROUP_DEFINITIONS)[number]['scenes'][number];
+type UngroupedUsageScene = Exclude<AttributeUsageScene, GroupedUsageScene>;
+type UnknownGroupedUsageScene = Exclude<GroupedUsageScene, AttributeUsageScene>;
+type UsageSceneGroupsCoverage = UngroupedUsageScene extends never
+  ? UnknownGroupedUsageScene extends never
+    ? true
+    : never
+  : never;
+
+export const USAGE_SCENE_GROUPS_COVER_ALL_SCENES: UsageSceneGroupsCoverage =
+  true;
+
 export const USAGE_SCENE_GROUPS = USAGE_SCENE_GROUP_DEFINITIONS.map(
   (group): UsageSceneGroup => ({
     title: group.title,
@@ -154,9 +167,13 @@ export const USAGE_SCENE_OPTIONS = USAGE_SCENE_GROUPS.flatMap(
   (group) => group.scenes,
 );
 
-export const USAGE_SCENE_LABELS = USAGE_SCENE_OPTIONS.reduce<
-  Record<AttributeUsageScene, string>
->((labels, option) => {
-  labels[option.scene] = option.label;
-  return labels;
-}, {} as Record<AttributeUsageScene, string>);
+export const USAGE_SCENE_LABELS: Record<AttributeUsageScene, string> = {
+  paperUpload: SCENE_META.paperUpload.label,
+  paperCardDisplay: SCENE_META.paperCardDisplay.label,
+  paperListFilter: SCENE_META.paperListFilter.label,
+  questionTagging: SCENE_META.questionTagging.label,
+  questionCardDisplay: SCENE_META.questionCardDisplay.label,
+  questionListFilter: SCENE_META.questionListFilter.label,
+  knowledgeTreeNodeDisplay: SCENE_META.knowledgeTreeNodeDisplay.label,
+  topicTreeNodeDisplay: SCENE_META.topicTreeNodeDisplay.label,
+};
