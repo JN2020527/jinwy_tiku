@@ -12,9 +12,9 @@ import {
   getTextbookVersions,
   setNodeAttributeRelation,
 } from '@/services/tagSystem';
-import { SearchOutlined, TagsOutlined } from '@ant-design/icons';
+import { TagsOutlined } from '@ant-design/icons';
 import type { TreeProps } from 'antd';
-import { Empty, Input, message, Segmented, Select, Spin, Tree } from 'antd';
+import { Empty, message, Segmented, Select, Spin, Tree } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -44,7 +44,9 @@ interface NodeAttributeRelationWorkspaceProps {
 
 interface WorkspaceContextSnapshot {
   targetType: NodeAttributeTargetType;
+  grade: string;
   subject: string;
+  semester?: string;
   textbookVersion?: string;
   activeAttributeId?: string;
   activeOptionId?: string;
@@ -52,7 +54,9 @@ interface WorkspaceContextSnapshot {
 
 interface SaveContextSnapshot {
   targetType: NodeAttributeTargetType;
+  grade: string;
   subject: string;
+  semester?: string;
   textbookVersion?: string;
   nodeId: string;
   attributeId: string;
@@ -60,12 +64,62 @@ interface SaveContextSnapshot {
 }
 
 const noopTreeAction = () => {};
+const MIDDLE_EXAM_GRADE = 'middleExam';
+
+const GRADE_OPTIONS = [
+  { label: '中考', value: MIDDLE_EXAM_GRADE },
+  { label: '七年级', value: 'grade7' },
+  { label: '八年级', value: 'grade8' },
+  { label: '九年级', value: 'grade9' },
+];
+
+const SEMESTER_OPTIONS = [
+  { label: '上册', value: 'upper' },
+  { label: '下册', value: 'lower' },
+];
+
+const getOptionLabel = (
+  options: { label: string; value: string }[],
+  value?: string,
+) => options.find((option) => option.value === value)?.label || '';
+
+const filterTextbookChaptersByContext = (
+  nodes: TreeNodeData[],
+  grade: string,
+  semester?: string,
+) => {
+  const gradeLabel = getOptionLabel(GRADE_OPTIONS, grade);
+  const semesterLabel = getOptionLabel(SEMESTER_OPTIONS, semester);
+
+  return nodes.filter((node) => {
+    const title = String(node.title || '');
+    return (
+      title.includes(gradeLabel) &&
+      (!semesterLabel || title.includes(semesterLabel))
+    );
+  });
+};
+
+const collectTreeNodeKeys = (
+  nodes: TreeNodeData[],
+  keys = new Set<string>(),
+) => {
+  nodes.forEach((node) => {
+    keys.add(String(node.key));
+    if (node.children?.length) {
+      collectTreeNodeKeys(node.children, keys);
+    }
+  });
+  return keys;
+};
 
 const NodeAttributeRelationWorkspace: React.FC<
   NodeAttributeRelationWorkspaceProps
 > = ({ tagCategories }) => {
   const [targetType, setTargetType] =
     useState<NodeAttributeTargetType>('knowledge');
+  const [grade, setGrade] = useState(MIDDLE_EXAM_GRADE);
+  const [semester, setSemester] = useState('upper');
   const [subject, setSubject] = useState('math');
   const [activeAttributeId, setActiveAttributeId] = useState<string>();
   const [activeOptionId, setActiveOptionId] = useState<string>();
@@ -84,8 +138,11 @@ const NodeAttributeRelationWorkspace: React.FC<
   const savingRequestRef = useRef(0);
   const contextRef = useRef<WorkspaceContextSnapshot>({
     targetType: 'knowledge',
+    grade: MIDDLE_EXAM_GRADE,
     subject: 'math',
   });
+  const isMiddleExamGrade = grade === MIDDLE_EXAM_GRADE;
+  const isSyncPreset = targetType === 'knowledge' && !isMiddleExamGrade;
 
   const categories = useMemo(
     () => getEnabledNodeAttributeCategories(tagCategories, targetType),
@@ -99,52 +156,78 @@ const NodeAttributeRelationWorkspace: React.FC<
     [activeCategory, subject],
   );
   const activeOption = options.find((option) => option.id === activeOptionId);
+  const treeNodeKeySet = useMemo(
+    () => collectTreeNodeKeys(treeData),
+    [treeData],
+  );
+  const contextRelations = useMemo(
+    () => relations.filter((relation) => treeNodeKeySet.has(relation.nodeId)),
+    [relations, treeNodeKeySet],
+  );
   const relationCountsByAttribute = useMemo(
-    () => getRelationCountsByAttribute(relations),
-    [relations],
+    () => getRelationCountsByAttribute(contextRelations),
+    [contextRelations],
   );
   const relationCountsByOption = useMemo(
     () =>
       activeAttributeId
-        ? getRelationCountsByOption(relations, activeAttributeId)
+        ? getRelationCountsByOption(contextRelations, activeAttributeId)
         : new Map<string, number>(),
-    [activeAttributeId, relations],
+    [activeAttributeId, contextRelations],
   );
   const checkedKeys = useMemo(
     () =>
       activeAttributeId && activeOptionId
         ? getCheckedNodeKeysForOption(
-            relations,
+            contextRelations,
             activeAttributeId,
             activeOptionId,
           )
         : [],
-    [activeAttributeId, activeOptionId, relations],
+    [activeAttributeId, activeOptionId, contextRelations],
   );
   const treeSearch = useTreeSearch(treeData);
 
   useEffect(() => {
     contextRef.current = {
       targetType,
+      grade,
       subject,
+      semester,
       textbookVersion,
       activeAttributeId,
       activeOptionId,
     };
-  }, [activeAttributeId, activeOptionId, subject, targetType, textbookVersion]);
+  }, [
+    activeAttributeId,
+    activeOptionId,
+    grade,
+    semester,
+    subject,
+    targetType,
+    textbookVersion,
+  ]);
 
   const isSaveContextCurrent = useCallback((snapshot: SaveContextSnapshot) => {
     const current = contextRef.current;
 
     return (
       current.targetType === snapshot.targetType &&
+      current.grade === snapshot.grade &&
       current.subject === snapshot.subject &&
-      (snapshot.targetType !== 'knowledge' ||
-        current.textbookVersion === snapshot.textbookVersion) &&
+      (snapshot.grade === MIDDLE_EXAM_GRADE ||
+        (current.semester === snapshot.semester &&
+          current.textbookVersion === snapshot.textbookVersion)) &&
       current.activeAttributeId === snapshot.attributeId &&
       current.activeOptionId === snapshot.optionId
     );
   }, []);
+
+  useEffect(() => {
+    if (targetType === 'topic' && !isMiddleExamGrade) {
+      setGrade(MIDDLE_EXAM_GRADE);
+    }
+  }, [isMiddleExamGrade, targetType]);
 
   useEffect(() => {
     if (!categories.length) {
@@ -178,13 +261,15 @@ const NodeAttributeRelationWorkspace: React.FC<
     const requestId = versionsRequestRef.current + 1;
     versionsRequestRef.current = requestId;
 
-    if (targetType !== 'knowledge') {
+    if (!isSyncPreset) {
+      setTextbookVersion(undefined);
       return;
     }
 
     const isCurrentKnowledgeRequest = () =>
       versionsRequestRef.current === requestId &&
-      contextRef.current.targetType === 'knowledge';
+      contextRef.current.targetType === 'knowledge' &&
+      contextRef.current.grade !== MIDDLE_EXAM_GRADE;
 
     const fetchVersions = async () => {
       try {
@@ -217,7 +302,7 @@ const NodeAttributeRelationWorkspace: React.FC<
     };
 
     fetchVersions();
-  }, [targetType]);
+  }, [isSyncPreset]);
 
   const fetchRelations = useCallback(async () => {
     const requestId = relationsRequestRef.current + 1;
@@ -256,6 +341,21 @@ const NodeAttributeRelationWorkspace: React.FC<
     setLoadingTree(true);
     try {
       if (targetType === 'knowledge') {
+        if (isMiddleExamGrade) {
+          const res = await getKnowledgeTree({ subject });
+          if (treeRequestRef.current !== requestId) {
+            return;
+          }
+
+          if (!res.success) {
+            message.error(res.message || '获取知识点节点失败');
+            return;
+          }
+
+          setTreeData(res.data as unknown as TreeNodeData[]);
+          return;
+        }
+
         if (!textbookVersion) {
           if (treeRequestRef.current === requestId) {
             setTreeData([]);
@@ -273,7 +373,13 @@ const NodeAttributeRelationWorkspace: React.FC<
           return;
         }
 
-        setTreeData(res.data as unknown as TreeNodeData[]);
+        setTreeData(
+          filterTextbookChaptersByContext(
+            res.data as unknown as TreeNodeData[],
+            grade,
+            semester,
+          ),
+        );
         return;
       }
 
@@ -297,7 +403,14 @@ const NodeAttributeRelationWorkspace: React.FC<
         setLoadingTree(false);
       }
     }
-  }, [subject, targetType, textbookVersion]);
+  }, [
+    grade,
+    isMiddleExamGrade,
+    semester,
+    subject,
+    targetType,
+    textbookVersion,
+  ]);
 
   useEffect(() => {
     fetchTree();
@@ -309,7 +422,9 @@ const NodeAttributeRelationWorkspace: React.FC<
     const nodeId = String(info.node.key);
     const saveContext: SaveContextSnapshot = {
       targetType,
+      grade,
       subject,
+      semester,
       textbookVersion,
       nodeId,
       attributeId: activeAttributeId,
@@ -409,7 +524,6 @@ const NodeAttributeRelationWorkspace: React.FC<
         <div className="attribute-panel-header">
           <div>
             <span className="attribute-panel-title">对象属性</span>
-            <span className="node-attribute-context">选择知识点或专题属性</span>
           </div>
         </div>
         <div className="node-attribute-panel-body">
@@ -444,7 +558,7 @@ const NodeAttributeRelationWorkspace: React.FC<
                         {category.name}
                       </span>
                       <span className="node-attribute-item-meta">
-                        {activeTargetLabel} · {count} 个节点
+                        {count} 个节点
                       </span>
                     </span>
                   </button>
@@ -466,13 +580,7 @@ const NodeAttributeRelationWorkspace: React.FC<
             <span className="attribute-panel-title">
               {activeCategory?.name || '枚举值'}
             </span>
-            <span className="node-attribute-context">
-              选择一个枚举值查看关联节点
-            </span>
           </div>
-          <span className="node-attribute-count">
-            {options.length} 个枚举值
-          </span>
         </div>
         <Spin spinning={loadingRelations}>
           <div className="node-attribute-panel-body">
@@ -523,31 +631,41 @@ const NodeAttributeRelationWorkspace: React.FC<
         <div className="attribute-panel-header">
           <div>
             <span className="attribute-panel-title">节点树</span>
-            <span className="node-attribute-context">
-              {activeOption
-                ? `正在关联：${activeOption.name}`
-                : '请选择属性和枚举值'}
-            </span>
-            <span className="node-attribute-context">
-              同一节点在当前属性下仅保留一个枚举值
-            </span>
           </div>
         </div>
         <div
           className={`node-attribute-tree-toolbar${
-            targetType === 'topic' ? ' compact' : ''
+            isSyncPreset ? ' sync' : ''
           }`}
         >
           <Select
-            size="small"
+            value={grade}
+            onChange={setGrade}
+            options={
+              targetType === 'topic'
+                ? GRADE_OPTIONS.filter(
+                    (option) => option.value === MIDDLE_EXAM_GRADE,
+                  )
+                : GRADE_OPTIONS
+            }
+            aria-label="选择年级"
+          />
+          {isSyncPreset ? (
+            <Select
+              value={semester}
+              onChange={setSemester}
+              options={SEMESTER_OPTIONS}
+              aria-label="选择学期"
+            />
+          ) : null}
+          <Select
             value={subject}
             onChange={setSubject}
             options={SUBJECT_OPTIONS}
             aria-label="选择学科"
           />
-          {targetType === 'knowledge' ? (
+          {isSyncPreset ? (
             <Select
-              size="small"
               value={textbookVersion}
               onChange={setTextbookVersion}
               options={textbookVersions}
@@ -555,25 +673,15 @@ const NodeAttributeRelationWorkspace: React.FC<
               aria-label="选择教材版本"
             />
           ) : null}
-          <Input
-            name="nodeAttributeTreeSearch"
-            autoComplete="off"
-            prefix={
-              <SearchOutlined aria-hidden="true" style={{ color: '#ccc' }} />
-            }
-            aria-label={`搜索${activeTargetLabel}节点`}
-            allowClear
-            placeholder={`搜索${activeTargetLabel}节点…`}
-            value={treeSearch.searchValue}
-            onChange={treeSearch.onSearch}
-          />
         </div>
         <Spin spinning={treeLoading}>
           <div className="node-attribute-panel-body">
             {treeData.length ? (
               <>
                 <Tree
-                  key={`${targetType}-${subject}-${textbookVersion || 'topic'}`}
+                  key={`${targetType}-${grade}-${semester}-${subject}-${
+                    textbookVersion || 'middle-exam'
+                  }`}
                   treeData={treeData}
                   checkable
                   checkStrictly
@@ -588,7 +696,7 @@ const NodeAttributeRelationWorkspace: React.FC<
                   titleRender={(node: TreeNodeData) => (
                     <TreeNodeTitle
                       nodeData={node}
-                      searchValue={treeSearch.searchValue}
+                      searchValue=""
                       actionsVisible={false}
                       onAddChild={noopTreeAction}
                       onEdit={noopTreeAction}

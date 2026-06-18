@@ -1,13 +1,11 @@
-import type { AttributeTarget, TagCategory } from '@/services/tagSystem';
+import type { TagCategory } from '@/services/tagSystem';
 import { DeleteOutlined, EditOutlined, TagsOutlined } from '@ant-design/icons';
 import { Button, Empty, Space } from 'antd';
 import React, { useMemo } from 'react';
 import AttributeStatusPill from './AttributeStatusPill';
-import { ATTRIBUTE_TARGET_LABELS } from './attributeSettingsConstants';
 import { sortBySort } from './attributeSettingsHelpers';
 
 interface AttributeDefinitionListProps {
-  activeTarget: AttributeTarget;
   activeCategoryId?: string;
   categories: TagCategory[];
   onSelectCategory: (categoryId: string) => void;
@@ -21,7 +19,6 @@ const getOptionModeText = (category: TagCategory) =>
     : '统一维护';
 
 const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
-  activeTarget,
   activeCategoryId,
   categories,
   onSelectCategory,
@@ -29,12 +26,11 @@ const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
   onDeleteCategory,
 }) => {
   const sortedCategories = useMemo(() => sortBySort(categories), [categories]);
-  const targetLabel = ATTRIBUTE_TARGET_LABELS[activeTarget] || '属性';
 
   return (
     <aside className="attribute-category-panel">
       <div className="attribute-panel-header">
-        <div className="attribute-panel-title">{targetLabel}</div>
+        <div className="attribute-panel-title">属性</div>
       </div>
       <div className="attribute-category-list">
         {sortedCategories.length ? (
@@ -83,13 +79,12 @@ const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
                         onClick={() => onEditCategory(category)}
                       />
                       <Button
-                        danger
                         type="text"
                         size="small"
                         icon={<DeleteOutlined />}
                         title="删除属性"
                         aria-label={`删除${category.name}`}
-                        className="attribute-category-action-button"
+                        className="attribute-category-action-button attribute-category-delete-button"
                         onClick={() => onDeleteCategory(category)}
                       />
                     </Space>
@@ -100,7 +95,7 @@ const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
           </div>
         ) : (
           <div className="attribute-workspace-empty">
-            <Empty description={`暂无${targetLabel}`} />
+            <Empty description="暂无属性" />
           </div>
         )}
       </div>

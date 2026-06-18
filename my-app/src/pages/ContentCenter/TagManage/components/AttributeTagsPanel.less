@@ -43,23 +43,49 @@
   flex: 1 1 auto;
   min-width: 0;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 
   .ant-segmented {
-    background: #f7f9fc;
+    padding: 3px;
+    border-radius: 8px;
+    background: #f4f7fb;
+  }
+
+  .ant-segmented-group {
+    gap: 2px;
+  }
+
+  .ant-segmented-item {
+    min-width: 64px;
+    height: 34px;
+    border-radius: 6px;
+    color: @attribute-text-secondary;
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+
+  .ant-segmented-item-label {
+    min-height: 34px;
+    padding: 0 14px;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 34px;
+  }
+
+  .ant-segmented-item:hover:not(.ant-segmented-item-selected) {
+    color: @attribute-text;
+  }
+
+  .ant-segmented-thumb {
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px #c9ddff, 0 2px 6px rgb(31 111 235 / 8%);
   }
 
   .ant-segmented-item-selected {
+    background: #fff;
     color: @attribute-blue;
+    box-shadow: inset 0 0 0 1px #c9ddff, 0 2px 6px rgb(31 111 235 / 8%);
   }
-}
-
-.attribute-settings-filter-label {
-  flex: 0 0 auto;
-  color: @attribute-text;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
 }
 
 .attribute-tags-panel {
@@ -309,6 +335,22 @@
   width: 26px !important;
   height: 26px !important;
   padding: 0 !important;
+  color: @attribute-text-muted !important;
+}
+
+.attribute-category-action-button:hover,
+.attribute-category-action-button:focus-visible {
+  color: @attribute-text !important;
+}
+
+.attribute-category-delete-button {
+  color: @attribute-text-muted !important;
+}
+
+.attribute-category-delete-button:hover,
+.attribute-category-delete-button:focus-visible {
+  background: #fff1f0 !important;
+  color: #ff4d4f !important;
 }
 
 .attribute-tag-create {
@@ -409,17 +451,10 @@
   line-height: 22px;
 }
 
-.attribute-option-toolbar-meta {
-  flex: 0 0 auto;
-  color: @attribute-text-secondary;
-  font-size: 12px;
-  line-height: 18px;
-}
-
 .attribute-option-table-header,
 .attribute-option-item {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 100px 148px;
+  grid-template-columns: 72px minmax(0, 1fr) 96px 84px;
   align-items: center;
   gap: 12px;
   padding: 0 12px;
@@ -473,6 +508,37 @@
   background: transparent;
   color: inherit;
   text-align: left;
+}
+
+.attribute-option-leading {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.attribute-option-drag-handle {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  color: @attribute-text-muted;
+  cursor: grab;
+}
+
+.attribute-option-drag-handle:hover,
+.attribute-option-drag-handle:focus-visible {
+  background: #f1f5f9 !important;
+  color: @attribute-text !important;
+}
+
+.attribute-option-drag-handle:active {
+  cursor: grabbing;
+}
+
+.attribute-option-drag-handle[disabled],
+.attribute-option-drag-handle[disabled]:hover {
+  color: @attribute-text-muted !important;
+  cursor: not-allowed;
 }
 
 .attribute-option-sort {
@@ -557,6 +623,18 @@
   .ant-btn {
     width: 28px;
     height: 28px;
+    color: @attribute-text-muted;
+  }
+
+  .attribute-option-edit-button:hover,
+  .attribute-option-edit-button:focus-visible {
+    color: @attribute-text !important;
+  }
+
+  .attribute-option-delete-button:hover,
+  .attribute-option-delete-button:focus-visible {
+    background: #fff1f0 !important;
+    color: #ff4d4f !important;
   }
 }
 
@@ -830,6 +908,16 @@
   color: @attribute-blue !important;
 }
 
+.attribute-usage-remove-button {
+  color: @attribute-text-muted !important;
+}
+
+.attribute-usage-remove-button:not(:disabled):hover,
+.attribute-usage-remove-button:not(:disabled):focus-visible {
+  background: #fff1f0 !important;
+  color: #ff4d4f !important;
+}
+
 .attribute-addable-empty {
   display: flex;
   min-height: 120px;
@@ -890,8 +978,8 @@
 
 .node-attribute-workbench {
   display: grid;
-  grid-template-columns: 260px 300px minmax(420px, 1fr);
-  min-width: 980px;
+  grid-template-columns: 240px 260px minmax(440px, 1fr);
+  min-width: 940px;
   min-height: 640px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -938,7 +1026,7 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 54px;
+  min-height: 44px;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
@@ -973,7 +1061,9 @@
   display: flex;
   min-width: 0;
   flex: 1 1 auto;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .node-attribute-item-name {
@@ -990,48 +1080,47 @@
   color: @attribute-blue;
 }
 
-.node-attribute-item-meta,
-.node-attribute-context {
-  overflow: hidden;
+.node-attribute-item-meta {
+  flex: 0 0 auto;
   color: @attribute-text-secondary;
   font-size: 12px;
   line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.node-attribute-context {
-  display: block;
-  margin-top: 2px;
-}
-
-.node-attribute-count {
-  flex: 0 0 auto;
-  color: @attribute-text-secondary;
-  font-size: 13px;
-  line-height: 20px;
   white-space: nowrap;
 }
 
 .node-attribute-tree-toolbar {
   display: grid;
-  grid-template-columns: minmax(96px, 120px) minmax(120px, 160px) minmax(
-      180px,
-      1fr
-    );
+  grid-template-columns: minmax(96px, 120px) minmax(96px, 120px);
+  align-items: center;
   gap: 8px;
   padding: 12px;
   border-bottom: 1px solid @attribute-border-soft;
   background: #fcfdff;
 }
 
-.node-attribute-tree-toolbar.compact {
-  grid-template-columns: minmax(96px, 120px) minmax(180px, 1fr);
+.node-attribute-tree-toolbar.sync {
+  grid-template-columns:
+    minmax(88px, 104px) minmax(88px, 104px) minmax(96px, 120px)
+    minmax(120px, 160px);
 }
 
-.node-attribute-tree-toolbar .ant-input-affix-wrapper,
 .node-attribute-tree-toolbar .ant-select {
+  height: 32px;
   min-width: 0;
+}
+
+.node-attribute-tree-toolbar .ant-select-selector {
+  height: 32px !important;
+  align-items: center;
+}
+
+.node-attribute-tree-toolbar .ant-select-selection-search-input {
+  height: 30px !important;
+}
+
+.node-attribute-tree-toolbar .ant-select-selection-item,
+.node-attribute-tree-toolbar .ant-select-selection-placeholder {
+  line-height: 30px !important;
 }
 
 .node-attribute-tree-panel .node-attribute-panel-body {

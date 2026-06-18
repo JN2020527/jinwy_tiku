@@ -805,7 +805,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
             <span>
               <Button
                 aria-label={`将${row.category.name}移出当前场景`}
-                danger
+                className="attribute-usage-remove-button"
                 disabled={saving}
                 icon={<MinusCircleOutlined />}
                 loading={savingKey === `remove-${row.rule.id}`}

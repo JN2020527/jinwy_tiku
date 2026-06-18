@@ -374,8 +374,8 @@ const AttributeDefinitionWorkspace: React.FC<
         extra={
           <div className="tag-system-tree-card-extra attribute-settings-card-extra">
             <div className="attribute-settings-toolbar-filters">
-              <span className="attribute-settings-filter-label">属性类型</span>
               <Segmented
+                aria-label="属性类型"
                 value={activeTarget}
                 options={ATTRIBUTE_TARGET_OPTIONS}
                 onChange={(value) => {
@@ -398,7 +398,6 @@ const AttributeDefinitionWorkspace: React.FC<
       >
         <div className="attribute-tags-panel">
           <AttributeDefinitionList
-            activeTarget={activeTarget}
             activeCategoryId={activeCategoryId}
             categories={targetCategories}
             onSelectCategory={setActiveCategoryId}

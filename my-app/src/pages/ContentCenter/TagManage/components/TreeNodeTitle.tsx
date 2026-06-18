@@ -213,9 +213,9 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
               </Tooltip>
               <Tooltip title="删除">
                 <Button
-                  danger
                   type="text"
                   size="small"
+                  className="tag-tree-node-delete-button"
                   aria-label="删除"
                   icon={<DeleteOutlined />}
                   onClick={(e) => onDelete(nodeData, e)}
