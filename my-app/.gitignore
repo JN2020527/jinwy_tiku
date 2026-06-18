@@ -39,6 +39,9 @@ pnpm-debug.log*
 /.turbo
 *.tsbuildinfo
 
+# temporary local artifacts
+/tmp
+
 # local agent / tooling state
 /.agents
 /.claude
