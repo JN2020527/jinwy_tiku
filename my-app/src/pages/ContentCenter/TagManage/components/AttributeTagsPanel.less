@@ -46,7 +46,8 @@
 }
 
 .attribute-settings-toolbar-filters,
-.attribute-category-target-filter {
+.attribute-category-target-filter,
+.node-attribute-target-filter {
   display: inline-flex;
   flex: 1 1 auto;
   min-width: 0;
@@ -96,7 +97,8 @@
   }
 }
 
-.attribute-category-target-filter {
+.attribute-category-target-filter,
+.node-attribute-target-filter {
   display: block;
   flex: 0 0 auto;
   padding: 10px 10px 12px;
@@ -104,28 +106,33 @@
   background: #fff;
 }
 
-.attribute-category-target-filter .ant-segmented {
+.attribute-category-target-filter .ant-segmented,
+.node-attribute-target-filter .ant-segmented {
   width: 100%;
   border: 1px solid @attribute-border;
   background: #f7f9fc;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 84%);
 }
 
-.attribute-category-target-filter .ant-segmented-item {
+.attribute-category-target-filter .ant-segmented-item,
+.node-attribute-target-filter .ant-segmented-item {
   min-width: 0;
   color: #5d6d84;
 }
 
-.attribute-category-target-filter .ant-segmented-thumb {
+.attribute-category-target-filter .ant-segmented-thumb,
+.node-attribute-target-filter .ant-segmented-thumb {
   box-shadow: inset 0 0 0 1px #c9ddff, 0 2px 6px rgb(31 111 235 / 8%);
 }
 
-.attribute-category-target-filter .ant-segmented-item-selected {
+.attribute-category-target-filter .ant-segmented-item-selected,
+.node-attribute-target-filter .ant-segmented-item-selected {
   color: @attribute-blue;
   box-shadow: inset 0 0 0 1px #c9ddff, 0 2px 6px rgb(31 111 235 / 8%);
 }
 
-.attribute-category-target-filter .ant-segmented-item-label {
+.attribute-category-target-filter .ant-segmented-item-label,
+.node-attribute-target-filter .ant-segmented-item-label {
   padding: 0 10px;
   font-weight: 600;
 }
@@ -1278,12 +1285,20 @@
   padding: 12px;
 }
 
+.node-attribute-target-filter {
+  margin: -12px -12px 12px;
+}
+
 .node-attribute-list {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 8px;
   margin-top: 12px;
+}
+
+.node-attribute-target-filter + .node-attribute-list {
+  margin-top: 0;
 }
 
 .node-attribute-item {

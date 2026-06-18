@@ -527,15 +527,17 @@ const NodeAttributeRelationWorkspace: React.FC<
           </div>
         </div>
         <div className="node-attribute-panel-body">
-          <Segmented
-            block
-            aria-label="选择关联对象类型"
-            options={[...NODE_ATTRIBUTE_TARGET_OPTIONS]}
-            value={targetType}
-            onChange={(value) =>
-              setTargetType(value as NodeAttributeTargetType)
-            }
-          />
+          <div className="node-attribute-target-filter">
+            <Segmented
+              block
+              aria-label="选择关联对象类型"
+              options={[...NODE_ATTRIBUTE_TARGET_OPTIONS]}
+              value={targetType}
+              onChange={(value) =>
+                setTargetType(value as NodeAttributeTargetType)
+              }
+            />
+          </div>
           <div className="node-attribute-list">
             {categories.length ? (
               categories.map((category) => {
