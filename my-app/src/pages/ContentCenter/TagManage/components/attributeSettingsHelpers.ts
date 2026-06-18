@@ -6,7 +6,10 @@ import type {
   AttributeUsageScene,
   TagCategory,
 } from '@/services/tagSystem';
-import { USAGE_SCENE_OPTIONS } from './attributeSettingsConstants';
+import {
+  SUBJECT_OPTIONS,
+  USAGE_SCENE_OPTIONS,
+} from './attributeSettingsConstants';
 
 interface GetRulesForSceneOptions {
   enabledOnly?: boolean;
@@ -38,11 +41,30 @@ export const getOptionList = (category?: TagCategory, subject = 'math') => {
     return [];
   }
 
-  if (category.target === 'question' && category.optionAddMode === 'bySubject') {
+  if (
+    category.target === 'question' &&
+    category.optionAddMode === 'bySubject'
+  ) {
     return sortBySort(category.subjectTags?.[subject] || []);
   }
 
   return sortBySort(category.tags || []);
+};
+
+export const getApplicableSubjectOptions = (category?: TagCategory) => {
+  if (
+    !category ||
+    category.target !== 'question' ||
+    category.optionAddMode !== 'bySubject' ||
+    category.subjectScope !== 'specified'
+  ) {
+    return SUBJECT_OPTIONS;
+  }
+
+  const applicableSubjectSet = new Set(category.applicableSubjects || []);
+  return SUBJECT_OPTIONS.filter((subject) =>
+    applicableSubjectSet.has(subject.value),
+  );
 };
 
 export const withOptionList = (
@@ -52,7 +74,10 @@ export const withOptionList = (
 ): TagCategory => {
   const normalizedTags = normalizeOptionOrder(tags);
 
-  if (category.target === 'question' && category.optionAddMode === 'bySubject') {
+  if (
+    category.target === 'question' &&
+    category.optionAddMode === 'bySubject'
+  ) {
     return {
       ...category,
       subjectTags: {

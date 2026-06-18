@@ -10,8 +10,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { AttributeOptionFormValues } from './AttributeOptionModal';
 import AttributeOptionModal from './AttributeOptionModal';
 import AttributeStatusPill from './AttributeStatusPill';
-import { SUBJECT_OPTIONS } from './attributeSettingsConstants';
-import { getOptionList, reorder } from './attributeSettingsHelpers';
+import {
+  getApplicableSubjectOptions,
+  getOptionList,
+  reorder,
+} from './attributeSettingsHelpers';
 
 interface AttributeOptionPanelProps {
   category?: TagCategory;
@@ -45,17 +48,42 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
   const [dragOverOptionId, setDragOverOptionId] = useState<string>();
   const [editingOption, setEditingOption] = useState<AttributeItem>();
   const [optionModalOpen, setOptionModalOpen] = useState<boolean>(false);
+  const [optionNameError, setOptionNameError] = useState<string>();
 
   const options = useMemo(
     () => getOptionList(category, selectedSubject),
     [category, selectedSubject],
+  );
+  const applicableSubjectOptions = useMemo(
+    () => getApplicableSubjectOptions(category),
+    [category],
   );
   const showSubjectRange = shouldShowSubjectRange(category);
   const reordering = Boolean(reorderingOptionId);
 
   useEffect(() => {
     setOptionName('');
+    setOptionNameError(undefined);
   }, [category?.id, selectedSubject]);
+
+  useEffect(() => {
+    if (!showSubjectRange || !applicableSubjectOptions.length) {
+      return;
+    }
+
+    const selectedSubjectAvailable = applicableSubjectOptions.some(
+      (subject) => subject.value === selectedSubject,
+    );
+
+    if (!selectedSubjectAvailable) {
+      onSelectedSubjectChange(applicableSubjectOptions[0].value);
+    }
+  }, [
+    applicableSubjectOptions,
+    onSelectedSubjectChange,
+    selectedSubject,
+    showSubjectRange,
+  ]);
 
   const handleAddOption = async () => {
     if (adding) {
@@ -65,9 +93,11 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
     const name = optionName.trim();
 
     if (!name) {
+      setOptionNameError('请输入枚举值名称');
       return;
     }
 
+    setOptionNameError(undefined);
     setAdding(true);
     try {
       await onAddOption(name);
@@ -130,9 +160,50 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
       return;
     }
 
+    const dragPreview = event.currentTarget.closest(
+      '.attribute-option-item',
+    ) as HTMLElement | null;
+
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', option.id);
+    if (dragPreview) {
+      event.dataTransfer.setDragImage(
+        dragPreview,
+        24,
+        dragPreview.offsetHeight / 2,
+      );
+    }
     setDraggingOptionId(option.id);
+  };
+
+  const handleKeyboardReorder = async (
+    event: React.KeyboardEvent<HTMLElement>,
+    option: AttributeItem,
+    fromIndex: number,
+  ) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (reordering) {
+      return;
+    }
+
+    const toIndex = event.key === 'ArrowUp' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= options.length) {
+      return;
+    }
+
+    setReorderingOptionId(option.id);
+    try {
+      await onReorderOptions(reorder(options, fromIndex, toIndex));
+    } catch {
+      // Error feedback is owned by the workspace callback.
+    } finally {
+      setReorderingOptionId(undefined);
+    }
   };
 
   const handleDragOver = (
@@ -183,7 +254,7 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
       <main className="attribute-option-panel">
         <div className="attribute-panel-header">
           <div>
-            <div className="attribute-panel-title">枚举值</div>
+            <div className="attribute-panel-title">枚举值列表</div>
           </div>
         </div>
         <div className="attribute-workspace-empty">
@@ -198,15 +269,23 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
       <div className="attribute-option-workspace">
         <div className="attribute-option-toolbar">
           <div className="attribute-option-toolbar-heading">
-            <div className="attribute-option-toolbar-title">枚举值</div>
+            <div className="attribute-option-toolbar-title">枚举值列表</div>
           </div>
           <div className="attribute-option-create">
             <Space.Compact block>
               <Input
+                aria-label="枚举值名称"
+                autoComplete="off"
                 disabled={adding}
+                status={optionNameError ? 'error' : undefined}
                 value={optionName}
-                placeholder="输入枚举值名称"
-                onChange={(event) => setOptionName(event.target.value)}
+                placeholder="输入枚举值名称…"
+                onChange={(event) => {
+                  setOptionName(event.target.value);
+                  if (optionNameError) {
+                    setOptionNameError(undefined);
+                  }
+                }}
                 onPressEnter={() => {
                   if (!adding) {
                     void handleAddOption();
@@ -217,22 +296,23 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
                 type="primary"
                 icon={<PlusOutlined />}
                 loading={adding}
-                disabled={adding || !optionName.trim()}
+                disabled={adding}
                 onClick={handleAddOption}
               >
                 添加
               </Button>
             </Space.Compact>
+            <div className="attribute-option-create-error" aria-live="polite">
+              {optionNameError}
+            </div>
           </div>
         </div>
 
         {showSubjectRange && (
           <div className="attribute-subject-switcher">
-            <div className="attribute-option-subtitle">枚举值范围</div>
             <Segmented
-              block
               value={selectedSubject}
-              options={SUBJECT_OPTIONS}
+              options={applicableSubjectOptions}
               onChange={(value) => onSelectedSubjectChange(String(value))}
             />
           </div>
@@ -285,6 +365,9 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
                         loading={reorderingOptionId === option.id}
                         onDragStart={(event) => handleDragStart(event, option)}
                         onDragEnd={handleDragEnd}
+                        onKeyDown={(event) => {
+                          void handleKeyboardReorder(event, option, index);
+                        }}
                       />
                       <span className="attribute-option-sort">{index + 1}</span>
                     </span>
@@ -297,7 +380,7 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
                         type="text"
                         icon={<EditOutlined />}
                         title="编辑"
-                        aria-label="编辑"
+                        aria-label={`编辑${option.name}`}
                         className="attribute-option-edit-button"
                         onClick={() => openEditOptionModal(option)}
                       />
@@ -305,7 +388,7 @@ const AttributeOptionPanel: React.FC<AttributeOptionPanelProps> = ({
                         type="text"
                         icon={<DeleteOutlined />}
                         title="删除"
-                        aria-label="删除"
+                        aria-label={`删除${option.name}`}
                         className="attribute-option-delete-button"
                         onClick={() => confirmDeleteOption(option)}
                       />

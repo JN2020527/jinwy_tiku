@@ -15,6 +15,7 @@ interface MockAttributeItem {
 type AttributeStatus = 'enabled' | 'disabled';
 type AttributeTarget = 'paper' | 'question' | 'knowledge' | 'topic';
 type AttributeOptionAddMode = 'unified' | 'bySubject';
+type AttributeSubjectScope = 'all' | 'specified';
 type AttributeFilterArea = 'primary' | 'more';
 type AttributeUsageScene =
   | 'paperUpload'
@@ -57,6 +58,8 @@ interface MockTagCategory {
   description?: string;
   target: AttributeTarget;
   optionAddMode?: AttributeOptionAddMode;
+  subjectScope?: AttributeSubjectScope;
+  applicableSubjects?: string[];
   subjectTags?: Partial<Record<string, MockAttributeItem[]>>;
   status?: AttributeStatus;
   sort?: number;
@@ -426,6 +429,8 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
     description: '用于标记试题主要考查的学科能力',
     target: 'question',
     optionAddMode: 'bySubject',
+    subjectScope: 'specified',
+    applicableSubjects: ['math', 'chinese'],
     status: 'enabled',
     sort: 1,
     selectionMode: 'multiple',
@@ -451,6 +456,8 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
     description: '用于标记试题对应的学科核心素养',
     target: 'question',
     optionAddMode: 'bySubject',
+    subjectScope: 'specified',
+    applicableSubjects: ['math', 'chinese'],
     status: 'enabled',
     sort: 2,
     selectionMode: 'multiple',
@@ -475,6 +482,8 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
     description: '用于标记不同学科的特色标签',
     target: 'question',
     optionAddMode: 'bySubject',
+    subjectScope: 'specified',
+    applicableSubjects: ['math', 'chinese'],
     status: 'enabled',
     sort: 3,
     selectionMode: 'multiple',
@@ -1087,6 +1096,7 @@ const normalizeCategoryOptionLists = (category: MockTagCategory) => {
 const cloneTagCategory = (category: MockTagCategory): MockTagCategory =>
   normalizeCategoryOptionLists({
     ...category,
+    applicableSubjects: [...(category.applicableSubjects || [])],
     tags: cloneAttributeItems(category.tags),
     subjectTags: cloneSubjectTags(category.subjectTags),
   });

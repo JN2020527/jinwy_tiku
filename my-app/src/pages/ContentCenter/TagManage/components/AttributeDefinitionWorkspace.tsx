@@ -1,6 +1,7 @@
 import type {
   AttributeItem,
   AttributeOptionAddMode,
+  AttributeSubjectScope,
   AttributeTarget,
   TagCategory,
 } from '@/services/tagSystem';
@@ -12,15 +13,13 @@ import {
   updateAttribute,
   updateTagCategory,
 } from '@/services/tagSystem';
-import { PlusOutlined } from '@ant-design/icons';
-import { Button, Card, message, Modal, Segmented } from 'antd';
+import { Card, message, Modal } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import AttributeDefinitionList from './AttributeDefinitionList';
 import type { AttributeDefinitionFormValues } from './AttributeDefinitionModal';
 import AttributeDefinitionModal from './AttributeDefinitionModal';
 import type { AttributeOptionFormValues } from './AttributeOptionModal';
 import AttributeOptionPanel from './AttributeOptionPanel';
-import { ATTRIBUTE_TARGET_OPTIONS } from './attributeSettingsConstants';
 import { sortBySort, withOptionList } from './attributeSettingsHelpers';
 
 interface AttributeDefinitionWorkspaceProps {
@@ -37,6 +36,27 @@ const normalizeOptionAddMode = (
   target: AttributeTarget,
   optionAddMode?: AttributeOptionAddMode,
 ) => (target === 'question' ? optionAddMode || 'unified' : 'unified');
+
+const normalizeSubjectScope = (
+  target: AttributeTarget,
+  optionAddMode: AttributeOptionAddMode,
+  subjectScope?: AttributeSubjectScope,
+) =>
+  target === 'question' && optionAddMode === 'bySubject'
+    ? subjectScope || 'all'
+    : 'all';
+
+const normalizeApplicableSubjects = (
+  target: AttributeTarget,
+  optionAddMode: AttributeOptionAddMode,
+  subjectScope: AttributeSubjectScope,
+  applicableSubjects?: string[],
+) =>
+  target === 'question' &&
+  optionAddMode === 'bySubject' &&
+  subjectScope === 'specified'
+    ? applicableSubjects || []
+    : [];
 
 const getCategoryUpdatePayload = (
   category: TagCategory,
@@ -132,6 +152,17 @@ const AttributeDefinitionWorkspace: React.FC<
         ? selectedCategory.target
         : values.target;
     const optionAddMode = normalizeOptionAddMode(target, values.optionAddMode);
+    const subjectScope = normalizeSubjectScope(
+      target,
+      optionAddMode,
+      values.subjectScope,
+    );
+    const applicableSubjects = normalizeApplicableSubjects(
+      target,
+      optionAddMode,
+      subjectScope,
+      values.applicableSubjects,
+    );
 
     try {
       const res =
@@ -143,6 +174,8 @@ const AttributeDefinitionWorkspace: React.FC<
               target: selectedCategory.target,
               status: values.status,
               optionAddMode,
+              subjectScope,
+              applicableSubjects,
               tags: selectedCategory.tags || [],
               subjectTags: selectedCategory.subjectTags || {},
             })
@@ -151,6 +184,8 @@ const AttributeDefinitionWorkspace: React.FC<
               target,
               status: values.status,
               optionAddMode,
+              subjectScope,
+              applicableSubjects,
               sort: getNextSortForTarget(target),
               tags: [],
               subjectTags: {},
@@ -358,11 +393,22 @@ const AttributeDefinitionWorkspace: React.FC<
             selectedCategory.target,
             selectedCategory.optionAddMode,
           ),
+          subjectScope: normalizeSubjectScope(
+            selectedCategory.target,
+            normalizeOptionAddMode(
+              selectedCategory.target,
+              selectedCategory.optionAddMode,
+            ),
+            selectedCategory.subjectScope,
+          ),
+          applicableSubjects: selectedCategory.applicableSubjects || [],
           status: selectedCategory.status || 'enabled',
         }
       : {
           target: activeTarget,
           optionAddMode: 'unified',
+          subjectScope: 'all',
+          applicableSubjects: [],
           status: 'enabled',
         };
 
@@ -371,36 +417,15 @@ const AttributeDefinitionWorkspace: React.FC<
       <Card
         className="tag-system-tree-panel tag-system-tree-panel-no-title attribute-settings-panel"
         variant="borderless"
-        extra={
-          <div className="tag-system-tree-card-extra attribute-settings-card-extra">
-            <div className="attribute-settings-toolbar-filters">
-              <Segmented
-                aria-label="属性类型"
-                value={activeTarget}
-                options={ATTRIBUTE_TARGET_OPTIONS}
-                onChange={(value) => {
-                  onActiveTargetChange(value as AttributeTarget);
-                }}
-              />
-            </div>
-            <div className="tag-system-tree-actions">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                size="small"
-                onClick={openAddDefinitionModal}
-              >
-                新增属性
-              </Button>
-            </div>
-          </div>
-        }
       >
         <div className="attribute-tags-panel">
           <AttributeDefinitionList
+            activeTarget={activeTarget}
             activeCategoryId={activeCategoryId}
             categories={targetCategories}
+            onActiveTargetChange={onActiveTargetChange}
             onSelectCategory={setActiveCategoryId}
+            onAddCategory={openAddDefinitionModal}
             onEditCategory={openEditDefinitionModal}
             onDeleteCategory={handleDeleteCategory}
           />

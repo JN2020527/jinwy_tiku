@@ -82,12 +82,12 @@ export default [
       },
       {
         path: '/question-bank/tag-system/node-relations',
-        redirect: '/tag-system/node-relations',
+        redirect: '/tag-system/attribute-application?tab=node-relations',
         hideInMenu: true,
       },
       {
         path: '/question-bank/tag-system/tag-config',
-        redirect: '/tag-system/tag-config',
+        redirect: '/tag-system/attribute-application?tab=tag-config',
         hideInMenu: true,
       },
       {
@@ -153,14 +153,19 @@ export default [
         component: './ContentCenter/TagManage/Attributes',
       },
       {
+        path: '/tag-system/attribute-application',
+        name: '属性应用',
+        component: './ContentCenter/TagManage/AttributeApplication',
+      },
+      {
         path: '/tag-system/node-relations',
-        name: '节点关联',
-        component: './ContentCenter/TagManage/NodeRelations',
+        redirect: '/tag-system/attribute-application?tab=node-relations',
+        hideInMenu: true,
       },
       {
         path: '/tag-system/tag-config',
-        name: '标签配置',
-        component: './ContentCenter/TagManage/TagConfig',
+        redirect: '/tag-system/attribute-application?tab=tag-config',
+        hideInMenu: true,
       },
     ],
   },

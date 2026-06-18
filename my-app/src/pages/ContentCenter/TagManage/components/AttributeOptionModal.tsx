@@ -60,7 +60,7 @@ const AttributeOptionModal: React.FC<AttributeOptionModalProps> = ({
       <ProFormText
         name="name"
         label="枚举值名称"
-        placeholder="请输入枚举值名称"
+        placeholder="请输入枚举值名称…"
         rules={[
           { required: true, message: '请输入枚举值名称' },
           {

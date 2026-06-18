@@ -11,6 +11,7 @@ export interface ApiResponse<T> {
 export type AttributeStatus = 'enabled' | 'disabled';
 export type AttributeTarget = 'paper' | 'question' | 'knowledge' | 'topic';
 export type AttributeOptionAddMode = 'unified' | 'bySubject';
+export type AttributeSubjectScope = 'all' | 'specified';
 export type AttributeFilterArea = 'primary' | 'more';
 export type AttributeUsageScene =
   | 'paperUpload'
@@ -64,6 +65,8 @@ export interface TagCategory {
   description?: string;
   target: AttributeTarget;
   optionAddMode?: AttributeOptionAddMode;
+  subjectScope?: AttributeSubjectScope;
+  applicableSubjects?: string[];
   subjectTags?: Partial<Record<string, AttributeItem[]>>;
   status?: AttributeStatus;
   sort?: number;

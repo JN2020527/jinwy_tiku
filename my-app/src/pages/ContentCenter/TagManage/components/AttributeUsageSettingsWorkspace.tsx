@@ -603,13 +603,20 @@ const AttributeUsageSettingsWorkspace: React.FC<
     row: AttributeUsageRuleRow,
     scopeKey: string,
   ) => {
-    if (saving) {
+    const target = event.target as HTMLElement;
+
+    if (saving || target.closest('.attribute-usage-row-actions')) {
       event.preventDefault();
       return;
     }
 
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', row.rule.id);
+    event.dataTransfer.setDragImage(
+      event.currentTarget,
+      24,
+      event.currentTarget.getBoundingClientRect().height / 2,
+    );
     setDragState({
       ruleId: row.rule.id,
       scopeKey,
@@ -619,6 +626,36 @@ const AttributeUsageSettingsWorkspace: React.FC<
   const handleDragEnd = () => {
     setDragState(undefined);
     setDragOverRuleId(undefined);
+  };
+
+  const handleDragHandleKeyDown = async (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+    scopeRows: AttributeUsageRuleRow[],
+    scopeKey: string,
+  ) => {
+    if (saving) {
+      return;
+    }
+
+    const keyOffsetMap: Record<string, number> = {
+      ArrowDown: 1,
+      ArrowUp: -1,
+    };
+    const offset = keyOffsetMap[event.key];
+
+    if (!offset) {
+      return;
+    }
+
+    const nextIndex = index + offset;
+
+    if (nextIndex < 0 || nextIndex >= scopeRows.length) {
+      return;
+    }
+
+    event.preventDefault();
+    await handleReorder(scopeRows, index, nextIndex, scopeKey);
   };
 
   const handleDragOver = (
@@ -718,13 +755,17 @@ const AttributeUsageSettingsWorkspace: React.FC<
         ]
           .filter(Boolean)
           .join(' ')}
+        draggable={!saving}
         style={rowStyle}
+        title="拖拽调整排序"
         onDragLeave={() => {
           if (dragOverRuleId === row.rule.id) {
             setDragOverRuleId(undefined);
           }
         }}
+        onDragEnd={handleDragEnd}
         onDragOver={(event) => handleDragOver(event, row, scopeKey)}
+        onDragStart={(event) => handleDragStart(event, row, scopeKey)}
         onDrop={(event) => handleDropToIndex(event, scopeRows, index, scopeKey)}
       >
         <div
@@ -737,23 +778,22 @@ const AttributeUsageSettingsWorkspace: React.FC<
           }}
         >
           <span className="attribute-usage-row-leading">
-            <span
+            <button
               aria-label={`拖拽排序${row.category.name}`}
               className="attribute-usage-drag-handle"
-              draggable={!saving}
+              disabled={saving}
               title="拖拽排序"
-              onDragEnd={handleDragEnd}
-              onDragStart={(event) => handleDragStart(event, row, scopeKey)}
+              type="button"
+              onKeyDown={(event) =>
+                handleDragHandleKeyDown(event, index, scopeRows, scopeKey)
+              }
             >
               <HolderOutlined />
-            </span>
+            </button>
             <span className="attribute-usage-sort-index">{index + 1}</span>
           </span>
           <div className="attribute-usage-row-main">
-            <div
-              className="attribute-usage-row-name"
-              title={row.category.name}
-            >
+            <div className="attribute-usage-row-name" title={row.category.name}>
               {row.category.name}
             </div>
             <Space className="attribute-usage-row-tags" size={6}>
@@ -765,6 +805,7 @@ const AttributeUsageSettingsWorkspace: React.FC<
                 <Space size={6}>
                   <span style={{ color: '#667085', fontSize: 12 }}>必填</span>
                   <Switch
+                    aria-label={`设置${row.category.name}必填`}
                     checked={Boolean(row.rule.required)}
                     disabled={saving}
                     size="small"
@@ -778,24 +819,18 @@ const AttributeUsageSettingsWorkspace: React.FC<
           </div>
         </div>
 
-        <Space size={4}>
+        <Space className="attribute-usage-row-actions" size={4}>
           {sceneMeta.usageType === 'filter' && (
             <Button
               aria-label={`将${row.category.name}移动至${FILTER_AREA_LABELS[targetFilterArea]}`}
               className="attribute-usage-move-button"
               disabled={saving}
               icon={<SwapOutlined />}
-              loading={
-                savingKey === `move-${row.rule.id}-${targetFilterArea}`
-              }
+              loading={savingKey === `move-${row.rule.id}-${targetFilterArea}`}
               size="small"
               title={`移动至${FILTER_AREA_LABELS[targetFilterArea]}`}
               onClick={() =>
-                handleFilterAreaChange(
-                  row.rule,
-                  row.category,
-                  targetFilterArea,
-                )
+                handleFilterAreaChange(row.rule, row.category, targetFilterArea)
               }
             >
               {targetFilterAreaText}
@@ -848,17 +883,10 @@ const AttributeUsageSettingsWorkspace: React.FC<
   );
 
   return (
-    <div
-      className="attribute-usage-workbench"
-      style={{
-        display: 'grid',
-        gap: 16,
-        gridTemplateColumns: '220px minmax(0, 1fr) 280px',
-      }}
-    >
+    <div className="attribute-usage-workbench">
       <aside className="attribute-usage-scene-panel" style={panelStyle}>
         <header style={panelHeaderStyle}>
-          <h2 style={panelTitleStyle}>标签配置</h2>
+          <h2 style={panelTitleStyle}>应用场景</h2>
         </header>
 
         <Space direction="vertical" size={14} style={{ width: '100%' }}>

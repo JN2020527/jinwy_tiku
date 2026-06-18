@@ -1,14 +1,23 @@
-import type { TagCategory } from '@/services/tagSystem';
-import { DeleteOutlined, EditOutlined, TagsOutlined } from '@ant-design/icons';
-import { Button, Empty, Space } from 'antd';
+import type { AttributeTarget, TagCategory } from '@/services/tagSystem';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  TagsOutlined,
+} from '@ant-design/icons';
+import { Button, Empty, Segmented, Space } from 'antd';
 import React, { useMemo } from 'react';
 import AttributeStatusPill from './AttributeStatusPill';
+import { ATTRIBUTE_TARGET_OPTIONS } from './attributeSettingsConstants';
 import { sortBySort } from './attributeSettingsHelpers';
 
 interface AttributeDefinitionListProps {
+  activeTarget: AttributeTarget;
   activeCategoryId?: string;
   categories: TagCategory[];
+  onActiveTargetChange: (target: AttributeTarget) => void;
   onSelectCategory: (categoryId: string) => void;
+  onAddCategory: () => void;
   onEditCategory: (category: TagCategory) => void;
   onDeleteCategory: (category: TagCategory) => void;
 }
@@ -19,9 +28,12 @@ const getOptionModeText = (category: TagCategory) =>
     : '统一维护';
 
 const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
+  activeTarget,
   activeCategoryId,
   categories,
+  onActiveTargetChange,
   onSelectCategory,
+  onAddCategory,
   onEditCategory,
   onDeleteCategory,
 }) => {
@@ -30,7 +42,26 @@ const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
   return (
     <aside className="attribute-category-panel">
       <div className="attribute-panel-header">
-        <div className="attribute-panel-title">属性</div>
+        <div className="attribute-panel-title">属性列表</div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          className="attribute-header-add-button"
+          onClick={onAddCategory}
+        >
+          新增属性
+        </Button>
+      </div>
+      <div className="attribute-category-target-filter">
+        <Segmented
+          block
+          aria-label="属性类型"
+          value={activeTarget}
+          options={ATTRIBUTE_TARGET_OPTIONS}
+          onChange={(value) => {
+            onActiveTargetChange(value as AttributeTarget);
+          }}
+        />
       </div>
       <div className="attribute-category-list">
         {sortedCategories.length ? (
@@ -50,6 +81,7 @@ const AttributeDefinitionList: React.FC<AttributeDefinitionListProps> = ({
                   <button
                     type="button"
                     className="attribute-category-trigger"
+                    aria-pressed={active}
                     onClick={() => onSelectCategory(category.id)}
                   >
                     <span className="attribute-category-icon">
