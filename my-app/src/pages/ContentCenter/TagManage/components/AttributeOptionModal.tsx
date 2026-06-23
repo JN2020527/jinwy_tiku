@@ -55,10 +55,13 @@ const AttributeOptionModal: React.FC<AttributeOptionModalProps> = ({
       key={option?.id || 'attribute-option'}
       title="编辑枚举值"
       open={open}
-      width={480}
+      width={620}
       layout="vertical"
       initialValues={formInitialValues}
-      modalProps={{ destroyOnClose: true }}
+      modalProps={{
+        destroyOnClose: true,
+        className: 'attribute-definition-modal',
+      }}
       onOpenChange={onOpenChange}
       onFinish={async (values) =>
         onFinish({
@@ -68,35 +71,48 @@ const AttributeOptionModal: React.FC<AttributeOptionModalProps> = ({
         })
       }
     >
-      <ProFormText
-        name="name"
-        label="枚举值名称"
-        placeholder="请输入枚举值名称…"
-        rules={[
-          { required: true, message: '请输入枚举值名称' },
-          {
-            validator: async (_, value?: string) => {
-              if (value?.trim()) {
-                return;
-              }
+      <div className="attribute-definition-form">
+        <div className="attribute-definition-basic-grid">
+          <ProFormText
+            className="attribute-definition-full-field"
+            name="name"
+            label="枚举值名称"
+            placeholder="请输入枚举值名称…"
+            rules={[
+              { required: true, message: '请输入枚举值名称' },
+              {
+                validator: async (_, value?: string) => {
+                  if (value?.trim()) {
+                    return;
+                  }
 
-              throw new Error('请输入枚举值名称');
-            },
-          },
-        ]}
-      />
-      <ProFormRadio.Group
-        name="status"
-        label="启用状态"
-        options={ATTRIBUTE_OPTION_STATUS_OPTIONS}
-        rules={[{ required: true, message: '请选择启用状态' }]}
-      />
-      <ProFormRadio.Group
-        name="frontVisible"
-        label="前台是否展示"
-        options={ATTRIBUTE_OPTION_FRONT_VISIBLE_OPTIONS}
-        rules={[{ required: true, message: '请选择前台是否展示' }]}
-      />
+                  throw new Error('请输入枚举值名称');
+                },
+              },
+            ]}
+          />
+          <ProFormRadio.Group
+            name="status"
+            label="启用状态"
+            radioType="button"
+            fieldProps={{
+              className: 'attribute-definition-status-radio',
+            }}
+            options={ATTRIBUTE_OPTION_STATUS_OPTIONS}
+            rules={[{ required: true, message: '请选择启用状态' }]}
+          />
+          <ProFormRadio.Group
+            name="frontVisible"
+            label="前台是否展示"
+            radioType="button"
+            fieldProps={{
+              className: 'attribute-definition-front-radio',
+            }}
+            options={ATTRIBUTE_OPTION_FRONT_VISIBLE_OPTIONS}
+            rules={[{ required: true, message: '请选择前台是否展示' }]}
+          />
+        </div>
+      </div>
     </ModalForm>
   );
 };
