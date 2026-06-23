@@ -47,6 +47,7 @@ const TopicTagPage: React.FC = () => {
         await Promise.all([
           getKnowledgeTree({
             subject: selectedSubject,
+            targetType: 'topic',
           }),
           getTagCategories(),
           getAttributeUsageRules(),

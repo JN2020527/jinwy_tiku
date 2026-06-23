@@ -342,7 +342,7 @@ const NodeAttributeRelationWorkspace: React.FC<
     try {
       if (targetType === 'knowledge') {
         if (isMiddleExamGrade) {
-          const res = await getKnowledgeTree({ subject });
+          const res = await getKnowledgeTree({ subject, targetType });
           if (treeRequestRef.current !== requestId) {
             return;
           }
@@ -383,7 +383,7 @@ const NodeAttributeRelationWorkspace: React.FC<
         return;
       }
 
-      const res = await getKnowledgeTree({ subject });
+      const res = await getKnowledgeTree({ subject, targetType });
       if (treeRequestRef.current !== requestId) {
         return;
       }

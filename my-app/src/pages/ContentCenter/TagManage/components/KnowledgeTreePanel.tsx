@@ -1,18 +1,25 @@
 import type {
   AttributeUsageRule,
+  KnowledgeNode,
   NodeAttributeRelation,
   TagCategory,
   TextbookChapter,
+  TextbookVersion,
 } from '@/services/tagSystem';
 import {
+  addKnowledgeNode,
   addTextbookChapter,
+  deleteKnowledgeNode,
   deleteTextbookChapter,
   getAttributeUsageRules,
+  getKnowledgeTree,
   getNodeAttributeRelations,
   getTagCategories,
   getTextbookChapters,
   getTextbookVersions,
+  moveKnowledgeNode,
   moveTextbookChapter,
+  updateKnowledgeNode,
   updateTextbookChapter,
 } from '@/services/tagSystem';
 import { HolderOutlined, SearchOutlined } from '@ant-design/icons';
@@ -41,6 +48,12 @@ import {
   getOptionMap,
 } from './nodeAttributeRelationHelpers';
 import './TagSystemTreePanel.less';
+import {
+  getTreeFilterOptionLabel,
+  KNOWLEDGE_TREE_CONTEXT_OPTIONS,
+  MIDDLE_EXAM_TREE_VALUE,
+  SEMESTER_OPTIONS,
+} from './treeFilterConstants';
 import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
@@ -72,82 +85,168 @@ interface InlineEditState {
 
 const createDraftNodeKey = () => `draft-${Date.now()}`;
 
+const filterTextbookChaptersByContext = (
+  nodes: TreeNodeData[],
+  treeContext: string,
+  semester: string,
+) => {
+  const gradeLabel = getTreeFilterOptionLabel(
+    KNOWLEDGE_TREE_CONTEXT_OPTIONS,
+    treeContext,
+  );
+  const semesterLabel = getTreeFilterOptionLabel(SEMESTER_OPTIONS, semester);
+
+  return nodes.filter((node) => {
+    const title = String(node.title || '');
+    return (
+      title.includes(gradeLabel) &&
+      (!semesterLabel || title.includes(semesterLabel))
+    );
+  });
+};
+
 const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   selectedSubject,
   subjectOptions,
   onSubjectChange,
 }) => {
-  const [selectedVersion, setSelectedVersion] = useState<string>('');
-  const [chapterTree, setChapterTree] = useState<TextbookChapter[]>([]);
+  const [selectedTreeContext, setSelectedTreeContext] = useState<string>(
+    MIDDLE_EXAM_TREE_VALUE,
+  );
+  const [selectedSemester, setSelectedSemester] = useState<string>('upper');
+  const [textbookVersions, setTextbookVersions] = useState<TextbookVersion[]>(
+    [],
+  );
+  const [selectedTextbookVersion, setSelectedTextbookVersion] =
+    useState<string>();
+  const [knowledgeTree, setKnowledgeTree] = useState<
+    (KnowledgeNode | TextbookChapter)[]
+  >([]);
   const [tagCategories, setTagCategories] = useState<TagCategory[]>([]);
   const [usageRules, setUsageRules] = useState<AttributeUsageRule[]>([]);
   const [nodeRelations, setNodeRelations] = useState<NodeAttributeRelation[]>(
     [],
   );
-  const chapterRequestIdRef = useRef(0);
+  const treeRequestIdRef = useRef(0);
+  const versionsRequestIdRef = useRef(0);
   const nodeRelationMetaRequestIdRef = useRef(0);
-  const chapterTreeData = chapterTree as unknown as TreeNodeData[];
+  const knowledgeTreeData = knowledgeTree as unknown as TreeNodeData[];
   const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
   const [arrangeMode, setArrangeMode] = useState(false);
-  const displayChapterTree = useMemo(() => {
+  const isMiddleExamContext = selectedTreeContext === MIDDLE_EXAM_TREE_VALUE;
+  const isSyncContext = !isMiddleExamContext;
+  const displayKnowledgeTree = useMemo(() => {
     if (!inlineEdit || inlineEdit.mode !== 'add') {
-      return chapterTreeData;
+      return knowledgeTreeData;
     }
     return appendTreeNode(
-      chapterTreeData,
+      knowledgeTreeData,
       {
         key: inlineEdit.key,
         title: inlineEdit.initialValue,
       },
       inlineEdit.parentKey,
     );
-  }, [chapterTreeData, inlineEdit]);
-  const textbookSearch = useTreeSearch(
-    displayChapterTree as unknown as TreeNodeData[],
-  );
+  }, [inlineEdit, knowledgeTreeData]);
+  const knowledgeSearch = useTreeSearch(displayKnowledgeTree);
 
   useEffect(() => {
-    const fetchVersions = async () => {
-      try {
-        const versionRes = await getTextbookVersions();
-        if (versionRes.success) {
-          if (versionRes.data.length > 0) {
-            setSelectedVersion(versionRes.data[0].value);
-          }
-        }
-      } catch {
-        message.error('获取知识体系失败');
-      }
-    };
-    fetchVersions();
-  }, []);
+    const requestId = (versionsRequestIdRef.current += 1);
 
-  const fetchChapters = useCallback(async () => {
-    const requestId = (chapterRequestIdRef.current += 1);
-
-    if (!selectedVersion) {
-      setChapterTree([]);
+    if (!isSyncContext) {
+      setTextbookVersions([]);
+      setSelectedTextbookVersion(undefined);
       return;
     }
 
+    const fetchVersions = async () => {
+      try {
+        const res = await getTextbookVersions();
+        if (versionsRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        if (!res.success) {
+          message.error(res.message || '获取教材版本失败');
+          return;
+        }
+
+        setTextbookVersions(res.data);
+        setSelectedTextbookVersion((current) =>
+          current && res.data.some((version) => version.value === current)
+            ? current
+            : res.data[0]?.value,
+        );
+      } catch {
+        if (versionsRequestIdRef.current === requestId) {
+          message.error('获取教材版本失败');
+        }
+      }
+    };
+
+    void fetchVersions();
+  }, [isSyncContext]);
+
+  const fetchKnowledgeTree = useCallback(async () => {
+    const requestId = (treeRequestIdRef.current += 1);
+
     try {
-      const res = await getTextbookChapters(selectedVersion, selectedSubject);
-      if (chapterRequestIdRef.current !== requestId) {
+      if (isSyncContext) {
+        if (!selectedTextbookVersion) {
+          setKnowledgeTree([]);
+          return;
+        }
+
+        const res = await getTextbookChapters(
+          selectedTextbookVersion,
+          selectedSubject,
+        );
+        if (treeRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        if (res.success) {
+          setKnowledgeTree(
+            filterTextbookChaptersByContext(
+              res.data as unknown as TreeNodeData[],
+              selectedTreeContext,
+              selectedSemester,
+            ) as unknown as TextbookChapter[],
+          );
+        } else {
+          message.error(res.message || '获取知识体系失败');
+        }
+        return;
+      }
+
+      const res = await getKnowledgeTree({
+        subject: selectedSubject,
+        targetType: 'knowledge',
+      });
+      if (treeRequestIdRef.current !== requestId) {
         return;
       }
       if (res.success) {
-        setChapterTree(res.data);
+        setKnowledgeTree(res.data);
+      } else {
+        message.error(res.message || '获取知识体系失败');
       }
     } catch {
-      if (chapterRequestIdRef.current === requestId) {
+      if (treeRequestIdRef.current === requestId) {
         message.error('获取知识体系失败');
       }
     }
-  }, [selectedSubject, selectedVersion]);
+  }, [
+    isSyncContext,
+    selectedSemester,
+    selectedSubject,
+    selectedTextbookVersion,
+    selectedTreeContext,
+  ]);
 
   useEffect(() => {
-    fetchChapters();
-  }, [fetchChapters]);
+    void fetchKnowledgeTree();
+  }, [fetchKnowledgeTree]);
 
   const fetchNodeRelationMeta = useCallback(async () => {
     const requestId = (nodeRelationMetaRequestIdRef.current += 1);
@@ -249,7 +348,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     [categoryMap, displayAttributeIds, optionMap, relationMapByNode],
   );
 
-  const handleAddTextbookRoot = () => {
+  const handleAddRoot = () => {
     setInlineEdit({
       key: createDraftNodeKey(),
       mode: 'add',
@@ -263,7 +362,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     setArrangeMode((value) => !value);
   };
 
-  const handleAddTextbookChild = (node: TreeNodeData, e: React.MouseEvent) => {
+  const handleAddChild = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
     setInlineEdit({
       key: createDraftNodeKey(),
@@ -273,7 +372,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     });
   };
 
-  const handleEditTextbook = (node: TreeNodeData, e: React.MouseEvent) => {
+  const handleEdit = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
     setInlineEdit({
       key: node.key,
@@ -283,19 +382,29 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     });
   };
 
-  const handleDeleteTextbook = (node: TreeNodeData, e: React.MouseEvent) => {
+  const handleDelete = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isSyncContext && !selectedTextbookVersion) {
+      message.warning('请选择教材版本');
+      return;
+    }
     Modal.confirm({
       title: '确认删除',
       content: `确定要删除知识节点 "${node.title}" 吗？`,
       onOk: async () => {
-        const res = await deleteTextbookChapter(String(node.key), {
-          version: selectedVersion,
-          subject: selectedSubject,
-        });
+        const res =
+          isSyncContext && selectedTextbookVersion
+            ? await deleteTextbookChapter(String(node.key), {
+                version: selectedTextbookVersion,
+                subject: selectedSubject,
+              })
+            : await deleteKnowledgeNode(String(node.key), {
+                subject: selectedSubject,
+                targetType: 'knowledge',
+              });
         if (res.success) {
           message.success('删除成功');
-          fetchChapters();
+          fetchKnowledgeTree();
         } else {
           message.error('删除失败');
         }
@@ -303,28 +412,41 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     });
   };
 
-  const allowTextbookDrop = useCallback<NonNullable<TreeProps['allowDrop']>>(
+  const allowKnowledgeDrop = useCallback<NonNullable<TreeProps['allowDrop']>>(
     ({ dragNode, dropNode }) =>
-      allowCrossParentTreeDrop(chapterTreeData, dragNode.key, dropNode.key),
-    [chapterTreeData],
+      allowCrossParentTreeDrop(knowledgeTreeData, dragNode.key, dropNode.key),
+    [knowledgeTreeData],
   );
 
-  const handleDropTextbook: TreeProps['onDrop'] = async (info) => {
-    if (!arrangeMode || !selectedVersion) return;
+  const handleDrop: TreeProps['onDrop'] = async (info) => {
+    if (!arrangeMode) return;
+    if (isSyncContext && !selectedTextbookVersion) {
+      message.warning('请选择教材版本');
+      return;
+    }
 
-    const moveRequest = getTreeMoveRequest(chapterTreeData, info);
+    const moveRequest = getTreeMoveRequest(knowledgeTreeData, info);
 
-    const res = await moveTextbookChapter({
-      id: String(info.dragNode.key),
-      targetId: String(moveRequest.targetId),
-      position: moveRequest.position,
-      version: selectedVersion,
-      subject: selectedSubject,
-    });
+    const res =
+      isSyncContext && selectedTextbookVersion
+        ? await moveTextbookChapter({
+            id: String(info.dragNode.key),
+            targetId: String(moveRequest.targetId),
+            position: moveRequest.position,
+            version: selectedTextbookVersion,
+            subject: selectedSubject,
+          })
+        : await moveKnowledgeNode({
+            id: String(info.dragNode.key),
+            targetId: String(moveRequest.targetId),
+            position: moveRequest.position,
+            subject: selectedSubject,
+            targetType: 'knowledge',
+          });
 
     if (res.success) {
       message.success('移动成功');
-      fetchChapters();
+      fetchKnowledgeTree();
     } else {
       message.error(res.message || '移动失败');
     }
@@ -340,30 +462,51 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
       message.warning('请输入知识节点名称');
       return;
     }
+    if (isSyncContext && !selectedTextbookVersion) {
+      message.warning('请选择教材版本');
+      return;
+    }
 
     setInlineEdit({ ...inlineEdit, saving: true });
     const res =
-      inlineEdit.mode === 'add'
-        ? await addTextbookChapter({
+      isSyncContext && selectedTextbookVersion
+        ? inlineEdit.mode === 'add'
+          ? await addTextbookChapter({
+              title,
+              parentId: inlineEdit.parentKey
+                ? String(inlineEdit.parentKey)
+                : null,
+              version: selectedTextbookVersion,
+              subject: selectedSubject,
+            })
+          : await updateTextbookChapter({
+              id: String(inlineEdit.key),
+              title,
+              version: selectedTextbookVersion,
+              subject: selectedSubject,
+              description: inlineEdit.description,
+            })
+        : inlineEdit.mode === 'add'
+        ? await addKnowledgeNode({
             title,
             parentId: inlineEdit.parentKey
               ? String(inlineEdit.parentKey)
               : null,
-            version: selectedVersion,
             subject: selectedSubject,
+            targetType: 'knowledge',
           })
-        : await updateTextbookChapter({
+        : await updateKnowledgeNode({
             id: String(inlineEdit.key),
             title,
-            version: selectedVersion,
             subject: selectedSubject,
+            targetType: 'knowledge',
             description: inlineEdit.description,
           });
 
     if (res.success) {
       message.success(inlineEdit.mode === 'add' ? '添加成功' : '修改成功');
       setInlineEdit(null);
-      fetchChapters();
+      fetchKnowledgeTree();
     } else {
       message.error(res.message || '保存失败');
       setInlineEdit({ ...inlineEdit, saving: false });
@@ -381,16 +524,46 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
           <div className="tag-system-tree-card-extra">
             {arrangeMode ? null : (
               <div className="tag-system-tree-toolbar-filters">
-                <div className="tag-system-tree-subject-filter">
-                  <span className="tag-system-tree-subject-label">学科</span>
+                <div
+                  className={`tag-system-tree-context-filters${
+                    isSyncContext
+                      ? ' tag-system-tree-context-filters-sync'
+                      : ''
+                  }`}
+                >
                   <Select
-                    size="small"
+                    value={selectedTreeContext}
+                    onChange={setSelectedTreeContext}
+                    className="tag-system-tree-filter-select"
+                    options={KNOWLEDGE_TREE_CONTEXT_OPTIONS}
+                    aria-label="选择体系"
+                  />
+                  {isSyncContext ? (
+                    <Select
+                      value={selectedSemester}
+                      onChange={setSelectedSemester}
+                      className="tag-system-tree-filter-select"
+                      options={SEMESTER_OPTIONS}
+                      aria-label="选择学期"
+                    />
+                  ) : null}
+                  <Select
                     value={selectedSubject}
                     onChange={onSubjectChange}
-                    className="tag-system-tree-subject-select"
+                    className="tag-system-tree-filter-select"
                     options={subjectOptions}
                     aria-label="选择学科"
                   />
+                  {isSyncContext ? (
+                    <Select
+                      value={selectedTextbookVersion}
+                      onChange={setSelectedTextbookVersion}
+                      className="tag-system-tree-version-select"
+                      options={textbookVersions}
+                      placeholder="教材版本"
+                      aria-label="选择教材版本"
+                    />
+                  ) : null}
                 </div>
                 <Input
                   className="tag-system-tree-search"
@@ -405,8 +578,8 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
                   aria-label="搜索知识节点"
                   allowClear
                   placeholder="搜索知识节点…"
-                  value={textbookSearch.searchValue}
-                  onChange={textbookSearch.onSearch}
+                  value={knowledgeSearch.searchValue}
+                  onChange={knowledgeSearch.onSearch}
                 />
               </div>
             )}
@@ -422,8 +595,8 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
                 <Button
                   type="primary"
                   size="small"
-                  onClick={handleAddTextbookRoot}
-                  disabled={!selectedVersion}
+                  onClick={handleAddRoot}
+                  disabled={isSyncContext && !selectedTextbookVersion}
                 >
                   添加根节点
                 </Button>
@@ -432,13 +605,15 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
           </div>
         }
       >
-        {displayChapterTree.length > 0 ? (
+        {displayKnowledgeTree.length > 0 ? (
           <Tree
-            key={selectedSubject}
-            treeData={displayChapterTree}
-            onExpand={textbookSearch.onExpand}
-            expandedKeys={textbookSearch.expandedKeys}
-            autoExpandParent={textbookSearch.autoExpandParent}
+            key={`${selectedTreeContext}-${selectedSemester}-${selectedSubject}-${
+              selectedTextbookVersion || 'middle-exam'
+            }`}
+            treeData={displayKnowledgeTree}
+            onExpand={knowledgeSearch.onExpand}
+            expandedKeys={knowledgeSearch.expandedKeys}
+            autoExpandParent={knowledgeSearch.autoExpandParent}
             draggable={
               arrangeMode
                 ? {
@@ -450,14 +625,14 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
                   }
                 : undefined
             }
-            allowDrop={arrangeMode ? allowTextbookDrop : undefined}
-            onDrop={arrangeMode ? handleDropTextbook : undefined}
+            allowDrop={arrangeMode ? allowKnowledgeDrop : undefined}
+            onDrop={arrangeMode ? handleDrop : undefined}
             showLine
             blockNode
             titleRender={(node: TreeNodeData) => (
               <TreeNodeTitle
                 nodeData={node}
-                searchValue={textbookSearch.searchValue}
+                searchValue={knowledgeSearch.searchValue}
                 inlineEdit={
                   inlineEdit?.key === node.key
                     ? {
@@ -471,9 +646,9 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
                 }
                 actionsVisible={!arrangeMode}
                 meta={renderNodeRelationMeta(node.key)}
-                onAddChild={handleAddTextbookChild}
-                onEdit={handleEditTextbook}
-                onDelete={handleDeleteTextbook}
+                onAddChild={handleAddChild}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
               />
             )}
             fieldNames={{

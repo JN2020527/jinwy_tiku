@@ -79,6 +79,7 @@ interface MockNodeAttributeRelation {
 
 interface KnowledgeContext {
   subject: string;
+  targetType: NodeAttributeTargetType;
 }
 
 interface QuestionTypeContext {
@@ -581,6 +582,7 @@ const defaultTagCategoryTemplates: MockTagCategory[] = [
 
 const DEFAULT_KNOWLEDGE_CONTEXT: KnowledgeContext = {
   subject: 'math',
+  targetType: 'knowledge',
 };
 
 const DEFAULT_SUBJECT = 'math';
@@ -592,10 +594,18 @@ const normalizeQueryValue = (value: unknown, fallback: string) => {
   return typeof value === 'string' && value ? value : fallback;
 };
 
+const normalizeNodeAttributeTargetType = (
+  value: unknown,
+): NodeAttributeTargetType =>
+  value === 'topic' || value === 'knowledge' ? value : 'knowledge';
+
 const getKnowledgeContext = (req: Request): KnowledgeContext => ({
   subject: normalizeQueryValue(
     req.body?.subject ?? req.query.subject,
     DEFAULT_KNOWLEDGE_CONTEXT.subject,
+  ),
+  targetType: normalizeNodeAttributeTargetType(
+    req.body?.targetType ?? req.query.targetType,
   ),
 });
 
@@ -607,6 +617,9 @@ const getQuestionTypeContext = (req: Request): QuestionTypeContext => ({
 });
 
 const getKnowledgeContextKey = ({ subject }: KnowledgeContext) => subject;
+
+const getKnowledgeStoreKey = ({ subject, targetType }: KnowledgeContext) =>
+  `${targetType}-${subject}`;
 
 const getQuestionTypeContextKey = ({ subject }: QuestionTypeContext) => subject;
 
@@ -752,14 +765,14 @@ const applyKnowledgeScope = (
 const knowledgeTreeStore: Record<string, MockKnowledgeNode[]> = {};
 
 const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
-  const contextKey = getKnowledgeContextKey(context);
-  if (!knowledgeTreeStore[contextKey]) {
-    knowledgeTreeStore[contextKey] = applyKnowledgeScope(
+  const storeKey = getKnowledgeStoreKey(context);
+  if (!knowledgeTreeStore[storeKey]) {
+    knowledgeTreeStore[storeKey] = applyKnowledgeScope(
       defaultKnowledgePointTemplates,
       context,
     );
   }
-  return knowledgeTreeStore[contextKey];
+  return knowledgeTreeStore[storeKey];
 };
 
 const applyQuestionTypeScope = (
@@ -1333,10 +1346,10 @@ let attributeUsageRules: AttributeUsageRule[] = [
 
 let nodeAttributeRelationStore: MockNodeAttributeRelation[] = [
   {
-    id: 'rel-knowledge-math-rj-7-1-1-emphasis-key',
+    id: 'rel-knowledge-math-kp-1-emphasis-key',
     targetType: 'knowledge',
     subject: 'math',
-    nodeId: 'rj-7-1-1',
+    nodeId: 'kp-1-math',
     attributeId: 'cat-knowledge-emphasis',
     optionId: 'knowledge-emphasis-1',
     updatedAt: '2026-06-17T00:00:00.000Z',
@@ -1519,7 +1532,7 @@ export default {
     const { parentId, title, description } = req.body;
     const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
-    const contextKey = getKnowledgeContextKey(context);
+    const contextKey = getKnowledgeStoreKey(context);
     const nodeId = `kp-${contextKey}-${Date.now()}`;
     const newNode: MockKnowledgeNode = {
       id: nodeId,
@@ -1595,7 +1608,7 @@ export default {
     if (deleted) {
       removeNodeAttributeRelations(
         (relation) =>
-          relation.targetType === 'topic' &&
+          relation.targetType === context.targetType &&
           relation.subject === context.subject &&
           deletedNodeKeys.has(relation.nodeId),
       );

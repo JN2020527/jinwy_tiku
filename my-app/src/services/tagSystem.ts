@@ -119,7 +119,10 @@ export interface TextbookChapter {
 
 // --- Knowledge Tree ---
 
-export async function getKnowledgeTree(params?: { subject?: string }) {
+export async function getKnowledgeTree(params?: {
+  subject?: string;
+  targetType?: NodeAttributeTargetType;
+}) {
   return request<ApiResponse<KnowledgeNode[]>>('/api/tags/knowledge-tree', {
     method: 'GET',
     params,
@@ -172,6 +175,7 @@ export async function addKnowledgeNode(data: {
   title: string;
   parentId?: string | null;
   subject: string;
+  targetType?: NodeAttributeTargetType;
   description?: string;
 }) {
   return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
@@ -184,6 +188,7 @@ export async function updateKnowledgeNode(data: {
   id: string;
   title: string;
   subject?: string;
+  targetType?: NodeAttributeTargetType;
   description?: string;
 }) {
   return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
@@ -194,7 +199,7 @@ export async function updateKnowledgeNode(data: {
 
 export async function deleteKnowledgeNode(
   id: string,
-  params?: { subject?: string },
+  params?: { subject?: string; targetType?: NodeAttributeTargetType },
 ) {
   return request<ApiResponse<void>>('/api/tags/knowledge-node', {
     method: 'DELETE',
@@ -207,6 +212,7 @@ export async function moveKnowledgeNode(data: {
   targetId: string;
   position: TreeMovePosition;
   subject: string;
+  targetType?: NodeAttributeTargetType;
 }) {
   return request<ApiResponse<void>>('/api/tags/knowledge-node/move', {
     method: 'PUT',

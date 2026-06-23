@@ -30,6 +30,10 @@ import {
   getOptionMap,
 } from './nodeAttributeRelationHelpers';
 import './TagSystemTreePanel.less';
+import {
+  MIDDLE_EXAM_TREE_VALUE,
+  TREE_CONTEXT_OPTIONS,
+} from './treeFilterConstants';
 import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
@@ -76,8 +80,12 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   onSubjectChange,
   onRefresh,
 }) => {
+  const [selectedTreeContext, setSelectedTreeContext] = useState<string>(
+    MIDDLE_EXAM_TREE_VALUE,
+  );
   const tagContext = {
     subject: selectedSubject,
+    targetType: 'topic' as const,
   };
   const topicTreeData = topicTree as unknown as TreeNodeData[];
   const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
@@ -227,6 +235,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
       targetId: String(moveRequest.targetId),
       position: moveRequest.position,
       subject: selectedSubject,
+      targetType: 'topic',
     });
 
     if (res.success) {
@@ -257,11 +266,13 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
               ? String(inlineEdit.parentKey)
               : null,
             subject: selectedSubject,
+            targetType: 'topic',
           })
         : await updateKnowledgeNode({
             id: String(inlineEdit.key),
             title,
             subject: selectedSubject,
+            targetType: 'topic',
             description: inlineEdit.description,
           });
 
@@ -286,13 +297,18 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
           <div className="tag-system-tree-card-extra">
             {arrangeMode ? null : (
               <div className="tag-system-tree-toolbar-filters">
-                <div className="tag-system-tree-subject-filter">
-                  <span className="tag-system-tree-subject-label">学科</span>
+                <div className="tag-system-tree-context-filters">
                   <Select
-                    size="small"
+                    value={selectedTreeContext}
+                    onChange={setSelectedTreeContext}
+                    className="tag-system-tree-filter-select"
+                    options={TREE_CONTEXT_OPTIONS}
+                    aria-label="选择体系"
+                  />
+                  <Select
                     value={selectedSubject}
                     onChange={onSubjectChange}
-                    className="tag-system-tree-subject-select"
+                    className="tag-system-tree-filter-select"
                     options={subjectOptions}
                     aria-label="选择学科"
                   />
@@ -334,7 +350,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
       >
         {displayTopicTree.length > 0 ? (
           <Tree
-            key={selectedSubject}
+            key={`${selectedTreeContext}-${selectedSubject}`}
             treeData={displayTopicTree}
             onExpand={topicSearch.onExpand}
             expandedKeys={topicSearch.expandedKeys}
