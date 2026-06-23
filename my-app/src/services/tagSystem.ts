@@ -69,6 +69,7 @@ export interface TagCategory {
   applicableSubjects?: string[];
   subjectTags?: Partial<Record<string, AttributeItem[]>>;
   status?: AttributeStatus;
+  frontVisible?: boolean;
   sort?: number;
   selectionMode?: AttributeSelectionMode;
 }

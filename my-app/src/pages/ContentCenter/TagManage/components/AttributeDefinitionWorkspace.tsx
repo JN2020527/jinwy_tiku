@@ -173,6 +173,7 @@ const AttributeDefinitionWorkspace: React.FC<
               name: values.name,
               target: selectedCategory.target,
               status: values.status,
+              frontVisible: values.frontVisible ?? true,
               optionAddMode,
               subjectScope,
               applicableSubjects,
@@ -183,6 +184,7 @@ const AttributeDefinitionWorkspace: React.FC<
               name: values.name,
               target,
               status: values.status,
+              frontVisible: values.frontVisible ?? true,
               optionAddMode,
               subjectScope,
               applicableSubjects,
@@ -265,6 +267,7 @@ const AttributeDefinitionWorkspace: React.FC<
         name,
         subject: getSubjectForOptionMutation(selectedCategory),
         status: 'enabled',
+        frontVisible: true,
       });
 
       if (res.success) {
@@ -301,6 +304,7 @@ const AttributeDefinitionWorkspace: React.FC<
         subject: getSubjectForOptionMutation(selectedCategory),
         name: values.name,
         status: values.status,
+        frontVisible: values.frontVisible ?? true,
       });
 
       if (res.success) {
@@ -403,6 +407,7 @@ const AttributeDefinitionWorkspace: React.FC<
           ),
           applicableSubjects: selectedCategory.applicableSubjects || [],
           status: selectedCategory.status || 'enabled',
+          frontVisible: selectedCategory.frontVisible ?? true,
         }
       : {
           target: activeTarget,
@@ -410,6 +415,7 @@ const AttributeDefinitionWorkspace: React.FC<
           subjectScope: 'all',
           applicableSubjects: [],
           status: 'enabled',
+          frontVisible: true,
         };
 
   return (

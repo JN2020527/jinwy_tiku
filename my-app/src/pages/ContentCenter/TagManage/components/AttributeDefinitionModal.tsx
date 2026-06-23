@@ -24,6 +24,7 @@ export interface AttributeDefinitionFormValues {
   subjectScope?: AttributeSubjectScope;
   applicableSubjects?: string[];
   status: AttributeStatus;
+  frontVisible: boolean;
 }
 
 interface AttributeDefinitionModalProps {
@@ -41,6 +42,14 @@ const ATTRIBUTE_STATUS_OPTIONS: Array<{
 }> = [
   { label: '启用', value: 'enabled' },
   { label: '停用', value: 'disabled' },
+];
+
+const FRONT_VISIBLE_OPTIONS: Array<{
+  label: string;
+  value: boolean;
+}> = [
+  { label: '展示', value: true },
+  { label: '不展示', value: false },
 ];
 
 const OPTION_ADD_MODE_OPTIONS: Array<{
@@ -75,6 +84,7 @@ const AttributeDefinitionModal: React.FC<AttributeDefinitionModalProps> = ({
       subjectScope: initialValues?.subjectScope || 'all',
       applicableSubjects: initialValues?.applicableSubjects || [],
       status: initialValues?.status || 'enabled',
+      frontVisible: initialValues?.frontVisible ?? true,
     }),
     [activeTarget, initialValues],
   );
@@ -99,6 +109,7 @@ const AttributeDefinitionModal: React.FC<AttributeDefinitionModalProps> = ({
           optionAddMode: values.optionAddMode || 'unified',
           subjectScope: values.subjectScope || 'all',
           applicableSubjects: values.applicableSubjects || [],
+          frontVisible: values.frontVisible ?? true,
         })
       }
     >
@@ -138,6 +149,16 @@ const AttributeDefinitionModal: React.FC<AttributeDefinitionModalProps> = ({
             }}
             options={ATTRIBUTE_STATUS_OPTIONS}
             rules={[{ required: true, message: '请选择启用状态' }]}
+          />
+          <ProFormRadio.Group
+            name="frontVisible"
+            label="前台是否展示"
+            radioType="button"
+            fieldProps={{
+              className: 'attribute-definition-front-radio',
+            }}
+            options={FRONT_VISIBLE_OPTIONS}
+            rules={[{ required: true, message: '请选择前台是否展示' }]}
           />
         </div>
         <ProFormDependency name={['target']}>

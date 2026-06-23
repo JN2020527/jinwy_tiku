@@ -516,6 +516,7 @@ const NodeAttributeRelationWorkspace: React.FC<
   };
 
   const activeTargetLabel = NODE_ATTRIBUTE_TARGET_LABELS[targetType];
+  const activeTreeLabel = `${activeTargetLabel}树`;
   const treeLoading = loadingTree || loadingRelations;
 
   return (
@@ -579,9 +580,7 @@ const NodeAttributeRelationWorkspace: React.FC<
       <section className="node-attribute-panel node-attribute-option-panel">
         <div className="attribute-panel-header">
           <div>
-            <span className="attribute-panel-title">
-              {activeCategory?.name || '枚举值'}
-            </span>
+            <span className="attribute-panel-title">枚举值</span>
           </div>
         </div>
         <Spin spinning={loadingRelations}>
@@ -632,7 +631,7 @@ const NodeAttributeRelationWorkspace: React.FC<
       <section className="node-attribute-panel node-attribute-tree-panel">
         <div className="attribute-panel-header">
           <div>
-            <span className="attribute-panel-title">节点树</span>
+            <span className="attribute-panel-title">{activeTreeLabel}</span>
           </div>
         </div>
         <div

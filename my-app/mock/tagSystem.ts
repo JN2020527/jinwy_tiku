@@ -62,6 +62,7 @@ interface MockTagCategory {
   applicableSubjects?: string[];
   subjectTags?: Partial<Record<string, MockAttributeItem[]>>;
   status?: AttributeStatus;
+  frontVisible?: boolean;
   sort?: number;
   selectionMode?: AttributeSelectionMode;
 }
@@ -694,9 +695,14 @@ const normalizeQuestionTypeAnswerCardType = (
   );
 };
 
+const shouldQuestionTypeNeedAnswerArea = (
+  parentAnswerCardType?: QuestionTypeAnswerCardType,
+) => parentAnswerCardType !== 'objective';
+
 const normalizeQuestionTypeTreeSettings = (
   nodes: MockQuestionTypeNode[],
   level = 1,
+  parentAnswerCardType?: QuestionTypeAnswerCardType,
 ) => {
   nodes.forEach((node) => {
     if (level === 1) {
@@ -708,10 +714,18 @@ const normalizeQuestionTypeTreeSettings = (
       delete node.answerArea;
     } else {
       delete node.answerCardType;
-      node.answerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
+      if (shouldQuestionTypeNeedAnswerArea(parentAnswerCardType)) {
+        node.answerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
+      } else {
+        delete node.answerArea;
+      }
     }
     if (node.children?.length) {
-      normalizeQuestionTypeTreeSettings(node.children, level + 1);
+      normalizeQuestionTypeTreeSettings(
+        node.children,
+        level + 1,
+        node.answerCardType,
+      );
     }
   });
   return nodes;
@@ -752,6 +766,7 @@ const applyQuestionTypeScope = (
   nodes: QuestionTypeSeedNode[],
   context: QuestionTypeContext,
   level = 1,
+  parentAnswerCardType?: QuestionTypeAnswerCardType,
 ): MockQuestionTypeNode[] =>
   nodes.map((node) => {
     const key = `${context.subject}-${node.key}`;
@@ -760,9 +775,6 @@ const applyQuestionTypeScope = (
       key,
       subject: context.subject,
       description: node.description,
-      children: node.children
-        ? applyQuestionTypeScope(node.children, context, level + 1)
-        : undefined,
     };
 
     if (level === 1) {
@@ -772,7 +784,20 @@ const applyQuestionTypeScope = (
         key,
       );
     } else {
-      scopedNode.answerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
+      if (shouldQuestionTypeNeedAnswerArea(parentAnswerCardType)) {
+        scopedNode.answerArea = normalizeQuestionTypeAnswerArea(
+          node.answerArea,
+        );
+      }
+    }
+
+    if (node.children) {
+      scopedNode.children = applyQuestionTypeScope(
+        node.children,
+        context,
+        level + 1,
+        scopedNode.answerCardType || parentAnswerCardType,
+      );
     }
 
     return scopedNode;
@@ -1135,12 +1160,19 @@ const createMockAttributeItem = (
   tag: Partial<MockAttributeItem>,
   ownerKey: string,
   index: number,
-): MockAttributeItem => ({
-  ...tag,
-  id: tag.id || `tag-${ownerKey}-${Date.now()}-${index}`,
-  name: tag.name || '未命名枚举值',
-  color: tag.color || 'default',
-});
+): MockAttributeItem => {
+  const name = tag.name || '未命名枚举值';
+
+  return {
+    ...tag,
+    id: tag.id || `tag-${ownerKey}-${Date.now()}-${index}`,
+    name,
+    color: tag.color || 'default',
+    status: tag.status || 'enabled',
+    displayName: tag.displayName || name,
+    frontVisible: tag.frontVisible ?? true,
+  };
+};
 
 const createMockAttributeItems = (tags: unknown, ownerKey: string) =>
   Array.isArray(tags)
@@ -1410,6 +1442,7 @@ export default {
       target: categoryPayload.target || 'question',
       optionAddMode: categoryPayload.optionAddMode || 'unified',
       status: categoryPayload.status || 'enabled',
+      frontVisible: categoryPayload.frontVisible ?? true,
       sort: categoryPayload.sort ?? tagCategoryStore.length,
       tags: createMockAttributeItems(tags, categoryId),
       subjectTags: cloneSubjectTags(subjectTags),
@@ -1624,7 +1657,9 @@ export default {
       }
 
       if (!parentNode.children) parentNode.children = [];
-      newNode.answerArea = normalizeQuestionTypeAnswerArea(answerArea);
+      if (shouldQuestionTypeNeedAnswerArea(parentNode.answerCardType)) {
+        newNode.answerArea = normalizeQuestionTypeAnswerArea(answerArea);
+      }
       parentNode.children.push(newNode);
       added = true;
     } else {
@@ -1648,7 +1683,10 @@ export default {
     const context = getQuestionTypeContext(req);
     const scopedTree = getQuestionTypeTreeByContext(context);
     const updateLevel = getQuestionTypeNodeLevel(scopedTree, id);
-    const updateNode = (nodes: MockQuestionTypeNode[]) => {
+    const updateNode = (
+      nodes: MockQuestionTypeNode[],
+      parentNode?: MockQuestionTypeNode,
+    ) => {
       for (const node of nodes) {
         if (node.key === id) {
           node.title = title;
@@ -1662,14 +1700,18 @@ export default {
             delete node.answerArea;
           } else {
             delete node.answerCardType;
-            node.answerArea = normalizeQuestionTypeAnswerArea(
-              answerArea || node.answerArea,
-            );
+            if (shouldQuestionTypeNeedAnswerArea(parentNode?.answerCardType)) {
+              node.answerArea = normalizeQuestionTypeAnswerArea(
+                answerArea || node.answerArea,
+              );
+            } else {
+              delete node.answerArea;
+            }
           }
           return true;
         }
         if (node.children && node.children.length > 0) {
-          if (updateNode(node.children)) return true;
+          if (updateNode(node.children, node)) return true;
         }
       }
       return false;

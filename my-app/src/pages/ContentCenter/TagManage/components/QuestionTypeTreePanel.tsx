@@ -68,6 +68,7 @@ const MAX_LEVEL_ADD_WARNING = `题型最多支持 ${MAX_QUESTION_TYPE_LEVEL} 层
 
 interface QuestionTypeNodeMeta {
   parentKey: string | null;
+  parentAnswerCardType?: QuestionTypeAnswerCardType | null;
   level: number;
   previousKey: string | null;
   nextKey: string | null;
@@ -77,6 +78,7 @@ interface QuestionTypeFormValues {
   id?: React.Key;
   title?: string;
   parentId?: string | null;
+  parentName?: string;
   description?: string;
   answerCardType?: QuestionTypeAnswerCardType;
   answerAreaType?: AnswerAreaType;
@@ -88,20 +90,49 @@ const buildQuestionTypeNodeMetaMap = (
   parentKey: string | null = null,
   level = 1,
   map = new Map<string, QuestionTypeNodeMeta>(),
+  parentAnswerCardType: QuestionTypeAnswerCardType | null = null,
 ) => {
   nodes.forEach((node, index) => {
     const currentKey = String(node.key);
     map.set(currentKey, {
       parentKey,
+      parentAnswerCardType,
       level,
       previousKey: nodes[index - 1] ? String(nodes[index - 1].key) : null,
       nextKey: nodes[index + 1] ? String(nodes[index + 1].key) : null,
     });
     if (node.children?.length) {
-      buildQuestionTypeNodeMetaMap(node.children, currentKey, level + 1, map);
+      buildQuestionTypeNodeMetaMap(
+        node.children,
+        currentKey,
+        level + 1,
+        map,
+        node.answerCardType === 'objective' ? 'objective' : 'subjective',
+      );
     }
   });
   return map;
+};
+
+const findQuestionTypeNodeTitle = (
+  nodes: QuestionTypeNode[],
+  targetKey?: string | null,
+): string | undefined => {
+  if (!targetKey) {
+    return undefined;
+  }
+  for (const node of nodes) {
+    if (String(node.key) === targetKey) {
+      return node.title;
+    }
+    if (node.children?.length) {
+      const found = findQuestionTypeNodeTitle(node.children, targetKey);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return undefined;
 };
 
 const normalizeQuestionTypeAnswerRows = (rows: unknown) => {
@@ -142,6 +173,10 @@ const getQuestionTypeAnswerCardTypeText = (
     ? '客观'
     : '主观';
 
+const shouldQuestionTypeNeedAnswerArea = (
+  parentAnswerCardType?: QuestionTypeAnswerCardType | null,
+) => parentAnswerCardType !== 'objective';
+
 const getQuestionTypeAnswerAreaFormValues = (
   answerArea?: QuestionTypeAnswerArea,
 ) => {
@@ -155,6 +190,7 @@ const getQuestionTypeAnswerAreaFormValues = (
 const getQuestionTypeNodeMeta = (
   node: TreeNodeData,
   isFirstLevel: boolean,
+  shouldShowAnswerArea: boolean,
 ) => {
   const normalizedAnswerArea = normalizeQuestionTypeAnswerArea(node.answerArea);
   const answerAreaTypeText =
@@ -162,10 +198,10 @@ const getQuestionTypeNodeMeta = (
   const answerCardTypeText = isFirstLevel
     ? `${getQuestionTypeAnswerCardTypeText(node.answerCardType)}题`
     : '—';
-  const answerAreaTypeValue = isFirstLevel ? '—' : answerAreaTypeText;
-  const answerAreaRowsValue = isFirstLevel
-    ? '—'
-    : `${normalizedAnswerArea.rows} 行`;
+  const answerAreaTypeValue = shouldShowAnswerArea ? answerAreaTypeText : '—';
+  const answerAreaRowsValue = shouldShowAnswerArea
+    ? `${normalizedAnswerArea.rows} 行`
+    : '—';
 
   return (
     <span className="question-type-node-meta-list">
@@ -242,12 +278,22 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
       : selectedQtNode
       ? isFirstLevelQuestionTypeNode(selectedQtNode.key)
       : false;
-  const shouldShowAnswerAreaSettings =
+  const isChildQuestionTypeModal =
     qtModalType === 'add'
       ? Boolean(selectedQtNode)
       : selectedQtNode
       ? !isFirstLevelQuestionTypeNode(selectedQtNode.key)
       : false;
+  const parentAnswerCardTypeForModal =
+    qtModalType === 'add'
+      ? selectedQtNode?.answerCardType
+      : selectedQtNode
+      ? nodeMetaMap.get(String(selectedQtNode.key))?.parentAnswerCardType
+      : undefined;
+  const shouldShowAnswerAreaSettings =
+    isChildQuestionTypeModal &&
+    shouldQuestionTypeNeedAnswerArea(parentAnswerCardTypeForModal);
+  const shouldShowParentQuestionTypeName = isChildQuestionTypeModal;
 
   const allowQuestionTypeDrop: TreeProps['allowDrop'] = ({
     dragNode,
@@ -287,10 +333,13 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     setQtModalType('add');
     setSelectedQtNode(node);
     qtForm.resetFields();
+    const parentNeedsAnswerArea = shouldQuestionTypeNeedAnswerArea(
+      node.answerCardType,
+    );
     qtForm.setFieldsValue({
       parentId: node.key,
       parentName: node.title,
-      ...getQuestionTypeAnswerAreaFormValues(),
+      ...(parentNeedsAnswerArea ? getQuestionTypeAnswerAreaFormValues() : {}),
     });
     setQtModalVisible(true);
   };
@@ -300,20 +349,32 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
     setQtModalType('edit');
     setSelectedQtNode(node);
     qtForm.resetFields();
+    const nodeMeta = nodeMetaMap.get(String(node.key));
     const baseValues: QuestionTypeFormValues = {
       id: node.key,
       title: node.title,
       description: node.description,
     };
+    const isFirstLevel = isFirstLevelQuestionTypeNode(node.key);
+    const parentNeedsAnswerArea = shouldQuestionTypeNeedAnswerArea(
+      nodeMeta?.parentAnswerCardType,
+    );
     qtForm.setFieldsValue(
-      isFirstLevelQuestionTypeNode(node.key)
+      isFirstLevel
         ? {
             ...baseValues,
             ...getQuestionTypeAnswerCardTypeFormValues(node.answerCardType),
           }
         : {
             ...baseValues,
-            ...getQuestionTypeAnswerAreaFormValues(node.answerArea),
+            parentId: nodeMeta?.parentKey,
+            parentName: findQuestionTypeNodeTitle(
+              questionTypeTree,
+              nodeMeta?.parentKey,
+            ),
+            ...(parentNeedsAnswerArea
+              ? getQuestionTypeAnswerAreaFormValues(node.answerArea)
+              : {}),
           },
     );
     setQtModalVisible(true);
@@ -387,6 +448,15 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         : selectedQtNode
         ? !isFirstLevelQuestionTypeNode(selectedQtNode.key)
         : false;
+    const submitParentAnswerCardType =
+      qtModalType === 'add'
+        ? selectedQtNode?.answerCardType
+        : selectedQtNode
+        ? nodeMetaMap.get(String(selectedQtNode.key))?.parentAnswerCardType
+        : undefined;
+    const shouldSubmitAnswerArea =
+      isChildLevelSubmit &&
+      shouldQuestionTypeNeedAnswerArea(submitParentAnswerCardType);
     let res;
     if (qtModalType === 'add') {
       const payload: Parameters<typeof addQuestionTypeNode>[0] = {
@@ -400,7 +470,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
           formValues.answerCardType,
         );
       }
-      if (isChildLevelSubmit) {
+      if (shouldSubmitAnswerArea) {
         payload.answerArea = normalizeQuestionTypeAnswerArea({
           type: formValues.answerAreaType,
           rows: formValues.answerAreaRows,
@@ -419,7 +489,7 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
           formValues.answerCardType,
         );
       }
-      if (isChildLevelSubmit) {
+      if (shouldSubmitAnswerArea) {
         payload.answerArea = normalizeQuestionTypeAnswerArea({
           type: formValues.answerAreaType,
           rows: formValues.answerAreaRows,
@@ -532,6 +602,11 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                 const isFirstLevel = isFirstLevelQuestionTypeNode(node.key);
                 const nodeMeta = nodeMetaMap.get(String(node.key));
                 const nodeLevel = nodeMeta?.level ?? 1;
+                const shouldShowNodeAnswerArea =
+                  !isFirstLevel &&
+                  shouldQuestionTypeNeedAnswerArea(
+                    nodeMeta?.parentAnswerCardType,
+                  );
                 return (
                   <TreeNodeTitle
                     className="question-type-tree-table-row"
@@ -548,7 +623,11 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                     meta={
                       arrangeMode
                         ? null
-                        : getQuestionTypeNodeMeta(node, isFirstLevel)
+                        : getQuestionTypeNodeMeta(
+                            node,
+                            isFirstLevel,
+                            shouldShowNodeAnswerArea,
+                          )
                     }
                     actionsVisible={!arrangeMode}
                     nodeActionsVisible={!arrangeMode}
@@ -591,44 +670,40 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         form={qtForm}
         onFinish={handleQtModalFinish}
         width={
-          shouldShowAnswerCardTypeSettings || shouldShowAnswerAreaSettings
+          shouldShowAnswerCardTypeSettings || shouldShowParentQuestionTypeName
             ? 640
             : 560
         }
       >
         <div className="question-type-modal-basic-grid">
-          {qtModalType === 'add' && selectedQtNode && (
+          {shouldShowParentQuestionTypeName ? (
             <ProFormText
               name="parentName"
               label="一级题型名称"
               disabled
-              initialValue={selectedQtNode.title}
             />
-          )}
-          {qtModalType === 'add' && selectedQtNode && (
+          ) : null}
+          {shouldShowParentQuestionTypeName ? (
             <ProFormText
               name="parentId"
               label="父节点ID"
               hidden
-              initialValue={selectedQtNode.key}
             />
-          )}
+          ) : null}
           <ProFormText
             className={
               !shouldShowAnswerCardTypeSettings &&
               !shouldShowAnswerAreaSettings &&
-              !(qtModalType === 'add' && selectedQtNode)
+              !shouldShowParentQuestionTypeName
                 ? 'question-type-modal-full-field'
                 : ''
             }
             name="title"
-            label={
-              shouldShowAnswerAreaSettings ? '二级题型名称' : '一级题型名称'
-            }
+            label={isChildQuestionTypeModal ? '二级题型名称' : '一级题型名称'}
             rules={[
               {
                 required: true,
-                message: shouldShowAnswerAreaSettings
+                message: isChildQuestionTypeModal
                   ? '请输入二级题型名称'
                   : '请输入一级题型名称',
               },

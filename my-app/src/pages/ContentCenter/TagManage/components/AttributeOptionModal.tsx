@@ -9,6 +9,7 @@ import React, { useMemo } from 'react';
 export interface AttributeOptionFormValues {
   name: string;
   status: AttributeStatus;
+  frontVisible: boolean;
 }
 
 interface AttributeOptionModalProps {
@@ -26,6 +27,14 @@ const ATTRIBUTE_OPTION_STATUS_OPTIONS: Array<{
   { label: '停用', value: 'disabled' },
 ];
 
+const ATTRIBUTE_OPTION_FRONT_VISIBLE_OPTIONS: Array<{
+  label: string;
+  value: boolean;
+}> = [
+  { label: '展示', value: true },
+  { label: '不展示', value: false },
+];
+
 const AttributeOptionModal: React.FC<AttributeOptionModalProps> = ({
   open,
   option,
@@ -36,6 +45,7 @@ const AttributeOptionModal: React.FC<AttributeOptionModalProps> = ({
     () => ({
       name: option?.name || '',
       status: option?.status || 'enabled',
+      frontVisible: option?.frontVisible ?? true,
     }),
     [option],
   );
@@ -54,6 +64,7 @@ const AttributeOptionModal: React.FC<AttributeOptionModalProps> = ({
         onFinish({
           name: values.name.trim(),
           status: values.status || 'enabled',
+          frontVisible: values.frontVisible ?? true,
         })
       }
     >
@@ -79,6 +90,12 @@ const AttributeOptionModal: React.FC<AttributeOptionModalProps> = ({
         label="启用状态"
         options={ATTRIBUTE_OPTION_STATUS_OPTIONS}
         rules={[{ required: true, message: '请选择启用状态' }]}
+      />
+      <ProFormRadio.Group
+        name="frontVisible"
+        label="前台是否展示"
+        options={ATTRIBUTE_OPTION_FRONT_VISIBLE_OPTIONS}
+        rules={[{ required: true, message: '请选择前台是否展示' }]}
       />
     </ModalForm>
   );
