@@ -516,19 +516,20 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
         extra={
           <div className="tag-system-tree-card-extra">
             {arrangeMode ? null : (
-              <div className="question-type-tree-toolbar-filters">
-                <div className="tag-system-tree-subject-filter">
-                  <span className="tag-system-tree-subject-label">学科</span>
+              <div className="tag-system-tree-toolbar-filters">
+                <div className="tag-system-tree-context-filters tag-system-tree-context-filters-single">
                   <Select
                     value={selectedSubject}
                     onChange={onSubjectChange}
-                    className="tag-system-tree-subject-select"
+                    className="tag-system-tree-filter-select"
                     options={subjectOptions}
                     aria-label="选择学科"
                   />
                 </div>
-                <Input
-                  className="question-type-tree-search"
+                <Input.Search
+                  className="tag-system-tree-search"
+                  name="questionTypeSearch"
+                  autoComplete="off"
                   prefix={
                     <SearchOutlined
                       aria-hidden="true"
@@ -537,11 +538,11 @@ const QuestionTypeTreePanel: React.FC<QuestionTypeTreePanelProps> = ({
                   }
                   aria-label="搜索题型"
                   allowClear
-                  name="questionTypeSearch"
-                  autoComplete="off"
-                  placeholder="搜索题型"
-                  value={questionTypeSearch.searchValue}
-                  onChange={questionTypeSearch.onSearch}
+                  enterButton="查询"
+                  placeholder="搜索题型…"
+                  value={questionTypeSearch.inputValue}
+                  onChange={questionTypeSearch.onSearchInputChange}
+                  onSearch={questionTypeSearch.submitSearch}
                 />
               </div>
             )}
