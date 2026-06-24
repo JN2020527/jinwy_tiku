@@ -58,7 +58,9 @@ import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
   appendTreeNode,
+  getParentKey,
   getTreeMoveRequest,
+  hasSiblingTreeNodeTitle,
   useTreeSearch,
 } from './treeHelpers';
 import TreeNodeTitle from './TreeNodeTitle';
@@ -353,6 +355,13 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
   );
 
   const handleAddRoot = () => {
+    if (
+      knowledgeSearch.inputValue.trim() ||
+      knowledgeSearch.searchValue.trim()
+    ) {
+      knowledgeSearch.resetSearch();
+    }
+
     setInlineEdit({
       key: createDraftNodeKey(),
       mode: 'add',
@@ -368,6 +377,13 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
 
   const handleAddChild = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (
+      knowledgeSearch.inputValue.trim() ||
+      knowledgeSearch.searchValue.trim()
+    ) {
+      knowledgeSearch.resetSearch();
+    }
+
     setInlineEdit({
       key: createDraftNodeKey(),
       mode: 'add',
@@ -381,6 +397,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     setInlineEdit({
       key: node.key,
       mode: 'edit',
+      parentKey: getParentKey(node.key, knowledgeTreeData),
       initialValue: node.title,
       description: node.description,
     });
@@ -462,12 +479,24 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
 
   const handleInlineEditSubmit = async (title: string) => {
     if (!inlineEdit) return;
-    if (!title) {
+    const nextTitle = title.trim();
+    if (!nextTitle) {
       message.warning('请输入知识节点名称');
       return;
     }
     if (isSyncContext && !selectedTextbookVersion) {
       message.warning('请选择教材版本');
+      return;
+    }
+    if (
+      hasSiblingTreeNodeTitle(
+        knowledgeTreeData,
+        inlineEdit.parentKey,
+        nextTitle,
+        inlineEdit.mode === 'edit' ? inlineEdit.key : undefined,
+      )
+    ) {
+      message.warning('同级已存在同名节点');
       return;
     }
 
@@ -476,7 +505,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
       isSyncContext && selectedTextbookVersion
         ? inlineEdit.mode === 'add'
           ? await addTextbookChapter({
-              title,
+              title: nextTitle,
               parentId: inlineEdit.parentKey
                 ? String(inlineEdit.parentKey)
                 : null,
@@ -485,14 +514,14 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
             })
           : await updateTextbookChapter({
               id: String(inlineEdit.key),
-              title,
+              title: nextTitle,
               version: selectedTextbookVersion,
               subject: selectedSubject,
               description: inlineEdit.description,
             })
         : inlineEdit.mode === 'add'
         ? await addKnowledgeNode({
-            title,
+            title: nextTitle,
             parentId: inlineEdit.parentKey
               ? String(inlineEdit.parentKey)
               : null,
@@ -501,7 +530,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
           })
         : await updateKnowledgeNode({
             id: String(inlineEdit.key),
-            title,
+            title: nextTitle,
             subject: selectedSubject,
             targetType: 'knowledge',
             description: inlineEdit.description,

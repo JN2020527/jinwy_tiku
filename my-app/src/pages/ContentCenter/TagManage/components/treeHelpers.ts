@@ -125,7 +125,7 @@ export interface TreeMoveRequest {
   position: TreeMovePosition;
 }
 
-const findTreeNode = (
+export const findTreeNode = (
   tree: TreeNodeData[],
   key: React.Key,
 ): TreeNodeData | undefined => {
@@ -143,6 +143,35 @@ const findTreeNode = (
   }
 
   return undefined;
+};
+
+export const getSiblingTreeNodes = (
+  tree: TreeNodeData[],
+  parentKey?: React.Key | null,
+): TreeNodeData[] => {
+  if (!parentKey) {
+    return tree;
+  }
+
+  return findTreeNode(tree, parentKey)?.children || [];
+};
+
+export const hasSiblingTreeNodeTitle = (
+  tree: TreeNodeData[],
+  parentKey: React.Key | null | undefined,
+  title: string,
+  excludeKey?: React.Key,
+) => {
+  const normalizedTitle = title.trim();
+
+  if (!normalizedTitle) {
+    return false;
+  }
+
+  return getSiblingTreeNodes(tree, parentKey).some(
+    (node) =>
+      node.key !== excludeKey && String(node.title).trim() === normalizedTitle,
+  );
 };
 
 export const getTreeMoveRequest = (

@@ -38,7 +38,9 @@ import type { TreeNodeData } from './treeHelpers';
 import {
   allowCrossParentTreeDrop,
   appendTreeNode,
+  getParentKey,
   getTreeMoveRequest,
+  hasSiblingTreeNodeTitle,
   useTreeSearch,
 } from './treeHelpers';
 import TreeNodeTitle from './TreeNodeTitle';
@@ -173,6 +175,10 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
   );
 
   const handleAddRoot = () => {
+    if (topicSearch.inputValue.trim() || topicSearch.searchValue.trim()) {
+      topicSearch.resetSearch();
+    }
+
     setInlineEdit({
       key: createDraftNodeKey(),
       mode: 'add',
@@ -188,6 +194,10 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
 
   const handleAddChild = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (topicSearch.inputValue.trim() || topicSearch.searchValue.trim()) {
+      topicSearch.resetSearch();
+    }
+
     setInlineEdit({
       key: createDraftNodeKey(),
       mode: 'add',
@@ -201,6 +211,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
     setInlineEdit({
       key: node.key,
       mode: 'edit',
+      parentKey: getParentKey(node.key, topicTreeData),
       initialValue: node.title,
       description: node.description,
     });
@@ -256,8 +267,20 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
 
   const handleInlineEditSubmit = async (title: string) => {
     if (!inlineEdit) return;
-    if (!title) {
+    const nextTitle = title.trim();
+    if (!nextTitle) {
       message.warning('请输入专题名称');
+      return;
+    }
+    if (
+      hasSiblingTreeNodeTitle(
+        topicTreeData,
+        inlineEdit.parentKey,
+        nextTitle,
+        inlineEdit.mode === 'edit' ? inlineEdit.key : undefined,
+      )
+    ) {
+      message.warning('同级已存在同名节点');
       return;
     }
 
@@ -265,7 +288,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
     const res =
       inlineEdit.mode === 'add'
         ? await addKnowledgeNode({
-            title,
+            title: nextTitle,
             parentId: inlineEdit.parentKey
               ? String(inlineEdit.parentKey)
               : null,
@@ -274,7 +297,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
           })
         : await updateKnowledgeNode({
             id: String(inlineEdit.key),
-            title,
+            title: nextTitle,
             subject: selectedSubject,
             targetType: 'topic',
             description: inlineEdit.description,

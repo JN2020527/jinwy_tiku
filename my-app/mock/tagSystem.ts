@@ -947,6 +947,63 @@ const findTreeParentList = <T extends { key: string; children?: T[] }>(
   return null;
 };
 
+const normalizeTreeNodeTitle = (title: unknown) =>
+  typeof title === 'string' ? title.trim() : '';
+
+const getTreeSiblingListByParentId = <
+  T extends { key: string; title?: string; children?: T[] },
+>(
+  nodes: T[],
+  parentId?: unknown,
+): T[] | null => {
+  const normalizedParentId =
+    typeof parentId === 'string' && parentId ? parentId : null;
+
+  if (!normalizedParentId) {
+    return nodes;
+  }
+
+  const parentNode = findTreeNode(nodes, normalizedParentId);
+  if (!parentNode) {
+    return null;
+  }
+
+  if (!parentNode.children) parentNode.children = [];
+  return parentNode.children;
+};
+
+const validateTreeNodeTitle = <
+  T extends { key: string; title?: string; children?: T[] },
+>(
+  siblingNodes: T[] | null,
+  title: unknown,
+  excludeId?: unknown,
+) => {
+  const normalizedTitle = normalizeTreeNodeTitle(title);
+  const normalizedExcludeId =
+    typeof excludeId === 'string' && excludeId ? excludeId : undefined;
+
+  if (!normalizedTitle) {
+    return { valid: false, title: normalizedTitle, message: '节点名称不能为空' };
+  }
+
+  if (!siblingNodes) {
+    return { valid: false, title: normalizedTitle, message: '父节点不存在' };
+  }
+
+  const duplicated = siblingNodes.some(
+    (node) =>
+      node.key !== normalizedExcludeId &&
+      normalizeTreeNodeTitle(node.title) === normalizedTitle,
+  );
+
+  if (duplicated) {
+    return { valid: false, title: normalizedTitle, message: '同级已存在同名节点' };
+  }
+
+  return { valid: true, title: normalizedTitle };
+};
+
 const isTreeDescendant = <T extends { key: string; children?: T[] }>(
   nodes: T[],
   ancestorId: string,
@@ -1532,46 +1589,43 @@ export default {
     const { parentId, title, description } = req.body;
     const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
+    const siblingNodes = getTreeSiblingListByParentId(knowledgePoints, parentId);
+    const validation = validateTreeNodeTitle(siblingNodes, title);
+    if (!validation.valid) {
+      res.send({ success: false, message: validation.message });
+      return;
+    }
+
     const contextKey = getKnowledgeStoreKey(context);
     const nodeId = `kp-${contextKey}-${Date.now()}`;
     const newNode: MockKnowledgeNode = {
       id: nodeId,
       key: nodeId,
-      title,
+      title: validation.title,
       value: nodeId,
       subject: context.subject,
       description,
       children: [],
     };
 
-    if (parentId) {
-      const addNode = (nodes: MockKnowledgeNode[]) => {
-        for (const node of nodes) {
-          if (node.key === parentId) {
-            if (!node.children) node.children = [];
-            node.children.push(newNode);
-            return true;
-          }
-          if (node.children && node.children.length > 0) {
-            if (addNode(node.children)) return true;
-          }
-        }
-        return false;
-      };
-      addNode(knowledgePoints);
-    } else {
-      knowledgePoints.push(newNode);
-    }
+    siblingNodes!.push(newNode);
     res.send({ success: true, message: 'Node created successfully' });
   },
   'PUT /api/tags/knowledge-node': (req: Request, res: Response) => {
     const { id, title, description } = req.body;
     const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
+    const siblingNodes = findTreeParentList(knowledgePoints, id);
+    const validation = validateTreeNodeTitle(siblingNodes, title, id);
+    if (!validation.valid) {
+      res.send({ success: false, message: validation.message });
+      return;
+    }
+
     const updateNode = (nodes: MockKnowledgeNode[]) => {
       for (const node of nodes) {
         if (node.key === id) {
-          node.title = title;
+          node.title = validation.title;
           node.description = description;
           return true;
         }
@@ -1581,8 +1635,11 @@ export default {
       }
       return false;
     };
-    updateNode(knowledgePoints);
-    res.send({ success: true, message: 'Node updated successfully' });
+    const updated = updateNode(knowledgePoints);
+    res.send({
+      success: updated,
+      message: updated ? 'Node updated successfully' : 'Node not found',
+    });
   },
   'DELETE /api/tags/knowledge-node': (req: Request, res: Response) => {
     const { id } = req.query;
@@ -2098,40 +2155,37 @@ export default {
   'POST /api/tags/textbook-chapter': (req: Request, res: Response) => {
     const { version, parentId, title, description, subject } = req.body;
     const chapters = getTextbookChaptersByContext(version, subject);
+    const siblingNodes = getTreeSiblingListByParentId(chapters, parentId);
+    const validation = validateTreeNodeTitle(siblingNodes, title);
+    if (!validation.valid) {
+      res.send({ success: false, message: validation.message });
+      return;
+    }
+
     const newNode = {
-      title,
+      title: validation.title,
       key: `ch-${Date.now()}`,
       description,
       children: [],
     };
 
-    if (parentId) {
-      const addNode = (nodes: any[]) => {
-        for (const node of nodes) {
-          if (node.key === parentId) {
-            if (!node.children) node.children = [];
-            node.children.push(newNode);
-            return true;
-          }
-          if (node.children && node.children.length > 0) {
-            if (addNode(node.children)) return true;
-          }
-        }
-        return false;
-      };
-      addNode(chapters);
-    } else {
-      chapters.push(newNode);
-    }
+    siblingNodes!.push(newNode);
     res.send({ success: true, message: 'Chapter created successfully' });
   },
   'PUT /api/tags/textbook-chapter': (req: Request, res: Response) => {
     const { version, id, title, description, subject } = req.body;
     const chapters = getTextbookChaptersByContext(version, subject);
+    const siblingNodes = findTreeParentList(chapters, id);
+    const validation = validateTreeNodeTitle(siblingNodes, title, id);
+    if (!validation.valid) {
+      res.send({ success: false, message: validation.message });
+      return;
+    }
+
     const updateNode = (nodes: any[]) => {
       for (const node of nodes) {
         if (node.key === id) {
-          node.title = title;
+          node.title = validation.title;
           node.description = description;
           return true;
         }
@@ -2141,8 +2195,11 @@ export default {
       }
       return false;
     };
-    updateNode(chapters);
-    res.send({ success: true, message: 'Chapter updated successfully' });
+    const updated = updateNode(chapters);
+    res.send({
+      success: updated,
+      message: updated ? 'Chapter updated successfully' : 'Chapter not found',
+    });
   },
   'DELETE /api/tags/textbook-chapter': (req: Request, res: Response) => {
     const { id, version, subject } = req.query;
