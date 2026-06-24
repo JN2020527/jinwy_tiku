@@ -104,6 +104,10 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
     );
   }, [inlineEdit, topicTreeData]);
   const topicSearch = useTreeSearch(displayTopicTree);
+  const visibleTopicTree = arrangeMode
+    ? displayTopicTree
+    : topicSearch.filteredTreeData;
+  const isTopicSearching = Boolean(topicSearch.searchValue.trim());
 
   const displayAttributeIds = useMemo(
     () => getDisplayAttributeIds(usageRules, 'topic'),
@@ -313,7 +317,7 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
                     aria-label="选择学科"
                   />
                 </div>
-                <Input
+                <Input.Search
                   className="tag-system-tree-search"
                   name="topicSearch"
                   autoComplete="off"
@@ -325,9 +329,11 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
                   }
                   aria-label="搜索专题"
                   allowClear
+                  enterButton="查询"
                   placeholder="搜索专题…"
-                  value={topicSearch.searchValue}
-                  onChange={topicSearch.onSearch}
+                  value={topicSearch.inputValue}
+                  onChange={topicSearch.onSearchInputChange}
+                  onSearch={topicSearch.submitSearch}
                 />
               </div>
             )}
@@ -348,10 +354,10 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
           </div>
         }
       >
-        {displayTopicTree.length > 0 ? (
+        {visibleTopicTree.length > 0 ? (
           <Tree
             key={`${selectedTreeContext}-${selectedSubject}`}
-            treeData={displayTopicTree}
+            treeData={visibleTopicTree}
             onExpand={topicSearch.onExpand}
             expandedKeys={topicSearch.expandedKeys}
             autoExpandParent={topicSearch.autoExpandParent}
@@ -400,7 +406,11 @@ const TopicTreePanel: React.FC<TopicTreePanelProps> = ({
             height={600}
           />
         ) : (
-          <div>暂无数据</div>
+          <div>
+            {displayTopicTree.length > 0 && isTopicSearching
+              ? '暂无搜索结果'
+              : '暂无数据'}
+          </div>
         )}
       </Card>
     </>

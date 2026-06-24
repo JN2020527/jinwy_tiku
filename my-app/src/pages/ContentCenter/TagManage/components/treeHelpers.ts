@@ -1,6 +1,6 @@
 import type { TreeMovePosition } from '@/services/tagSystem';
 import type { TreeProps } from 'antd';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  * Shape of a tree node as received by titleRender in Ant Design Tree
@@ -222,14 +222,47 @@ const generateExpandableKeys = (data: TreeNodeData[]): React.Key[] => {
   return result;
 };
 
+const filterTreeDataByTitle = (
+  data: TreeNodeData[],
+  searchValue: string,
+): TreeNodeData[] => {
+  const keyword = searchValue.trim();
+  if (!keyword) {
+    return data;
+  }
+
+  return data.flatMap((node) => {
+    const filteredChildren = node.children?.length
+      ? filterTreeDataByTitle(node.children, keyword)
+      : [];
+    const matched = node.title.includes(keyword);
+
+    if (!matched && filteredChildren.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        ...node,
+        children: filteredChildren.length ? filteredChildren : undefined,
+      },
+    ];
+  });
+};
+
 /**
  * Reusable hook for tree search behavior (expand + highlight).
  */
 export const useTreeSearch = (treeData: TreeNodeData[]) => {
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [autoExpandParent, setAutoExpandParent] = useState<boolean>(true);
+  const [inputValue, setInputValue] = useState<string>('');
   const [searchValue, setSearchValue] = useState<string>('');
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filteredTreeData = useMemo(
+    () => filterTreeDataByTitle(treeData, searchValue),
+    [searchValue, treeData],
+  );
 
   useEffect(() => {
     setExpandedKeys(generateExpandableKeys(treeData));
@@ -249,10 +282,24 @@ export const useTreeSearch = (treeData: TreeNodeData[]) => {
     setAutoExpandParent(false);
   };
 
+  const applySearch = (value: string) => {
+    const keyword = value.trim();
+    const nextTreeData = filterTreeDataByTitle(treeData, keyword);
+
+    setSearchValue(value);
+    setExpandedKeys(
+      keyword
+        ? generateExpandableKeys(nextTreeData)
+        : generateExpandableKeys(treeData),
+    );
+    setAutoExpandParent(true);
+  };
+
   const onSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
 
     // Immediately update the input display value
+    setInputValue(value);
     setSearchValue(value);
 
     // Debounce the expensive tree expansion computation
@@ -261,20 +308,21 @@ export const useTreeSearch = (treeData: TreeNodeData[]) => {
     }
 
     debounceTimerRef.current = setTimeout(() => {
-      const dataList = generateList(treeData);
-
-      const newExpandedKeys = dataList
-        .map((item) => {
-          if (item.title.includes(value)) {
-            return getParentKey(item.key, treeData);
-          }
-          return null;
-        })
-        .filter((item, i, self) => item && self.indexOf(item) === i);
-
-      setExpandedKeys(newExpandedKeys as React.Key[]);
-      setAutoExpandParent(true);
+      applySearch(value);
     }, 200);
+  };
+
+  const onSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  };
+
+  const submitSearch = (value = inputValue) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    applySearch(value);
   };
 
   const resetSearch = () => {
@@ -283,6 +331,7 @@ export const useTreeSearch = (treeData: TreeNodeData[]) => {
       debounceTimerRef.current = null;
     }
 
+    setInputValue('');
     setSearchValue('');
     setExpandedKeys(generateExpandableKeys(treeData));
     setAutoExpandParent(true);
@@ -291,9 +340,13 @@ export const useTreeSearch = (treeData: TreeNodeData[]) => {
   return {
     expandedKeys,
     autoExpandParent,
+    inputValue,
     searchValue,
+    filteredTreeData,
     onExpand,
     onSearch,
+    onSearchInputChange,
+    submitSearch,
     resetSearch,
   };
 };

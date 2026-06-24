@@ -149,6 +149,10 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
     );
   }, [inlineEdit, knowledgeTreeData]);
   const knowledgeSearch = useTreeSearch(displayKnowledgeTree);
+  const visibleKnowledgeTree = arrangeMode
+    ? displayKnowledgeTree
+    : knowledgeSearch.filteredTreeData;
+  const isKnowledgeSearching = Boolean(knowledgeSearch.searchValue.trim());
 
   useEffect(() => {
     const requestId = (versionsRequestIdRef.current += 1);
@@ -565,7 +569,7 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
                     />
                   ) : null}
                 </div>
-                <Input
+                <Input.Search
                   className="tag-system-tree-search"
                   name="knowledgeNodeSearch"
                   autoComplete="off"
@@ -577,9 +581,11 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
                   }
                   aria-label="搜索知识节点"
                   allowClear
+                  enterButton="查询"
                   placeholder="搜索知识节点…"
-                  value={knowledgeSearch.searchValue}
-                  onChange={knowledgeSearch.onSearch}
+                  value={knowledgeSearch.inputValue}
+                  onChange={knowledgeSearch.onSearchInputChange}
+                  onSearch={knowledgeSearch.submitSearch}
                 />
               </div>
             )}
@@ -605,12 +611,12 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
           </div>
         }
       >
-        {displayKnowledgeTree.length > 0 ? (
+        {visibleKnowledgeTree.length > 0 ? (
           <Tree
             key={`${selectedTreeContext}-${selectedSemester}-${selectedSubject}-${
               selectedTextbookVersion || 'middle-exam'
             }`}
-            treeData={displayKnowledgeTree}
+            treeData={visibleKnowledgeTree}
             onExpand={knowledgeSearch.onExpand}
             expandedKeys={knowledgeSearch.expandedKeys}
             autoExpandParent={knowledgeSearch.autoExpandParent}
@@ -666,7 +672,9 @@ const KnowledgeTreePanel: React.FC<KnowledgeTreePanelProps> = ({
               color: '#999',
             }}
           >
-            暂无数据
+            {displayKnowledgeTree.length > 0 && isKnowledgeSearching
+              ? '暂无搜索结果'
+              : '暂无数据'}
           </div>
         )}
       </Card>
