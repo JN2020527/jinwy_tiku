@@ -34,3 +34,17 @@ Do not add backend servers, database dependencies, or production API assumptions
 ## Agent-Specific Instructions
 
 When assisting in this repository, reply to the user in Simplified Chinese.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitLab Issues for this repo. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles mapped to default label strings: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
