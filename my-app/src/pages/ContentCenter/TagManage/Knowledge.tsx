@@ -1,25 +1,23 @@
 import { PageContainer } from '@ant-design/pro-components';
 import React, { useState } from 'react';
-import KnowledgeTreePanel from './components/KnowledgeTreePanel';
-
-const SUBJECT_OPTIONS = [
-  { label: '语文', value: 'chinese' },
-  { label: '数学', value: 'math' },
-  { label: '英语', value: 'english' },
-  { label: '物理', value: 'physics' },
-  { label: '化学', value: 'chemistry' },
-  { label: '生物', value: 'biology' },
-  { label: '历史', value: 'history' },
-  { label: '地理', value: 'geography' },
-  { label: '道德与法治', value: 'politics' },
-];
+import TagSystemTreePanel from './components/TagSystemTreePanel';
+import {
+  KNOWLEDGE_TREE_CONTEXT_OPTIONS,
+  SUBJECT_OPTIONS,
+} from './components/treeFilterConstants';
 
 const KnowledgeTagPage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>('math');
 
   return (
     <PageContainer>
-      <KnowledgeTreePanel
+      <TagSystemTreePanel
+        targetType="knowledge"
+        contextOptions={KNOWLEDGE_TREE_CONTEXT_OPTIONS}
+        supportsSyncContext
+        searchPlaceholder="搜索知识节点…"
+        nodeNamePlaceholder="请输入知识节点名称…"
+        deleteTargetName="知识节点"
         selectedSubject={selectedSubject}
         subjectOptions={SUBJECT_OPTIONS}
         onSubjectChange={setSelectedSubject}
