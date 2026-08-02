@@ -27,6 +27,7 @@ export interface TreeNodeTitleProps {
   style?: React.CSSProperties;
   searchValue?: string;
   meta?: React.ReactNode;
+  leadingIcon?: React.ReactNode;
   inlineEdit?: TreeNodeInlineEditConfig;
   actionsVisible?: boolean;
   nodeActionsVisible?: boolean;
@@ -47,6 +48,7 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
   style,
   searchValue = '',
   meta,
+  leadingIcon,
   inlineEdit,
   actionsVisible = true,
   nodeActionsVisible = true,
@@ -160,6 +162,9 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
           meta ? ' tag-tree-node-content-with-meta' : ''
         }`}
       >
+        {leadingIcon ? (
+          <span className="tag-tree-node-leading-icon">{leadingIcon}</span>
+        ) : null}
         <span className="tag-tree-node-name">{title}</span>
         {meta ? <span className="tag-tree-node-meta">{meta}</span> : null}
       </span>

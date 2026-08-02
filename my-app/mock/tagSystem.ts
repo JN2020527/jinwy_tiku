@@ -111,7 +111,20 @@ interface MockKnowledgeNode {
   value?: string;
   subject: string;
   description?: string;
+  nodeType?: 'category' | 'resource';
   children?: MockKnowledgeNode[];
+}
+
+type ResourceType = 'courseware' | 'extension';
+
+interface MockResourceItem {
+  id: string;
+  name: string;
+  type: ResourceType;
+  fileName?: string;
+  subject: string;
+  nodeId: string;
+  updatedAt: string;
 }
 
 interface QuestionTypeSeedNode {
@@ -857,6 +870,65 @@ const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
     knowledgeTreeStore[storeKey] = applyKnowledgeScope(templates, context);
   }
   return knowledgeTreeStore[storeKey];
+};
+
+// --- Mock Data for Resources (复习树附件资源) ---
+
+const resourceStore: Record<string, MockResourceItem[]> = {};
+
+const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
+  const scoped = (nodeKey: string) => `${nodeKey}-${subject}`;
+  const now = '2026-07-26';
+  return [
+    {
+      id: `res-${subject}-1`,
+      name: '史前时期精品复习课件',
+      type: 'courseware',
+      fileName: '史前时期复习课件.pptx',
+      subject,
+      nodeId: scoped('rv-1-1-1'),
+      updatedAt: now,
+    },
+    {
+      id: `res-${subject}-2`,
+      name: '夏商周青铜文明拓展包',
+      type: 'extension',
+      fileName: '夏商周拓展素材.zip',
+      subject,
+      nodeId: scoped('rv-1-1-2'),
+      updatedAt: now,
+    },
+    {
+      id: `res-${subject}-3`,
+      name: '春秋战国单元复习课件',
+      type: 'courseware',
+      fileName: '春秋战国复习课件.pptx',
+      subject,
+      nodeId: scoped('rv-1-1-3'),
+      updatedAt: now,
+    },
+  ];
+};
+
+const getResourceStoreKey = (context: KnowledgeContext) =>
+  `${context.targetType}-${context.subject}`;
+
+const getResourcesByContext = (context: KnowledgeContext) => {
+  const storeKey = getResourceStoreKey(context);
+  if (!resourceStore[storeKey]) {
+    resourceStore[storeKey] = seedResourcesForSubject(context.subject);
+  }
+  return resourceStore[storeKey];
+};
+
+const removeResourcesUnderNodes = (
+  context: KnowledgeContext,
+  nodeIds: Set<string>,
+) => {
+  const resources = resourceStore[getResourceStoreKey(context)];
+  if (!resources) return;
+  const next = resources.filter((item) => !nodeIds.has(item.nodeId));
+  resources.splice(0, resources.length, ...next);
 };
 
 const applyQuestionTypeScope = (
@@ -1883,6 +1955,9 @@ export default {
           relation.subject === context.subject &&
           deletedNodeKeys.has(relation.nodeId),
       );
+      if (context.targetType === 'review') {
+        removeResourcesUnderNodes(context, deletedNodeKeys);
+      }
     }
     res.send({ success: true, message: 'Node deleted successfully' });
   },
@@ -1898,6 +1973,60 @@ export default {
       'Knowledge node',
     );
     res.send(result);
+  },
+
+  // Resource CRUD (复习树附件资源)
+  'GET /api/resources': (req: Request, res: Response) => {
+    const context = getKnowledgeContext(req);
+    res.send({ success: true, data: getResourcesByContext(context) });
+  },
+  'POST /api/resources': (req: Request, res: Response) => {
+    const context = getKnowledgeContext(req);
+    const { name, type, fileName, nodeId } = req.body;
+    const normalizedName = normalizeQueryValue(name, '');
+    if (!normalizedName) {
+      res.send({ success: false, message: '资源名称不能为空' });
+      return;
+    }
+    const item: MockResourceItem = {
+      id: `res-${context.subject}-${Date.now()}`,
+      name: normalizedName,
+      type: type === 'extension' ? 'extension' : 'courseware',
+      fileName: normalizeQueryValue(fileName, '') || undefined,
+      subject: context.subject,
+      nodeId: typeof nodeId === 'string' && nodeId ? nodeId : '',
+      updatedAt: new Date().toISOString().slice(0, 10),
+    };
+    getResourcesByContext(context).push(item);
+    res.send({ success: true, message: '资源上传成功', data: item });
+  },
+  'PUT /api/resources': (req: Request, res: Response) => {
+    const { id } = req.body;
+    const context = getKnowledgeContext(req);
+    const resources = getResourcesByContext(context);
+    const item = resources.find((r) => r.id === id);
+    if (!item) {
+      res.send({ success: false, message: '资源不存在' });
+      return;
+    }
+    if (req.body.name !== undefined) item.name = String(req.body.name);
+    if (req.body.type !== undefined) {
+      item.type = req.body.type === 'extension' ? 'extension' : 'courseware';
+    }
+    if (req.body.fileName !== undefined) {
+      item.fileName = normalizeQueryValue(req.body.fileName, '') || undefined;
+    }
+    if (req.body.nodeId !== undefined) item.nodeId = String(req.body.nodeId);
+    item.updatedAt = new Date().toISOString().slice(0, 10);
+    res.send({ success: true, message: '资源更新成功', data: item });
+  },
+  'DELETE /api/resources': (req: Request, res: Response) => {
+    const { id } = req.query;
+    const context = getKnowledgeContext(req);
+    const resources = getResourcesByContext(context);
+    const next = resources.filter((item) => item.id !== id);
+    resources.splice(0, resources.length, ...next);
+    res.send({ success: true, message: 'Resource deleted successfully' });
   },
 
   // Question Type CRUD

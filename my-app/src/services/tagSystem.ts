@@ -88,6 +88,21 @@ export interface KnowledgeNode {
   children?: KnowledgeNode[];
 }
 
+// --- Resources (复习树附件资源) ---
+
+export type ResourceType = 'courseware' | 'extension';
+
+export interface ResourceItem {
+  id: string;
+  name: string;
+  type: ResourceType;
+  fileName?: string;
+  subject: string;
+  /** 所属复习树节点 */
+  nodeId: string;
+  updatedAt?: string;
+}
+
 /** 树导入载荷中的节点（不含 key/id，由后端重建） */
 export interface ImportTreeNode {
   title: string;
@@ -243,6 +258,57 @@ export async function moveKnowledgeNode(data: {
   return request<ApiResponse<void>>('/api/tags/knowledge-node/move', {
     method: 'PUT',
     data,
+  });
+}
+
+// --- Resource CRUD (复习树附件资源) ---
+
+export async function getResourceList(params?: {
+  subject?: string;
+  targetType?: TreeTargetType;
+}) {
+  return request<ApiResponse<ResourceItem[]>>('/api/resources', {
+    method: 'GET',
+    params,
+  });
+}
+
+export async function addResource(data: {
+  name: string;
+  type: ResourceType;
+  fileName?: string;
+  nodeId: string;
+  subject: string;
+  targetType?: TreeTargetType;
+}) {
+  return request<ApiResponse<ResourceItem>>('/api/resources', {
+    method: 'POST',
+    data,
+  });
+}
+
+export async function updateResource(data: {
+  id: string;
+  name?: string;
+  type?: ResourceType;
+  fileName?: string;
+  nodeId?: string;
+  subject?: string;
+  targetType?: TreeTargetType;
+}) {
+  return request<ApiResponse<ResourceItem>>('/api/resources', {
+    method: 'PUT',
+    data,
+  });
+}
+
+export async function deleteResource(
+  id: string,
+  params?: { subject?: string; targetType?: TreeTargetType },
+) {
+  return request<ApiResponse<void>>('/api/resources', {
+    method: 'DELETE',
+    params: { id, ...params },
   });
 }
 

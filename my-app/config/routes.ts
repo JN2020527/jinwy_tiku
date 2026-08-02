@@ -32,6 +32,11 @@ export default [
         component: './ContentCenter/ProductList',
       },
       {
+        path: '/content/resource-center',
+        name: '资源中心',
+        component: './ContentCenter/ResourceCenter',
+      },
+      {
         path: '/content/product-list/subject-manage',
         name: '科目管理',
         component: './ContentCenter/SubjectManage',
