@@ -24,6 +24,8 @@ export type AttributeUsageScene =
   | 'topicTreeNodeDisplay';
 export type AttributeSelectionMode = 'single' | 'multiple';
 export type NodeAttributeTargetType = 'knowledge' | 'topic';
+/** 树面板可实例化的树类型：知识点树 / 专题树 / 复习树 */
+export type TreeTargetType = NodeAttributeTargetType | 'review';
 
 export interface AttributeUsageRule {
   id: string;
@@ -81,7 +83,16 @@ export interface KnowledgeNode {
   value?: string;
   subject?: string;
   description?: string;
+  /** 节点类型：分类节点（默认）或资源节点（复习树资源叶子，见资源体系）；默认缺省为分类节点 */
+  nodeType?: 'category' | 'resource';
   children?: KnowledgeNode[];
+}
+
+/** 树导入载荷中的节点（不含 key/id，由后端重建） */
+export interface ImportTreeNode {
+  title: string;
+  description?: string;
+  children?: ImportTreeNode[];
 }
 
 export type AnswerAreaType = 'line' | 'blank';
@@ -121,12 +132,27 @@ export interface TextbookChapter {
 
 export async function getKnowledgeTree(params?: {
   subject?: string;
-  targetType?: NodeAttributeTargetType;
+  targetType?: TreeTargetType;
 }) {
   return request<ApiResponse<KnowledgeNode[]>>('/api/tags/knowledge-tree', {
     method: 'GET',
     params,
   });
+}
+
+/** 清空重建导入：以模板树替换当前学科 + 体系下的整棵树 */
+export async function importKnowledgeTree(data: {
+  subject: string;
+  targetType?: TreeTargetType;
+  nodes: ImportTreeNode[];
+}) {
+  return request<ApiResponse<{ count: number }>>(
+    '/api/tags/knowledge-tree/import',
+    {
+      method: 'POST',
+      data,
+    },
+  );
 }
 
 // --- Tag Category CRUD ---
@@ -175,7 +201,7 @@ export async function addKnowledgeNode(data: {
   title: string;
   parentId?: string | null;
   subject: string;
-  targetType?: NodeAttributeTargetType;
+  targetType?: TreeTargetType;
   description?: string;
 }) {
   return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
@@ -188,7 +214,7 @@ export async function updateKnowledgeNode(data: {
   id: string;
   title: string;
   subject?: string;
-  targetType?: NodeAttributeTargetType;
+  targetType?: TreeTargetType;
   description?: string;
 }) {
   return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
@@ -199,7 +225,7 @@ export async function updateKnowledgeNode(data: {
 
 export async function deleteKnowledgeNode(
   id: string,
-  params?: { subject?: string; targetType?: NodeAttributeTargetType },
+  params?: { subject?: string; targetType?: TreeTargetType },
 ) {
   return request<ApiResponse<void>>('/api/tags/knowledge-node', {
     method: 'DELETE',
@@ -212,7 +238,7 @@ export async function moveKnowledgeNode(data: {
   targetId: string;
   position: TreeMovePosition;
   subject: string;
-  targetType?: NodeAttributeTargetType;
+  targetType?: TreeTargetType;
 }) {
   return request<ApiResponse<void>>('/api/tags/knowledge-node/move', {
     method: 'PUT',

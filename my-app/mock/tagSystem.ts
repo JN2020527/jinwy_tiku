@@ -28,6 +28,7 @@ type AttributeUsageScene =
   | 'topicTreeNodeDisplay';
 type AttributeSelectionMode = 'single' | 'multiple';
 type NodeAttributeTargetType = 'knowledge' | 'topic';
+type TreeTargetType = NodeAttributeTargetType | 'review';
 
 const ATTRIBUTE_USAGE_SCENES: AttributeUsageScene[] = [
   'paperUpload',
@@ -79,7 +80,7 @@ interface MockNodeAttributeRelation {
 
 interface KnowledgeContext {
   subject: string;
-  targetType: NodeAttributeTargetType;
+  targetType: TreeTargetType;
 }
 
 interface QuestionTypeContext {
@@ -217,6 +218,88 @@ const defaultKnowledgePointTemplates: KnowledgeSeedNode[] = [
           },
         ],
       },
+    ],
+  },
+];
+
+// Mock Data for Review Tree (复习树：前台平台资源库浏览骨架)
+const defaultReviewTreeTemplates: KnowledgeSeedNode[] = [
+  {
+    id: 'rv-1',
+    title: '一轮复习',
+    key: 'rv-1',
+    value: 'rv-1',
+    children: [
+      {
+        id: 'rv-1-1',
+        title: '中国古代史',
+        key: 'rv-1-1',
+        value: 'rv-1-1',
+        children: [
+          {
+            id: 'rv-1-1-1',
+            title: '史前时期',
+            key: 'rv-1-1-1',
+            value: 'rv-1-1-1',
+          },
+          {
+            id: 'rv-1-1-2',
+            title: '夏商周时期',
+            key: 'rv-1-1-2',
+            value: 'rv-1-1-2',
+          },
+          {
+            id: 'rv-1-1-3',
+            title: '春秋战国',
+            key: 'rv-1-1-3',
+            value: 'rv-1-1-3',
+          },
+        ],
+      },
+      {
+        id: 'rv-1-2',
+        title: '中国近现代史',
+        key: 'rv-1-2',
+        value: 'rv-1-2',
+        children: [
+          {
+            id: 'rv-1-2-1',
+            title: '近代史',
+            key: 'rv-1-2-1',
+            value: 'rv-1-2-1',
+          },
+          {
+            id: 'rv-1-2-2',
+            title: '现代史',
+            key: 'rv-1-2-2',
+            value: 'rv-1-2-2',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'rv-2',
+    title: '二轮复习',
+    key: 'rv-2',
+    value: 'rv-2',
+    children: [
+      {
+        id: 'rv-2-1',
+        title: '专题·古代政治制度',
+        key: 'rv-2-1',
+        value: 'rv-2-1',
+      },
+      { id: 'rv-2-2', title: '专题·变法改革', key: 'rv-2-2', value: 'rv-2-2' },
+    ],
+  },
+  {
+    id: 'rv-3',
+    title: '三轮冲刺',
+    key: 'rv-3',
+    value: 'rv-3',
+    children: [
+      { id: 'rv-3-1', title: '模拟演练', key: 'rv-3-1', value: 'rv-3-1' },
     ],
   },
 ];
@@ -594,10 +677,10 @@ const normalizeQueryValue = (value: unknown, fallback: string) => {
   return typeof value === 'string' && value ? value : fallback;
 };
 
-const normalizeNodeAttributeTargetType = (
-  value: unknown,
-): NodeAttributeTargetType =>
-  value === 'topic' || value === 'knowledge' ? value : 'knowledge';
+const normalizeNodeAttributeTargetType = (value: unknown): TreeTargetType =>
+  value === 'topic' || value === 'knowledge' || value === 'review'
+    ? value
+    : 'knowledge';
 
 const getKnowledgeContext = (req: Request): KnowledgeContext => ({
   subject: normalizeQueryValue(
@@ -767,10 +850,11 @@ const knowledgeTreeStore: Record<string, MockKnowledgeNode[]> = {};
 const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
   const storeKey = getKnowledgeStoreKey(context);
   if (!knowledgeTreeStore[storeKey]) {
-    knowledgeTreeStore[storeKey] = applyKnowledgeScope(
-      defaultKnowledgePointTemplates,
-      context,
-    );
+    const templates =
+      context.targetType === 'review'
+        ? defaultReviewTreeTemplates
+        : defaultKnowledgePointTemplates;
+    knowledgeTreeStore[storeKey] = applyKnowledgeScope(templates, context);
   }
   return knowledgeTreeStore[storeKey];
 };
@@ -984,7 +1068,11 @@ const validateTreeNodeTitle = <
     typeof excludeId === 'string' && excludeId ? excludeId : undefined;
 
   if (!normalizedTitle) {
-    return { valid: false, title: normalizedTitle, message: '节点名称不能为空' };
+    return {
+      valid: false,
+      title: normalizedTitle,
+      message: '节点名称不能为空',
+    };
   }
 
   if (!siblingNodes) {
@@ -998,7 +1086,11 @@ const validateTreeNodeTitle = <
   );
 
   if (duplicated) {
-    return { valid: false, title: normalizedTitle, message: '同级已存在同名节点' };
+    return {
+      valid: false,
+      title: normalizedTitle,
+      message: '同级已存在同名节点',
+    };
   }
 
   return { valid: true, title: normalizedTitle };
@@ -1487,6 +1579,125 @@ export default {
       data: getKnowledgeTreeByContext(context),
     });
   },
+  'POST /api/tags/knowledge-tree/import': (req: Request, res: Response) => {
+    const context = getKnowledgeContext(req);
+    const { nodes } = req.body;
+    if (!Array.isArray(nodes) || nodes.length === 0) {
+      res.send({ success: false, message: '导入内容为空' });
+      return;
+    }
+
+    const storeKey = getKnowledgeStoreKey(context);
+    const now = Date.now();
+    let seq = 0;
+    const buildNode = (source: {
+      title?: unknown;
+      description?: unknown;
+      children?: unknown;
+    }): MockKnowledgeNode | null => {
+      const title = normalizeTreeNodeTitle(source.title);
+      if (!title) {
+        throw new Error('导入内容包含空节点名称');
+      }
+      seq += 1;
+      const nodeId = `kp-${storeKey}-${now}-${seq}`;
+      const children = Array.isArray(source.children)
+        ? source.children
+            .map((child) =>
+              child && typeof child === 'object'
+                ? buildNode(child as { title?: unknown })
+                : null,
+            )
+            .filter((node): node is MockKnowledgeNode => node !== null)
+        : [];
+      return {
+        id: nodeId,
+        key: nodeId,
+        title,
+        value: nodeId,
+        subject: context.subject,
+        description:
+          typeof source.description === 'string'
+            ? source.description
+            : undefined,
+        children,
+      };
+    };
+
+    const countTreeNodes = (tree: MockKnowledgeNode[]): number =>
+      tree.reduce(
+        (sum, node) =>
+          sum + 1 + (node.children?.length ? countTreeNodes(node.children) : 0),
+        0,
+      );
+
+    const validateSiblingDuplicates = (
+      tree: MockKnowledgeNode[],
+    ): string | null => {
+      const titles = new Set<string>();
+      for (const node of tree) {
+        const key = normalizeTreeNodeTitle(node.title);
+        if (titles.has(key)) {
+          return `同级存在重名节点「${node.title}」`;
+        }
+        titles.add(key);
+      }
+      for (const node of tree) {
+        if (node.children?.length) {
+          const childResult = validateSiblingDuplicates(node.children);
+          if (childResult) return childResult;
+        }
+      }
+      return null;
+    };
+
+    let nextTree: MockKnowledgeNode[];
+    try {
+      nextTree = nodes
+        .map((node) =>
+          node && typeof node === 'object'
+            ? buildNode(node as { title?: unknown })
+            : null,
+        )
+        .filter((node): node is MockKnowledgeNode => node !== null);
+    } catch (error) {
+      res.send({
+        success: false,
+        message: error instanceof Error ? error.message : '导入内容解析失败',
+      });
+      return;
+    }
+
+    if (nextTree.length === 0) {
+      res.send({ success: false, message: '导入内容为空' });
+      return;
+    }
+
+    const duplicateMessage = validateSiblingDuplicates(nextTree);
+    if (duplicateMessage) {
+      res.send({ success: false, message: duplicateMessage });
+      return;
+    }
+
+    // 清空重建：收集旧节点 key，清理其属性挂载关系后整体替换
+    const oldKeys = new Set<string>();
+    (knowledgeTreeStore[storeKey] || []).forEach((node) => {
+      collectTreeNodeKeys(node, oldKeys);
+    });
+    removeNodeAttributeRelations(
+      (relation) =>
+        relation.targetType === context.targetType &&
+        relation.subject === context.subject &&
+        oldKeys.has(relation.nodeId),
+    );
+
+    knowledgeTreeStore[storeKey] = nextTree;
+    res.send({
+      success: true,
+      message: '导入成功',
+      data: { count: countTreeNodes(nextTree) },
+    });
+  },
   // Replaced /api/tags/attributes with /api/tags/categories
   'GET /api/tags/categories': (req: Request, res: Response) => {
     res.send({
@@ -1589,7 +1800,10 @@ export default {
     const { parentId, title, description } = req.body;
     const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
-    const siblingNodes = getTreeSiblingListByParentId(knowledgePoints, parentId);
+    const siblingNodes = getTreeSiblingListByParentId(
+      knowledgePoints,
+      parentId,
+    );
     const validation = validateTreeNodeTitle(siblingNodes, title);
     if (!validation.valid) {
       res.send({ success: false, message: validation.message });

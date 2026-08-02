@@ -143,6 +143,11 @@ export default [
         component: './ContentCenter/TagManage/Topic',
       },
       {
+        path: '/tag-system/review',
+        name: '复习树',
+        component: './ContentCenter/TagManage/Review',
+      },
+      {
         path: '/tag-system/question-type',
         name: '题型管理',
         component: './ContentCenter/TagManage/QuestionType',

@@ -6,6 +6,7 @@ import type {
   TagCategory,
   TextbookChapter,
   TextbookVersion,
+  TreeTargetType,
 } from '@/services/tagSystem';
 import {
   addKnowledgeNode,
@@ -18,6 +19,7 @@ import {
   getTagCategories,
   getTextbookChapters,
   getTextbookVersions,
+  importKnowledgeTree,
   moveKnowledgeNode,
   moveTextbookChapter,
   updateKnowledgeNode,
@@ -26,6 +28,7 @@ import {
 import { HolderOutlined, SearchOutlined } from '@ant-design/icons';
 import type { TreeProps } from 'antd';
 import {
+  Alert,
   Button,
   Card,
   Input,
@@ -36,6 +39,7 @@ import {
   Tag,
   Tooltip,
   Tree,
+  Upload,
 } from 'antd';
 import React, {
   useCallback,
@@ -50,6 +54,12 @@ import {
   getOptionMap,
 } from './nodeAttributeRelationHelpers';
 import './TagSystemTreePanel.less';
+import type { ImportRowError } from './treeExcel';
+import {
+  exportTreeToExcel,
+  parseTreeExcelFile,
+  treeToImportPayload,
+} from './treeExcel';
 import {
   getTreeFilterOptionLabel,
   KNOWLEDGE_TREE_CONTEXT_OPTIONS,
@@ -68,12 +78,14 @@ import {
 import TreeNodeTitle from './TreeNodeTitle';
 
 export interface TagSystemTreePanelProps {
-  /** 树类型：knowledge（知识点树）或 topic（专题树） */
-  targetType: NodeAttributeTargetType;
+  /** 树类型：knowledge（知识点树）/ topic（专题树）/ review（复习树） */
+  targetType: TreeTargetType;
   /** 体系筛选项（如仅中考，或中考+各年级同步语境） */
   contextOptions?: { label: string; value: string }[];
   /** 是否支持同步语境（教材版本 + 学期筛选）；知识点树为 true，专题树为 false */
   supportsSyncContext?: boolean;
+  /** 是否展示节点属性标签并拉取属性元数据；复习树等不接入属性体系的场景传 false */
+  enableAttributeTags?: boolean;
   /** 搜索框占位文案 */
   searchPlaceholder?: string;
   /** 行内编辑输入占位文案 */
@@ -120,6 +132,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   targetType,
   contextOptions = KNOWLEDGE_TREE_CONTEXT_OPTIONS,
   supportsSyncContext = false,
+  enableAttributeTags = true,
   searchPlaceholder = '搜索节点…',
   nodeNamePlaceholder = '请输入节点名称…',
   deleteTargetName = '节点',
@@ -149,6 +162,15 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   const treeData = tree as unknown as TreeNodeData[];
   const [inlineEdit, setInlineEdit] = useState<InlineEditState | null>(null);
   const [arrangeMode, setArrangeMode] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    tree: TreeNodeData[];
+    errors: ImportRowError[];
+    nodeCount: number;
+    fileName: string;
+  } | null>(null);
+  const [importSubmitting, setImportSubmitting] = useState(false);
   const isMiddleExamContext = selectedTreeContext === MIDDLE_EXAM_TREE_VALUE;
   const isSyncContext = supportsSyncContext && !isMiddleExamContext;
   const displayTree = useMemo(() => {
@@ -273,6 +295,9 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   }, [fetchTree]);
 
   const fetchNodeRelationMeta = useCallback(async () => {
+    if (!enableAttributeTags) {
+      return;
+    }
     const requestId = (nodeRelationMetaRequestIdRef.current += 1);
 
     try {
@@ -280,7 +305,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
         getTagCategories(),
         getAttributeUsageRules(),
         getNodeAttributeRelations({
-          targetType,
+          targetType: targetType as NodeAttributeTargetType,
           subject: selectedSubject,
         }),
       ]);
@@ -303,14 +328,15 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
         message.error('获取知识节点属性失败');
       }
     }
-  }, [selectedSubject, targetType]);
+  }, [enableAttributeTags, selectedSubject, targetType]);
 
   useEffect(() => {
     void fetchNodeRelationMeta();
   }, [fetchNodeRelationMeta]);
 
   const displayAttributeIds = useMemo(
-    () => getDisplayAttributeIds(usageRules, targetType),
+    () =>
+      getDisplayAttributeIds(usageRules, targetType as NodeAttributeTargetType),
     [usageRules, targetType],
   );
   const categoryMap = useMemo(
@@ -340,6 +366,9 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
 
   const renderNodeRelationMeta = useCallback(
     (nodeKey: React.Key) => {
+      if (!enableAttributeTags) {
+        return null;
+      }
       const relationsForNode = relationMapByNode.get(String(nodeKey)) || [];
       const tags = displayAttributeIds.flatMap((attributeId) => {
         const category = categoryMap.get(attributeId);
@@ -369,7 +398,13 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
         <span className="tag-tree-node-tags">{tags}</span>
       ) : null;
     },
-    [categoryMap, displayAttributeIds, optionMap, relationMapByNode],
+    [
+      categoryMap,
+      displayAttributeIds,
+      enableAttributeTags,
+      optionMap,
+      relationMapByNode,
+    ],
   );
 
   const handleAddRoot = () => {
@@ -388,6 +423,78 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   const handleToggleArrangeMode = () => {
     setInlineEdit(null);
     setArrangeMode((value) => !value);
+  };
+
+  const isImportExportDisabled =
+    arrangeMode || isSearching || isSyncContext || loading;
+
+  const subjectLabel =
+    subjectOptions.find((option) => option.value === selectedSubject)?.label ||
+    selectedSubject;
+
+  const handleExport = async () => {
+    if (isImportExportDisabled || treeData.length === 0) return;
+    setExporting(true);
+    try {
+      const treeLabel = targetType === 'knowledge' ? '知识点树' : '专题树';
+      const filename = `${treeLabel}_${subjectLabel}_模板.xlsx`;
+      await exportTreeToExcel(treeData, filename);
+      message.success('导出成功');
+    } catch {
+      message.error('导出失败');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImportFile = async (file: File) => {
+    if (isImportExportDisabled) return;
+    setImporting(true);
+    try {
+      const result = await parseTreeExcelFile(file);
+      if (result.tree.length === 0) {
+        message.warning('文件中没有可导入的节点数据');
+        return;
+      }
+      setImportPreview({
+        tree: result.tree,
+        errors: result.errors,
+        nodeCount: result.nodeCount,
+        fileName: file.name,
+      });
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : '导入文件解析失败',
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleImportSubmit = async () => {
+    if (!importPreview) return;
+    setImportSubmitting(true);
+    try {
+      const res = await importKnowledgeTree({
+        subject: selectedSubject,
+        targetType,
+        nodes: treeToImportPayload(importPreview.tree),
+      });
+      if (res.success) {
+        message.success(
+          `导入成功，共 ${res.data?.count ?? importPreview.nodeCount} 个节点`,
+        );
+        setImportPreview(null);
+        treeSearch.resetSearch();
+        fetchTree();
+      } else {
+        message.error(res.message || '导入失败');
+      }
+    } catch {
+      message.error('导入失败');
+    } finally {
+      setImportSubmitting(false);
+    }
   };
 
   const handleAddChild = (node: TreeNodeData, e: React.MouseEvent) => {
@@ -640,6 +747,35 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
               {arrangeMode ? '完成整理' : '整理'}
             </Button>
             {arrangeMode ? null : (
+              <>
+                <Button
+                  size="small"
+                  onClick={handleExport}
+                  loading={exporting}
+                  disabled={isImportExportDisabled || treeData.length === 0}
+                >
+                  导出
+                </Button>
+                <Upload
+                  accept=".xlsx"
+                  showUploadList={false}
+                  disabled={isImportExportDisabled}
+                  beforeUpload={(file) => {
+                    void handleImportFile(file as unknown as File);
+                    return false;
+                  }}
+                >
+                  <Button
+                    size="small"
+                    loading={importing}
+                    disabled={isImportExportDisabled}
+                  >
+                    导入
+                  </Button>
+                </Upload>
+              </>
+            )}
+            {arrangeMode ? null : (
               <Button
                 type="primary"
                 size="small"
@@ -719,6 +855,66 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
           </div>
         )}
       </Spin>
+      <Modal
+        title="导入预览"
+        open={Boolean(importPreview)}
+        width={680}
+        onCancel={() => {
+          if (!importSubmitting) {
+            setImportPreview(null);
+          }
+        }}
+        onOk={handleImportSubmit}
+        okText="确认导入"
+        okButtonProps={{
+          disabled: Boolean(importPreview?.errors.length),
+          loading: importSubmitting,
+        }}
+        cancelButtonProps={{ disabled: importSubmitting }}
+        destroyOnClose
+      >
+        {importPreview && (
+          <div className="tag-tree-import-preview">
+            {importPreview.errors.length > 0 ? (
+              <Alert
+                type="error"
+                showIcon
+                message={`发现 ${importPreview.errors.length} 处问题，请修正后重新导入`}
+                description={`文件「${importPreview.fileName}」中存在无效行，确认按钮已禁用。`}
+              />
+            ) : (
+              <Alert
+                type="warning"
+                showIcon
+                message={`解析成功，共 ${importPreview.nodeCount} 个节点`}
+                description={`文件「${
+                  importPreview.fileName
+                }」将清空当前${subjectLabel}的${
+                  targetType === 'knowledge' ? '知识点树' : '专题树'
+                }并重建，原有节点及其属性标签将被替换。`}
+              />
+            )}
+            {importPreview.errors.length > 0 ? (
+              <div className="tag-tree-import-errors">
+                {importPreview.errors.map((error, index) => (
+                  <div key={index} className="tag-tree-import-error-row">
+                    第 {error.rowNumber} 行：{error.message}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="tag-tree-import-tree">
+              <Tree
+                treeData={importPreview.tree}
+                defaultExpandAll
+                showLine
+                blockNode
+                height={360}
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
     </Card>
   );
 };
