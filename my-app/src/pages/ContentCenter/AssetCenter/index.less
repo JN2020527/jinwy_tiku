@@ -17,8 +17,9 @@
 .asset-center-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
@@ -54,19 +55,48 @@
   }
 }
 
-.asset-center-search-filters {
-  display: flex;
-  flex: 1 1 360px;
-  align-items: center;
-  gap: 10px;
+.asset-center-filter-panel {
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
-.asset-center-type-select {
-  width: 126px;
+.asset-center-filter-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 11px;
+
+  strong {
+    color: #1e293b;
+    font-size: 14px;
+  }
+
+  span {
+    color: #64748b;
+    font-size: 12px;
+  }
+}
+
+.asset-center-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.asset-center-filter-select {
+  width: 128px;
+}
+
+.asset-center-node-filter {
+  width: 240px;
 }
 
 .asset-center-search {
-  width: min(320px, 100%);
+  width: min(300px, 100%);
 
   .anticon {
     color: #94a3b8;
@@ -140,13 +170,22 @@
   font-size: 12px;
 }
 
+.asset-center-node-path {
+  display: block;
+  overflow: hidden;
+  color: #475569;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .asset-center-version-label {
   color: #2563eb;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
-.asset-center-upload-guardrail {
+.asset-center-upload-guardrail,
+.asset-center-ownership-guardrail {
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -178,6 +217,27 @@
     font-size: 13px;
     line-height: 20px;
   }
+}
+
+.asset-center-ownership-summary {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 16px 0;
+  padding: 12px 14px;
+  border-left: 3px solid #2563eb;
+  color: #334155;
+  background: #f8fafc;
+
+  strong,
+  > span:not(.asset-center-ownership-label) {
+    overflow-wrap: anywhere;
+  }
+}
+
+.asset-center-ownership-label {
+  color: #64748b;
+  font-size: 13px;
 }
 
 .asset-center-resource-form {
@@ -214,13 +274,17 @@
 }
 
 @media (max-width: 900px) {
-  .asset-center-context-filter,
-  .asset-center-search-filters {
+  .asset-center-context-filter {
     width: 100%;
   }
 
   .asset-center-search {
-    flex: 1;
+    flex: 1 1 260px;
+    width: auto;
+  }
+
+  .asset-center-node-filter {
+    flex: 1 1 220px;
     width: auto;
   }
 
@@ -242,15 +306,28 @@
   .asset-center-context-note {
     width: 100%;
     padding: 0 0 3px;
+    white-space: normal;
   }
 
-  .asset-center-search-filters {
+  .asset-center-filter-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .asset-center-filter-controls {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .asset-center-type-select,
+  .asset-center-filter-select,
+  .asset-center-node-filter,
   .asset-center-search {
     width: 100%;
+  }
+
+  .asset-center-ownership-summary {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }

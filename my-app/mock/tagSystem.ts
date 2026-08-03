@@ -140,6 +140,14 @@ interface MockResourceItem {
   updatedAt: string;
 }
 
+interface MockResourceListFilters {
+  name?: string;
+  type?: ResourceType;
+  carrierType?: ResourceCarrierType;
+  status?: ResourceStatus;
+  subtreeNodeIds?: Set<string>;
+}
+
 interface QuestionTypeSeedNode {
   title: string;
   key: string;
@@ -891,6 +899,22 @@ const RESOURCE_NAME_MAX_LENGTH = 40;
 const resourceStore: Record<string, MockResourceItem[]> = {};
 let resourceSequence = 0;
 
+const isResourceType = (value: unknown): value is ResourceType =>
+  value === 'courseware' ||
+  value === 'extension' ||
+  value === 'studyGuide' ||
+  value === 'homework';
+
+const isResourceCarrierType = (value: unknown): value is ResourceCarrierType =>
+  value === 'ppt' ||
+  value === 'pdf' ||
+  value === 'audio' ||
+  value === 'video' ||
+  value === 'online';
+
+const isResourceStatus = (value: unknown): value is ResourceStatus =>
+  value === 'unlisted' || value === 'listed' || value === 'archived';
+
 const isAttachmentResourceType = (
   value: unknown,
 ): value is AttachmentResourceType =>
@@ -998,14 +1022,6 @@ const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
 const getResourceStoreKey = (context: KnowledgeContext) =>
   `review-${context.subject}`;
 
-const getAssetResourceContext = (req: Request): KnowledgeContext => ({
-  subject: normalizeQueryValue(
-    req.body?.subject ?? req.query.subject,
-    DEFAULT_KNOWLEDGE_CONTEXT.subject,
-  ),
-  targetType: 'review',
-});
-
 const getRequiredAssetResourceContext = (
   req: Request,
 ): KnowledgeContext | null => {
@@ -1020,6 +1036,98 @@ const getResourcesByContext = (context: KnowledgeContext) => {
     resourceStore[storeKey] = seedResourcesForSubject(context.subject);
   }
   return resourceStore[storeKey];
+};
+
+const normalizeOptionalResourceFilter = (value: unknown) => {
+  const normalizedValue = Array.isArray(value) ? value[0] : value;
+  return typeof normalizedValue === 'string' && normalizedValue.trim()
+    ? normalizedValue.trim()
+    : undefined;
+};
+
+const collectResourceSubtreeNodeIds = (
+  node: MockKnowledgeNode,
+  result = new Set<string>(),
+) => {
+  result.add(node.key);
+  node.children?.forEach((child) =>
+    collectResourceSubtreeNodeIds(child, result),
+  );
+  return result;
+};
+
+const validateResourceListFilters = (
+  context: KnowledgeContext,
+  query: Request['query'],
+):
+  | { valid: true; filters: MockResourceListFilters }
+  | { valid: false; message: string } => {
+  const name = normalizeOptionalResourceFilter(query.name);
+  const type = normalizeOptionalResourceFilter(query.type);
+  const carrierType = normalizeOptionalResourceFilter(query.carrierType);
+  const status = normalizeOptionalResourceFilter(query.status);
+  const nodeId = normalizeOptionalResourceFilter(query.nodeId);
+
+  if (type && !isResourceType(type)) {
+    return { valid: false, message: '资源类型筛选条件无效' };
+  }
+  if (carrierType && !isResourceCarrierType(carrierType)) {
+    return { valid: false, message: '载体类型筛选条件无效' };
+  }
+  if (status && !isResourceStatus(status)) {
+    return { valid: false, message: '资源状态筛选条件无效' };
+  }
+
+  let subtreeNodeIds: Set<string> | undefined;
+  if (nodeId) {
+    const reviewTree = getKnowledgeTreeByContext(context);
+    const selectedNode = findTreeNode(reviewTree, nodeId);
+    if (!selectedNode || selectedNode.subject !== context.subject) {
+      return { valid: false, message: '复习树节点筛选条件无效' };
+    }
+    subtreeNodeIds = collectResourceSubtreeNodeIds(selectedNode);
+  }
+
+  return {
+    valid: true,
+    filters: {
+      name,
+      type: isResourceType(type) ? type : undefined,
+      carrierType: isResourceCarrierType(carrierType) ? carrierType : undefined,
+      status: isResourceStatus(status) ? status : undefined,
+      subtreeNodeIds,
+    },
+  };
+};
+
+const filterResources = (
+  resources: MockResourceItem[],
+  filters: MockResourceListFilters,
+) => {
+  const normalizedName = filters.name?.toLocaleLowerCase();
+  return resources.filter((item) => {
+    if (
+      normalizedName &&
+      !item.name.toLocaleLowerCase().includes(normalizedName) &&
+      !item.currentVersion.originalFileName
+        ?.toLocaleLowerCase()
+        .includes(normalizedName)
+    ) {
+      return false;
+    }
+    if (filters.type && item.type !== filters.type) return false;
+    if (
+      filters.carrierType &&
+      item.currentVersion.carrierType !== filters.carrierType
+    ) {
+      return false;
+    }
+    if (filters.status && item.status !== filters.status) return false;
+    if (filters.subtreeNodeIds && !filters.subtreeNodeIds.has(item.nodeId)) {
+      return false;
+    }
+    return true;
+  });
 };
 
 const validateResourceName = (value: unknown) => {
@@ -2136,8 +2244,23 @@ export default {
 
   // Asset Center（资产中心正式资源）
   'GET /api/resources': (req: Request, res: Response) => {
-    const context = getAssetResourceContext(req);
-    res.send({ success: true, data: getResourcesByContext(context) });
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const filterValidation = validateResourceListFilters(context, req.query);
+    if (!filterValidation.valid) {
+      res.send({ success: false, message: filterValidation.message });
+      return;
+    }
+    res.send({
+      success: true,
+      data: filterResources(
+        getResourcesByContext(context),
+        filterValidation.filters,
+      ),
+    });
   },
   'POST /api/resources': (req: Request, res: Response) => {
     const context = getRequiredAssetResourceContext(req);
@@ -2234,6 +2357,65 @@ export default {
       data: item,
     });
   },
+  'PUT /api/resources/ownership': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const body = req.body || {};
+    const { id, targetNodeId } = body;
+    if (
+      body.nodeId !== undefined ||
+      body.name !== undefined ||
+      body.type !== undefined ||
+      body.status !== undefined ||
+      body.currentVersion !== undefined
+    ) {
+      res.send({
+        success: false,
+        message: '归属调整仅接受资源身份和目标末级节点',
+      });
+      return;
+    }
+    const resources = getResourcesByContext(context);
+    const item = resources.find((resource) => resource.id === id);
+    if (!item || item.subject !== context.subject) {
+      res.send({
+        success: false,
+        message: '资源不属于当前学科，不能跨学科调整归属',
+      });
+      return;
+    }
+
+    const ownershipValidation = validateResourceOwnership(
+      context,
+      targetNodeId,
+    );
+    if (!ownershipValidation.valid || !ownershipValidation.nodeId) {
+      res.send({ success: false, message: ownershipValidation.message });
+      return;
+    }
+    if (
+      hasDuplicatedResourceName(resources, {
+        name: item.name.trim(),
+        type: item.type,
+        nodeId: ownershipValidation.nodeId,
+        excludeId: item.id,
+      })
+    ) {
+      res.send({
+        success: false,
+        message: '目标节点下已存在同类型、同名称的资源，无法调整归属',
+      });
+      return;
+    }
+
+    // 所有校验通过后一次替换 nodeId；不存在先清空再写入的中间状态。
+    item.nodeId = ownershipValidation.nodeId;
+    item.updatedAt = new Date().toISOString();
+    res.send({ success: true, message: '资源归属调整成功', data: item });
+  },
   'PUT /api/resources': (req: Request, res: Response) => {
     const context = getRequiredAssetResourceContext(req);
     if (!context) {
@@ -2244,12 +2426,19 @@ export default {
     const { id } = body;
     const resources = getResourcesByContext(context);
     const item = resources.find((resource) => resource.id === id);
-    if (!item) {
+    if (!item || item.subject !== context.subject) {
       res.send({ success: false, message: '资源不存在' });
       return;
     }
     if (body.type !== undefined) {
       res.send({ success: false, message: '资源类型创建后不可修改' });
+      return;
+    }
+    if (body.nodeId !== undefined || body.targetNodeId !== undefined) {
+      res.send({
+        success: false,
+        message: '资源归属只能通过原子归属调整操作修改',
+      });
       return;
     }
     if (
@@ -2260,25 +2449,29 @@ export default {
       res.send({ success: false, message: '当前版本不能通过资料编辑修改' });
       return;
     }
-
-    const nameValidation = validateResourceName(body.name ?? item.name);
-    if (!nameValidation.valid) {
-      res.send({ success: false, message: nameValidation.message });
+    if (body.status !== undefined) {
+      res.send({ success: false, message: '资源状态不能通过资料编辑修改' });
       return;
     }
-    const ownershipValidation = validateResourceOwnership(
+
+    const currentOwnershipValidation = validateResourceOwnership(
       context,
-      body.nodeId ?? item.nodeId,
+      item.nodeId,
     );
-    if (!ownershipValidation.valid || !ownershipValidation.nodeId) {
-      res.send({ success: false, message: ownershipValidation.message });
+    if (!currentOwnershipValidation.valid) {
+      res.send({ success: false, message: '资源当前归属节点无效，无法更新' });
+      return;
+    }
+    const nameValidation = validateResourceName(body.name);
+    if (!nameValidation.valid) {
+      res.send({ success: false, message: nameValidation.message });
       return;
     }
     if (
       hasDuplicatedResourceName(resources, {
         name: nameValidation.name,
         type: item.type,
-        nodeId: ownershipValidation.nodeId,
+        nodeId: item.nodeId,
         excludeId: item.id,
       })
     ) {
@@ -2290,7 +2483,6 @@ export default {
     }
 
     item.name = nameValidation.name;
-    item.nodeId = ownershipValidation.nodeId;
     item.updatedAt = new Date().toISOString();
     res.send({ success: true, message: '资源信息更新成功', data: item });
   },

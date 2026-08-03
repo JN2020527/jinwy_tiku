@@ -7,6 +7,7 @@ import type {
   ResourceType,
 } from '@/services/tagSystem';
 import {
+  adjustResourceOwnership,
   ATTACHMENT_RESOURCE_ACCEPT,
   ATTACHMENT_RESOURCE_TYPES,
   COMPOSED_RESOURCE_TYPES,
@@ -32,6 +33,7 @@ import {
   InboxOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
+  SwapOutlined,
   UploadOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons';
@@ -69,6 +71,10 @@ interface ResourceFormValues {
   fileList?: UploadFile[];
 }
 
+interface OwnershipFormValues {
+  targetNodeId: string;
+}
+
 interface ReviewTreeSelectNode {
   title: string;
   value: string;
@@ -80,10 +86,18 @@ interface ReviewTreeSelectNode {
 interface ReviewTreeMetadata {
   nodePathMap: Map<string, string>;
   leafNodeIds: Set<string>;
-  treeSelectData: ReviewTreeSelectNode[];
+  filterTreeSelectData: ReviewTreeSelectNode[];
+  ownershipTreeSelectData: ReviewTreeSelectNode[];
 }
 
-const RESOURCE_TYPE_OPTIONS = [
+type ResourceTypeFilter = 'all' | ResourceType;
+type ResourceCarrierFilter = 'all' | ResourceCarrierType;
+type ResourceStatusFilter = 'all' | ResourceStatus;
+
+const RESOURCE_TYPE_OPTIONS: Array<{
+  label: string;
+  value: ResourceTypeFilter;
+}> = [
   { label: '全部类型', value: 'all' },
   ...ATTACHMENT_RESOURCE_TYPES.map((type) => ({
     label: RESOURCE_TYPE_LABELS[type],
@@ -93,6 +107,32 @@ const RESOURCE_TYPE_OPTIONS = [
     label: RESOURCE_TYPE_LABELS[type],
     value: type,
   })),
+];
+
+const RESOURCE_CARRIER_OPTIONS: Array<{
+  label: string;
+  value: ResourceCarrierFilter;
+}> = [
+  { label: '全部载体', value: 'all' },
+  ...(Object.keys(RESOURCE_CARRIER_LABELS) as ResourceCarrierType[]).map(
+    (carrierType) => ({
+      label: RESOURCE_CARRIER_LABELS[carrierType],
+      value: carrierType,
+    }),
+  ),
+];
+
+const RESOURCE_STATUS_OPTIONS: Array<{
+  label: string;
+  value: ResourceStatusFilter;
+}> = [
+  { label: '全部状态', value: 'all' },
+  ...(Object.keys(RESOURCE_STATUS_LABELS) as ResourceStatus[]).map(
+    (status) => ({
+      label: RESOURCE_STATUS_LABELS[status],
+      value: status,
+    }),
+  ),
 ];
 
 const RESOURCE_TYPE_COLORS: Record<ResourceType, string> = {
@@ -128,15 +168,25 @@ const buildReviewTreeMetadata = (
         title: node.title,
         value: node.key,
         key: node.key,
-        disabled: hasChildren,
         children: hasChildren ? walk(node.children || [], path) : undefined,
       };
     });
 
+  const disableParentNodes = (
+    list: ReviewTreeSelectNode[],
+  ): ReviewTreeSelectNode[] =>
+    list.map((node) => ({
+      ...node,
+      disabled: Boolean(node.children?.length),
+      children: node.children ? disableParentNodes(node.children) : undefined,
+    }));
+
+  const filterTreeSelectData = walk(nodes);
   return {
     nodePathMap,
     leafNodeIds,
-    treeSelectData: walk(nodes),
+    filterTreeSelectData,
+    ownershipTreeSelectData: disableParentNodes(filterTreeSelectData),
   };
 };
 
@@ -158,16 +208,27 @@ const AssetCenterPage: React.FC = () => {
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [reviewTree, setReviewTree] = useState<KnowledgeNode[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('math');
-  const [typeFilter, setTypeFilter] = useState<'all' | ResourceType>('all');
+  const [typeFilter, setTypeFilter] = useState<ResourceTypeFilter>('all');
+  const [carrierFilter, setCarrierFilter] =
+    useState<ResourceCarrierFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<ResourceStatusFilter>('all');
+  const [nodeFilter, setNodeFilter] = useState<string>();
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [treeLoading, setTreeLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<ResourceItem | null>(
     null,
   );
+  const [ownershipResource, setOwnershipResource] =
+    useState<ResourceItem | null>(null);
+  const [ownershipOpen, setOwnershipOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [ownershipSubmitting, setOwnershipSubmitting] = useState(false);
   const [form] = Form.useForm<ResourceFormValues>();
-  const requestIdRef = useRef(0);
+  const [ownershipForm] = Form.useForm<OwnershipFormValues>();
+  const resourceRequestIdRef = useRef(0);
+  const treeRequestIdRef = useRef(0);
 
   const selectedFormType = Form.useWatch('type', form);
   const selectedFormNodeId = Form.useWatch('nodeId', form);
@@ -177,69 +238,103 @@ const AssetCenterPage: React.FC = () => {
     [reviewTree],
   );
 
-  const fetchAssets = useCallback(async () => {
-    const requestId = (requestIdRef.current += 1);
+  const fetchResources = useCallback(async () => {
+    const requestId = (resourceRequestIdRef.current += 1);
     setLoading(true);
     try {
-      const [resourceResponse, treeResponse] = await Promise.all([
-        getResourceList({ subject: selectedSubject }),
-        getKnowledgeTree({
-          subject: selectedSubject,
-          targetType: 'review',
-        }),
-      ]);
+      const response = await getResourceList({
+        subject: selectedSubject,
+        name: keyword.trim() || undefined,
+        type: typeFilter === 'all' ? undefined : typeFilter,
+        carrierType: carrierFilter === 'all' ? undefined : carrierFilter,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        nodeId: nodeFilter,
+      });
 
-      if (requestIdRef.current !== requestId) return;
-
-      if (resourceResponse.success) {
-        setResources(resourceResponse.data);
+      if (resourceRequestIdRef.current !== requestId) return;
+      if (response.success) {
+        setResources(response.data);
       } else {
         setResources([]);
-        message.error(resourceResponse.message || '获取资产列表失败');
-      }
-
-      if (treeResponse.success) {
-        setReviewTree(treeResponse.data);
-      } else {
-        setReviewTree([]);
-        message.error(treeResponse.message || '获取复习树失败');
+        message.error(response.message || '获取资产列表失败');
       }
     } catch {
-      if (requestIdRef.current === requestId) {
+      if (resourceRequestIdRef.current === requestId) {
         setResources([]);
-        setReviewTree([]);
-        message.error('获取资产中心数据失败');
+        message.error('获取资产列表失败');
       }
     } finally {
-      if (requestIdRef.current === requestId) setLoading(false);
+      if (resourceRequestIdRef.current === requestId) setLoading(false);
+    }
+  }, [
+    carrierFilter,
+    keyword,
+    nodeFilter,
+    selectedSubject,
+    statusFilter,
+    typeFilter,
+  ]);
+
+  const fetchReviewTree = useCallback(async () => {
+    const requestId = (treeRequestIdRef.current += 1);
+    setTreeLoading(true);
+    try {
+      const response = await getKnowledgeTree({
+        subject: selectedSubject,
+        targetType: 'review',
+      });
+      if (treeRequestIdRef.current !== requestId) return;
+      if (response.success) {
+        setReviewTree(response.data);
+      } else {
+        setReviewTree([]);
+        message.error(response.message || '获取复习树失败');
+      }
+    } catch {
+      if (treeRequestIdRef.current === requestId) {
+        setReviewTree([]);
+        message.error('获取复习树失败');
+      }
+    } finally {
+      if (treeRequestIdRef.current === requestId) setTreeLoading(false);
     }
   }, [selectedSubject]);
 
   useEffect(() => {
-    void fetchAssets();
-  }, [fetchAssets]);
+    void fetchResources();
+  }, [fetchResources]);
 
-  const filteredResources = useMemo(() => {
-    const normalizedKeyword = keyword.trim();
-    return resources.filter((resource) => {
-      if (typeFilter !== 'all' && resource.type !== typeFilter) return false;
-      if (
-        normalizedKeyword &&
-        !resource.name.includes(normalizedKeyword) &&
-        !resource.currentVersion.originalFileName?.includes(normalizedKeyword)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [keyword, resources, typeFilter]);
+  useEffect(() => {
+    void fetchReviewTree();
+  }, [fetchReviewTree]);
+
+  const hasActiveFilters = Boolean(
+    keyword.trim() ||
+      typeFilter !== 'all' ||
+      carrierFilter !== 'all' ||
+      statusFilter !== 'all' ||
+      nodeFilter,
+  );
+
+  const resetFilters = () => {
+    setKeyword('');
+    setTypeFilter('all');
+    setCarrierFilter('all');
+    setStatusFilter('all');
+    setNodeFilter(undefined);
+  };
 
   const handleSubjectChange = (subject: string) => {
     setSelectedSubject(subject);
     setResources([]);
     setReviewTree([]);
-    setKeyword('');
-    setTypeFilter('all');
+    resetFilters();
+    setFormOpen(false);
+    setEditingResource(null);
+    form.resetFields();
+    setOwnershipOpen(false);
+    setOwnershipResource(null);
+    ownershipForm.resetFields();
   };
 
   const closeForm = () => {
@@ -256,31 +351,45 @@ const AssetCenterPage: React.FC = () => {
 
   const openEditModal = (resource: ResourceItem) => {
     setEditingResource(resource);
+    form.resetFields();
     form.setFieldsValue({
       name: resource.name,
       type: resource.type,
-      nodeId: resource.nodeId,
       fileList: undefined,
     });
     setFormOpen(true);
+  };
+
+  const closeOwnershipModal = () => {
+    setOwnershipOpen(false);
+    setOwnershipResource(null);
+    ownershipForm.resetFields();
+  };
+
+  const openOwnershipModal = (resource: ResourceItem) => {
+    setOwnershipResource(resource);
+    ownershipForm.setFieldsValue({ targetNodeId: resource.nodeId });
+    setOwnershipOpen(true);
   };
 
   const isDuplicatedResourceName = (
     name: string,
     type?: ResourceType,
     nodeId?: string,
-  ) =>
-    Boolean(
+  ) => {
+    const scopedNodeId = nodeId || editingResource?.nodeId;
+    return Boolean(
       type &&
-        nodeId &&
+        scopedNodeId &&
         resources.some(
           (resource) =>
             resource.id !== editingResource?.id &&
             resource.type === type &&
-            resource.nodeId === nodeId &&
+            resource.nodeId === scopedNodeId &&
             resource.name.trim() === name.trim(),
         ),
     );
+  };
 
   const handleTypeChange = (type: AttachmentResourceType) => {
     const selectedFile = form.getFieldValue('fileList')?.[0];
@@ -323,7 +432,6 @@ const AssetCenterPage: React.FC = () => {
         const response = await updateResourceMetadata({
           id: editingResource.id,
           name: values.name.trim(),
-          nodeId: values.nodeId,
           subject: selectedSubject,
         });
         if (!response.success) {
@@ -352,11 +460,46 @@ const AssetCenterPage: React.FC = () => {
       }
 
       closeForm();
-      await fetchAssets();
+      await Promise.all([fetchResources(), fetchReviewTree()]);
     } catch {
       message.error(editingResource ? '资源信息更新失败' : '附件资源上传失败');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleOwnershipSubmit = async () => {
+    if (!ownershipResource) return;
+
+    let values: OwnershipFormValues;
+    try {
+      values = await ownershipForm.validateFields();
+    } catch {
+      return;
+    }
+
+    setOwnershipSubmitting(true);
+    try {
+      const response = await adjustResourceOwnership({
+        id: ownershipResource.id,
+        subject: selectedSubject,
+        targetNodeId: values.targetNodeId,
+      });
+      if (!response.success) {
+        const errorMessage = response.message || '资源归属调整失败';
+        ownershipForm.setFields([
+          { name: 'targetNodeId', errors: [errorMessage] },
+        ]);
+        message.error(errorMessage);
+        return;
+      }
+      message.success('资源归属已原子调整');
+      closeOwnershipModal();
+      await Promise.all([fetchResources(), fetchReviewTree()]);
+    } catch {
+      message.error('资源归属调整失败');
+    } finally {
+      setOwnershipSubmitting(false);
     }
   };
 
@@ -375,7 +518,7 @@ const AssetCenterPage: React.FC = () => {
           return;
         }
         message.success('资源删除成功');
-        await fetchAssets();
+        await fetchResources();
       },
     });
   };
@@ -414,11 +557,27 @@ const AssetCenterPage: React.FC = () => {
       ),
     },
     {
-      title: '载体',
+      title: '当前载体',
       key: 'carrierType',
       width: 110,
       render: (_, resource) =>
         RESOURCE_CARRIER_LABELS[resource.currentVersion.carrierType],
+    },
+    {
+      title: '复习树完整路径',
+      dataIndex: 'nodeId',
+      key: 'nodeId',
+      width: 310,
+      render: (nodeId: string) => {
+        const nodePath = reviewTreeMetadata.nodePathMap.get(nodeId);
+        return nodePath ? (
+          <span className="asset-center-node-path" title={nodePath}>
+            {nodePath}
+          </span>
+        ) : (
+          <Tag color="error">节点不可用</Tag>
+        );
+      },
     },
     {
       title: '当前版本',
@@ -442,16 +601,6 @@ const AssetCenterPage: React.FC = () => {
       ),
     },
     {
-      title: '所属复习树节点',
-      dataIndex: 'nodeId',
-      key: 'nodeId',
-      width: 280,
-      render: (nodeId: string) =>
-        reviewTreeMetadata.nodePathMap.get(nodeId) || (
-          <Tag color="error">节点不可用</Tag>
-        ),
-    },
-    {
       title: '更新时间',
       dataIndex: 'updatedAt',
       key: 'updatedAt',
@@ -462,7 +611,7 @@ const AssetCenterPage: React.FC = () => {
       title: '操作',
       key: 'action',
       fixed: 'right',
-      width: 140,
+      width: 250,
       render: (_, resource) => (
         <Space size={0}>
           <Button
@@ -471,7 +620,15 @@ const AssetCenterPage: React.FC = () => {
             icon={<EditOutlined />}
             onClick={() => openEditModal(resource)}
           >
-            编辑
+            编辑名称
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<SwapOutlined />}
+            onClick={() => openOwnershipModal(resource)}
+          >
+            调整归属
           </Button>
           <Button
             type="link"
@@ -503,7 +660,7 @@ const AssetCenterPage: React.FC = () => {
       <Card variant="borderless" className="asset-center-card">
         <div className="asset-center-toolbar">
           <div className="asset-center-context-filter">
-            <span className="asset-center-context-label">学科上下文</span>
+            <span className="asset-center-context-label">学科目录</span>
             <Select
               value={selectedSubject}
               onChange={handleSubjectChange}
@@ -512,26 +669,8 @@ const AssetCenterPage: React.FC = () => {
               className="asset-center-subject-select"
             />
             <span className="asset-center-context-note">
-              资源学科继承自所属节点
+              当前仅展示一个学科，资源学科继承自所属节点
             </span>
-          </div>
-          <div className="asset-center-search-filters">
-            <Select
-              value={typeFilter}
-              onChange={setTypeFilter}
-              options={RESOURCE_TYPE_OPTIONS}
-              aria-label="筛选资源类型"
-              className="asset-center-type-select"
-            />
-            <Input
-              allowClear
-              placeholder="搜索资源名称或原始文件名…"
-              prefix={<SearchOutlined />}
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              aria-label="搜索资产"
-              className="asset-center-search"
-            />
           </div>
           <Button
             type="primary"
@@ -542,12 +681,68 @@ const AssetCenterPage: React.FC = () => {
           </Button>
         </div>
 
+        <div className="asset-center-filter-panel">
+          <div className="asset-center-filter-heading">
+            <strong>目录筛选</strong>
+            <span>条件可组合；选择父节点时包含其全部后代资源</span>
+          </div>
+          <div className="asset-center-filter-controls">
+            <Input
+              allowClear
+              placeholder="搜索资源名称或原始文件名…"
+              prefix={<SearchOutlined />}
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              aria-label="按名称筛选资产"
+              className="asset-center-search"
+            />
+            <Select
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={RESOURCE_TYPE_OPTIONS}
+              aria-label="筛选资源类型"
+              className="asset-center-filter-select"
+            />
+            <Select
+              value={carrierFilter}
+              onChange={setCarrierFilter}
+              options={RESOURCE_CARRIER_OPTIONS}
+              aria-label="筛选载体类型"
+              className="asset-center-filter-select"
+            />
+            <Select
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={RESOURCE_STATUS_OPTIONS}
+              aria-label="筛选资源状态"
+              className="asset-center-filter-select"
+            />
+            <TreeSelect
+              allowClear
+              value={nodeFilter}
+              onChange={setNodeFilter}
+              placeholder="全部复习树节点"
+              treeData={reviewTreeMetadata.filterTreeSelectData}
+              treeDefaultExpandAll
+              showSearch
+              treeNodeFilterProp="title"
+              aria-label="筛选复习树节点"
+              className="asset-center-node-filter"
+              notFoundContent="当前学科暂无复习树节点"
+            />
+            <Button onClick={resetFilters} disabled={!hasActiveFilters}>
+              重置
+            </Button>
+          </div>
+        </div>
+
         <Table<ResourceItem>
           rowKey="id"
-          loading={loading}
+          loading={loading || treeLoading}
           columns={columns}
-          dataSource={filteredResources}
-          scroll={{ x: 1250 }}
+          dataSource={resources}
+          scroll={{ x: 1500 }}
+          locale={{ emptyText: '当前筛选条件下暂无资源' }}
           pagination={{
             pageSize: 10,
             showSizeChanger: false,
@@ -557,7 +752,7 @@ const AssetCenterPage: React.FC = () => {
       </Card>
 
       <Modal
-        title={editingResource ? '编辑资源信息' : '上传附件资源'}
+        title={editingResource ? '编辑资源名称' : '上传附件资源'}
         open={formOpen}
         onOk={handleSubmit}
         onCancel={closeForm}
@@ -606,32 +801,35 @@ const AssetCenterPage: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item
-            name="nodeId"
-            label="所属复习树节点"
-            rules={[
-              { required: true, message: '请选择复习树末级节点' },
-              {
-                validator: (_, nodeId?: string) =>
-                  nodeId && reviewTreeMetadata.leafNodeIds.has(nodeId)
-                    ? Promise.resolve()
-                    : Promise.reject(
-                        new Error('请选择当前学科的有效复习树末级节点'),
-                      ),
-              },
-            ]}
-            extra="父节点仅用于分类，资源必须归属当前学科的末级节点"
-          >
-            <TreeSelect
-              placeholder="请选择末级节点"
-              treeData={reviewTreeMetadata.treeSelectData}
-              treeDefaultExpandAll
-              showSearch
-              treeNodeFilterProp="title"
-              allowClear={false}
-              notFoundContent="当前学科暂无可用复习树节点"
-            />
-          </Form.Item>
+          {!editingResource && (
+            <Form.Item
+              name="nodeId"
+              label="所属复习树节点"
+              rules={[
+                { required: true, message: '请选择复习树末级节点' },
+                {
+                  validator: (_, nodeId?: string) =>
+                    nodeId && reviewTreeMetadata.leafNodeIds.has(nodeId)
+                      ? Promise.resolve()
+                      : Promise.reject(
+                          new Error('请选择当前学科的有效复习树末级节点'),
+                        ),
+                },
+              ]}
+              extra="父节点仅用于分类，资源必须归属当前学科的末级节点"
+            >
+              <TreeSelect
+                placeholder="请选择末级节点"
+                aria-label="选择资源所属复习树节点"
+                treeData={reviewTreeMetadata.ownershipTreeSelectData}
+                treeDefaultExpandAll
+                showSearch
+                treeNodeFilterProp="title"
+                allowClear={false}
+                notFoundContent="当前学科暂无可用复习树节点"
+              />
+            </Form.Item>
+          )}
 
           {!editingResource && (
             <Form.Item
@@ -730,6 +928,77 @@ const AssetCenterPage: React.FC = () => {
             <Input placeholder="请输入资源名称" maxLength={40} showCount />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="调整资源归属"
+        open={ownershipOpen}
+        onOk={handleOwnershipSubmit}
+        onCancel={closeOwnershipModal}
+        okText="确认调整归属"
+        cancelText="取消"
+        confirmLoading={ownershipSubmitting}
+        width={600}
+        destroyOnClose
+      >
+        {ownershipResource && (
+          <>
+            <div className="asset-center-ownership-summary">
+              <span className="asset-center-ownership-label">资源</span>
+              <strong>{ownershipResource.name}</strong>
+              <span className="asset-center-ownership-label">当前归属</span>
+              <span>
+                {reviewTreeMetadata.nodePathMap.get(ownershipResource.nodeId) ||
+                  '节点不可用'}
+              </span>
+            </div>
+
+            <div className="asset-center-ownership-guardrail">
+              <SafetyCertificateOutlined />
+              <div>
+                <strong>归属将原子替换</strong>
+                <span>
+                  仅可选择当前学科的末级节点，确认后不会出现未归属中间状态
+                </span>
+              </div>
+            </div>
+
+            <Form
+              form={ownershipForm}
+              layout="vertical"
+              className="asset-center-resource-form"
+            >
+              <Form.Item
+                name="targetNodeId"
+                label="目标末级节点"
+                rules={[
+                  { required: true, message: '请选择目标末级节点' },
+                  {
+                    validator: (_, targetNodeId?: string) =>
+                      targetNodeId &&
+                      reviewTreeMetadata.leafNodeIds.has(targetNodeId)
+                        ? Promise.resolve()
+                        : Promise.reject(
+                            new Error('只能选择当前学科的有效复习树末级节点'),
+                          ),
+                  },
+                ]}
+                extra="目标节点存在同类型、同名称资源时，系统将拒绝调整"
+              >
+                <TreeSelect
+                  placeholder="请选择目标末级节点"
+                  aria-label="选择目标归属节点"
+                  treeData={reviewTreeMetadata.ownershipTreeSelectData}
+                  treeDefaultExpandAll
+                  showSearch
+                  treeNodeFilterProp="title"
+                  allowClear={false}
+                  notFoundContent="当前学科暂无可用复习树节点"
+                />
+              </Form.Item>
+            </Form>
+          </>
+        )}
       </Modal>
     </PageContainer>
   );

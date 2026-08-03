@@ -185,19 +185,30 @@ export interface ResourceVersion {
   readonly createdAt: string;
 }
 
-/** 资产中心的一行代表一份逻辑资源，资源类型与当前版本由服务端维护 */
+/** 资产中心的一行代表一份逻辑资源，节点路径由当前复习树动态投影 */
 export interface ResourceItem {
   readonly id: string;
-  name: string;
+  readonly name: string;
   readonly type: ResourceType;
   /** 学科由所属复习树节点继承，不提供独立修改入口 */
   readonly subject: string;
-  /** 唯一所属复习树末级节点 */
-  nodeId: string;
-  status: ResourceStatus;
+  /** 唯一所属复习树末级节点；响应不保存节点路径文本快照 */
+  readonly nodeId: string;
+  readonly status: ResourceStatus;
   readonly currentVersionId: string;
   readonly currentVersion: ResourceVersion;
-  updatedAt: string;
+  readonly updatedAt: string;
+}
+
+/** 单学科资产目录查询；所有可选条件按 AND 组合 */
+export interface ResourceListParams {
+  subject: string;
+  name?: string;
+  type?: ResourceType;
+  carrierType?: ResourceCarrierType;
+  status?: ResourceStatus;
+  /** 允许父节点，服务端按该节点的整棵子树聚合 */
+  nodeId?: string;
 }
 
 /** 强归属附件创建命令：一个兼容文件原子创建逻辑资源、V1 与节点归属 */
@@ -209,12 +220,18 @@ export interface CreateAttachmentResourceInput {
   subject: string;
 }
 
-/** 类型、学科与版本均不可通过资料编辑接口修改 */
+/** 类型、学科、版本与归属均不可通过资料编辑接口修改 */
 export interface UpdateResourceMetadataInput {
   id: string;
   name: string;
-  nodeId: string;
   subject: string;
+}
+
+/** 同学科末级节点间的原子归属调整命令，不存在空目标语义 */
+export interface AdjustResourceOwnershipInput {
+  id: string;
+  subject: string;
+  targetNodeId: string;
 }
 
 /** 树导入载荷中的节点（不含 key/id，由后端重建） */
@@ -377,7 +394,7 @@ export async function moveKnowledgeNode(data: {
 
 // --- Asset Center (资产中心) ---
 
-export async function getResourceList(params: { subject: string }) {
+export async function getResourceList(params: ResourceListParams) {
   return request<ApiResponse<ResourceItem[]>>('/api/resources', {
     method: 'GET',
     params,
@@ -397,6 +414,15 @@ export async function updateResourceMetadata(
   data: UpdateResourceMetadataInput,
 ) {
   return request<ApiResponse<ResourceItem>>('/api/resources', {
+    method: 'PUT',
+    data,
+  });
+}
+
+export async function adjustResourceOwnership(
+  data: AdjustResourceOwnershipInput,
+) {
+  return request<ApiResponse<ResourceItem>>('/api/resources/ownership', {
     method: 'PUT',
     data,
   });
