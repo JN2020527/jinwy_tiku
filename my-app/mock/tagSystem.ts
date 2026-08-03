@@ -1038,11 +1038,20 @@ const getResourcesByContext = (context: KnowledgeContext) => {
   return resourceStore[storeKey];
 };
 
-const normalizeOptionalResourceFilter = (value: unknown) => {
-  const normalizedValue = Array.isArray(value) ? value[0] : value;
-  return typeof normalizedValue === 'string' && normalizedValue.trim()
-    ? normalizedValue.trim()
-    : undefined;
+const parseOptionalResourceFilter = (
+  value: unknown,
+  label: string,
+):
+  | { valid: true; value: string | undefined }
+  | { valid: false; message: string } => {
+  if (value === undefined) return { valid: true, value: undefined };
+  if (typeof value !== 'string' || !value.trim()) {
+    return {
+      valid: false,
+      message: `${label}筛选条件必须是单个非空字符串`,
+    };
+  }
+  return { valid: true, value: value.trim() };
 };
 
 const collectResourceSubtreeNodeIds = (
@@ -1062,11 +1071,35 @@ const validateResourceListFilters = (
 ):
   | { valid: true; filters: MockResourceListFilters }
   | { valid: false; message: string } => {
-  const name = normalizeOptionalResourceFilter(query.name);
-  const type = normalizeOptionalResourceFilter(query.type);
-  const carrierType = normalizeOptionalResourceFilter(query.carrierType);
-  const status = normalizeOptionalResourceFilter(query.status);
-  const nodeId = normalizeOptionalResourceFilter(query.nodeId);
+  const nameValidation = parseOptionalResourceFilter(query.name, '资源名称');
+  if (!nameValidation.valid) return nameValidation;
+
+  const typeValidation = parseOptionalResourceFilter(query.type, '资源类型');
+  if (!typeValidation.valid) return typeValidation;
+
+  const carrierTypeValidation = parseOptionalResourceFilter(
+    query.carrierType,
+    '载体类型',
+  );
+  if (!carrierTypeValidation.valid) return carrierTypeValidation;
+
+  const statusValidation = parseOptionalResourceFilter(
+    query.status,
+    '资源状态',
+  );
+  if (!statusValidation.valid) return statusValidation;
+
+  const nodeIdValidation = parseOptionalResourceFilter(
+    query.nodeId,
+    '复习树节点',
+  );
+  if (!nodeIdValidation.valid) return nodeIdValidation;
+
+  const name = nameValidation.value;
+  const type = typeValidation.value;
+  const carrierType = carrierTypeValidation.value;
+  const status = statusValidation.value;
+  const nodeId = nodeIdValidation.value;
 
   if (type && !isResourceType(type)) {
     return { valid: false, message: '资源类型筛选条件无效' };

@@ -225,10 +225,14 @@ const AssetCenterPage: React.FC = () => {
   const [ownershipOpen, setOwnershipOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [ownershipSubmitting, setOwnershipSubmitting] = useState(false);
+  const [catalogRefreshToken, setCatalogRefreshToken] = useState(0);
   const [form] = Form.useForm<ResourceFormValues>();
   const [ownershipForm] = Form.useForm<OwnershipFormValues>();
+  const activeSubjectRef = useRef(selectedSubject);
   const resourceRequestIdRef = useRef(0);
   const treeRequestIdRef = useRef(0);
+  const formOperationGenerationRef = useRef(0);
+  const ownershipOperationGenerationRef = useRef(0);
 
   const selectedFormType = Form.useWatch('type', form);
   const selectedFormNodeId = Form.useWatch('nodeId', form);
@@ -239,11 +243,18 @@ const AssetCenterPage: React.FC = () => {
   );
 
   const fetchResources = useCallback(async () => {
+    const requestSubject = selectedSubject;
+    if (activeSubjectRef.current !== requestSubject) return;
+
     const requestId = (resourceRequestIdRef.current += 1);
+    const isCurrentRequest = () =>
+      resourceRequestIdRef.current === requestId &&
+      activeSubjectRef.current === requestSubject;
+
     setLoading(true);
     try {
       const response = await getResourceList({
-        subject: selectedSubject,
+        subject: requestSubject,
         name: keyword.trim() || undefined,
         type: typeFilter === 'all' ? undefined : typeFilter,
         carrierType: carrierFilter === 'all' ? undefined : carrierFilter,
@@ -251,7 +262,7 @@ const AssetCenterPage: React.FC = () => {
         nodeId: nodeFilter,
       });
 
-      if (resourceRequestIdRef.current !== requestId) return;
+      if (!isCurrentRequest()) return;
       if (response.success) {
         setResources(response.data);
       } else {
@@ -259,12 +270,12 @@ const AssetCenterPage: React.FC = () => {
         message.error(response.message || '获取资产列表失败');
       }
     } catch {
-      if (resourceRequestIdRef.current === requestId) {
+      if (isCurrentRequest()) {
         setResources([]);
         message.error('获取资产列表失败');
       }
     } finally {
-      if (resourceRequestIdRef.current === requestId) setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, [
     carrierFilter,
@@ -276,14 +287,21 @@ const AssetCenterPage: React.FC = () => {
   ]);
 
   const fetchReviewTree = useCallback(async () => {
+    const requestSubject = selectedSubject;
+    if (activeSubjectRef.current !== requestSubject) return;
+
     const requestId = (treeRequestIdRef.current += 1);
+    const isCurrentRequest = () =>
+      treeRequestIdRef.current === requestId &&
+      activeSubjectRef.current === requestSubject;
+
     setTreeLoading(true);
     try {
       const response = await getKnowledgeTree({
-        subject: selectedSubject,
+        subject: requestSubject,
         targetType: 'review',
       });
-      if (treeRequestIdRef.current !== requestId) return;
+      if (!isCurrentRequest()) return;
       if (response.success) {
         setReviewTree(response.data);
       } else {
@@ -291,22 +309,22 @@ const AssetCenterPage: React.FC = () => {
         message.error(response.message || '获取复习树失败');
       }
     } catch {
-      if (treeRequestIdRef.current === requestId) {
+      if (isCurrentRequest()) {
         setReviewTree([]);
         message.error('获取复习树失败');
       }
     } finally {
-      if (treeRequestIdRef.current === requestId) setTreeLoading(false);
+      if (isCurrentRequest()) setTreeLoading(false);
     }
   }, [selectedSubject]);
 
   useEffect(() => {
     void fetchResources();
-  }, [fetchResources]);
+  }, [catalogRefreshToken, fetchResources]);
 
   useEffect(() => {
     void fetchReviewTree();
-  }, [fetchReviewTree]);
+  }, [catalogRefreshToken, fetchReviewTree]);
 
   const hasActiveFilters = Boolean(
     keyword.trim() ||
@@ -325,32 +343,51 @@ const AssetCenterPage: React.FC = () => {
   };
 
   const handleSubjectChange = (subject: string) => {
+    if (activeSubjectRef.current === subject) return;
+
+    // 先同步失效旧学科请求与弹窗操作，避免 React 提交新状态前旧回调落库。
+    activeSubjectRef.current = subject;
+    resourceRequestIdRef.current += 1;
+    treeRequestIdRef.current += 1;
+    formOperationGenerationRef.current += 1;
+    ownershipOperationGenerationRef.current += 1;
+
     setSelectedSubject(subject);
     setResources([]);
     setReviewTree([]);
+    setLoading(false);
+    setTreeLoading(false);
     resetFilters();
     setFormOpen(false);
     setEditingResource(null);
+    setSubmitting(false);
     form.resetFields();
     setOwnershipOpen(false);
     setOwnershipResource(null);
+    setOwnershipSubmitting(false);
     ownershipForm.resetFields();
   };
 
   const closeForm = () => {
+    formOperationGenerationRef.current += 1;
     setFormOpen(false);
     setEditingResource(null);
+    setSubmitting(false);
     form.resetFields();
   };
 
   const openCreateModal = () => {
+    formOperationGenerationRef.current += 1;
     setEditingResource(null);
+    setSubmitting(false);
     form.resetFields();
     setFormOpen(true);
   };
 
   const openEditModal = (resource: ResourceItem) => {
+    formOperationGenerationRef.current += 1;
     setEditingResource(resource);
+    setSubmitting(false);
     form.resetFields();
     form.setFieldsValue({
       name: resource.name,
@@ -361,13 +398,17 @@ const AssetCenterPage: React.FC = () => {
   };
 
   const closeOwnershipModal = () => {
+    ownershipOperationGenerationRef.current += 1;
     setOwnershipOpen(false);
     setOwnershipResource(null);
+    setOwnershipSubmitting(false);
     ownershipForm.resetFields();
   };
 
   const openOwnershipModal = (resource: ResourceItem) => {
+    ownershipOperationGenerationRef.current += 1;
     setOwnershipResource(resource);
+    setOwnershipSubmitting(false);
     ownershipForm.setFieldsValue({ targetNodeId: resource.nodeId });
     setOwnershipOpen(true);
   };
@@ -419,21 +460,38 @@ const AssetCenterPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    const operationGeneration = (formOperationGenerationRef.current += 1);
+    const operationSubject = selectedSubject;
+    const operationResource = editingResource;
+    const isCurrentOperation = () =>
+      formOperationGenerationRef.current === operationGeneration &&
+      activeSubjectRef.current === operationSubject;
+
     let values: ResourceFormValues;
     try {
       values = await form.validateFields();
     } catch {
       return;
     }
+    if (!isCurrentOperation()) return;
 
     setSubmitting(true);
     try {
-      if (editingResource) {
+      if (operationResource) {
         const response = await updateResourceMetadata({
-          id: editingResource.id,
+          id: operationResource.id,
           name: values.name.trim(),
-          subject: selectedSubject,
+          subject: operationSubject,
         });
+        if (!isCurrentOperation()) {
+          if (
+            response.success &&
+            activeSubjectRef.current === operationSubject
+          ) {
+            setCatalogRefreshToken((current) => current + 1);
+          }
+          return;
+        }
         if (!response.success) {
           message.error(response.message || '资源信息更新失败');
           return;
@@ -450,8 +508,17 @@ const AssetCenterPage: React.FC = () => {
           type: values.type,
           originalFileName,
           nodeId: values.nodeId,
-          subject: selectedSubject,
+          subject: operationSubject,
         });
+        if (!isCurrentOperation()) {
+          if (
+            response.success &&
+            activeSubjectRef.current === operationSubject
+          ) {
+            setCatalogRefreshToken((current) => current + 1);
+          }
+          return;
+        }
         if (!response.success) {
           message.error(response.message || '附件资源上传失败');
           return;
@@ -460,16 +527,27 @@ const AssetCenterPage: React.FC = () => {
       }
 
       closeForm();
-      await Promise.all([fetchResources(), fetchReviewTree()]);
+      setCatalogRefreshToken((current) => current + 1);
     } catch {
-      message.error(editingResource ? '资源信息更新失败' : '附件资源上传失败');
+      if (isCurrentOperation()) {
+        message.error(
+          operationResource ? '资源信息更新失败' : '附件资源上传失败',
+        );
+      }
     } finally {
-      setSubmitting(false);
+      if (isCurrentOperation()) setSubmitting(false);
     }
   };
 
   const handleOwnershipSubmit = async () => {
     if (!ownershipResource) return;
+
+    const operationGeneration = (ownershipOperationGenerationRef.current += 1);
+    const operationSubject = selectedSubject;
+    const operationResource = ownershipResource;
+    const isCurrentOperation = () =>
+      ownershipOperationGenerationRef.current === operationGeneration &&
+      activeSubjectRef.current === operationSubject;
 
     let values: OwnershipFormValues;
     try {
@@ -477,14 +555,21 @@ const AssetCenterPage: React.FC = () => {
     } catch {
       return;
     }
+    if (!isCurrentOperation()) return;
 
     setOwnershipSubmitting(true);
     try {
       const response = await adjustResourceOwnership({
-        id: ownershipResource.id,
-        subject: selectedSubject,
+        id: operationResource.id,
+        subject: operationSubject,
         targetNodeId: values.targetNodeId,
       });
+      if (!isCurrentOperation()) {
+        if (response.success && activeSubjectRef.current === operationSubject) {
+          setCatalogRefreshToken((current) => current + 1);
+        }
+        return;
+      }
       if (!response.success) {
         const errorMessage = response.message || '资源归属调整失败';
         ownershipForm.setFields([
@@ -495,15 +580,16 @@ const AssetCenterPage: React.FC = () => {
       }
       message.success('资源归属已原子调整');
       closeOwnershipModal();
-      await Promise.all([fetchResources(), fetchReviewTree()]);
+      setCatalogRefreshToken((current) => current + 1);
     } catch {
-      message.error('资源归属调整失败');
+      if (isCurrentOperation()) message.error('资源归属调整失败');
     } finally {
-      setOwnershipSubmitting(false);
+      if (isCurrentOperation()) setOwnershipSubmitting(false);
     }
   };
 
   const handleDelete = (resource: ResourceItem) => {
+    const operationSubject = selectedSubject;
     Modal.confirm({
       title: '确认删除资源',
       content: `确定要从资产中心删除“${resource.name}”吗？`,
@@ -511,14 +597,15 @@ const AssetCenterPage: React.FC = () => {
       okButtonProps: { danger: true },
       onOk: async () => {
         const response = await deleteResource(resource.id, {
-          subject: selectedSubject,
+          subject: operationSubject,
         });
+        if (activeSubjectRef.current !== operationSubject) return;
         if (!response.success) {
           message.error(response.message || '资源删除失败');
           return;
         }
         message.success('资源删除成功');
-        await fetchResources();
+        setCatalogRefreshToken((current) => current + 1);
       },
     });
   };
