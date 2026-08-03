@@ -55,6 +55,43 @@
   }
 }
 
+.asset-center-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.asset-center-composed-entry {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px 3px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.asset-center-composed-entry-label {
+  display: flex;
+  min-width: 78px;
+  flex-direction: column;
+  padding-right: 2px;
+  line-height: 1.2;
+
+  strong {
+    color: #334155;
+    font-size: 13px;
+  }
+
+  small {
+    margin-top: 2px;
+    color: #64748b;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
+
 .asset-center-filter-panel {
   margin-bottom: 18px;
   padding: 14px;
@@ -972,8 +1009,9 @@
     width: auto;
   }
 
-  .asset-center-toolbar > .ant-btn {
-    margin-left: auto;
+  .asset-center-toolbar-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .asset-version-anchor {
@@ -1008,6 +1046,30 @@
     width: 100%;
     padding: 0 0 3px;
     white-space: normal;
+  }
+
+  .asset-center-toolbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .asset-center-composed-entry {
+    width: 100%;
+    flex-wrap: wrap;
+    padding: 8px;
+
+    .ant-btn {
+      flex: 1 1 120px;
+    }
+  }
+
+  .asset-center-composed-entry-label {
+    width: 100%;
+    padding: 0 2px 2px;
+  }
+
+  .asset-center-toolbar-actions > .ant-btn {
+    width: 100%;
   }
 
   .asset-center-filter-heading {

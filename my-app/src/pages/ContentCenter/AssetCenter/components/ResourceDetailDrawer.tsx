@@ -27,6 +27,7 @@ import {
   FilePdfOutlined,
   FilePptOutlined,
   FileTextOutlined,
+  FormOutlined,
   HistoryOutlined,
   InboxOutlined,
   SafetyCertificateOutlined,
@@ -62,6 +63,7 @@ interface ResourceDetailDrawerProps {
   request: ResourceDetailRequest | null;
   nodePath?: string;
   onClose: () => void;
+  onEditContent: (resource: ResourceItem) => void;
   onResourceChanged: (resource: ResourceItem) => void;
   isSubjectActive: (subject: string) => boolean;
 }
@@ -115,6 +117,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
   request,
   nodePath,
   onClose,
+  onEditContent,
   onResourceChanged,
   isSubjectActive,
 }) => {
@@ -473,7 +476,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
       ),
     },
     {
-      title: '文件与载体',
+      title: '内容与载体',
       key: 'file',
       width: 260,
       render: (_, version) => (
@@ -573,24 +576,24 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
         width={940}
         destroyOnClose
         extra={
-          <Tooltip
-            title={
-              detail && !isAttachmentResourceType(detail.type)
-                ? '组合型资源版本由组合制作发布，本任务不提供编辑器'
-                : undefined
-            }
-          >
-            <span>
-              <Button
-                type="primary"
-                icon={<FileAddOutlined />}
-                disabled={!detail || !isAttachmentResourceType(detail.type)}
-                onClick={openUpload}
-              >
-                上传新版本
-              </Button>
-            </span>
-          </Tooltip>
+          detail && !isAttachmentResourceType(detail.type) ? (
+            <Button
+              type="primary"
+              icon={<FormOutlined />}
+              onClick={() => onEditContent(detail)}
+            >
+              编辑内容
+            </Button>
+          ) : (
+            <Button
+              type="primary"
+              icon={<FileAddOutlined />}
+              disabled={!detail}
+              onClick={openUpload}
+            >
+              上传新版本
+            </Button>
+          )
         }
         className="asset-detail-drawer"
       >

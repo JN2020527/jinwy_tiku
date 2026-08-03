@@ -1,5 +1,6 @@
 import type {
   AttachmentResourceType,
+  ComposedResourceType,
   KnowledgeNode,
   ResourceCarrierType,
   ResourceItem,
@@ -19,6 +20,7 @@ import {
   getResourceList,
   isAttachmentFileCompatible,
   isAttachmentResourceType,
+  isComposedResourceType,
   RESOURCE_CARRIER_LABELS,
   RESOURCE_LIFECYCLE_ACTION_LABELS,
   RESOURCE_LIFECYCLE_TRANSITIONS,
@@ -37,6 +39,7 @@ import {
   FilePdfOutlined,
   FilePptOutlined,
   FileTextOutlined,
+  FormOutlined,
   HistoryOutlined,
   InboxOutlined,
   RollbackOutlined,
@@ -47,7 +50,7 @@ import {
   VideoCameraOutlined,
 } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
-import { useSearchParams } from '@umijs/max';
+import { history, useSearchParams } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -467,6 +470,24 @@ const AssetCenterPage: React.FC = () => {
       fileList: undefined,
     });
     setFormOpen(true);
+  };
+
+  const openCombinationProduction = (type: ComposedResourceType) => {
+    const params = new URLSearchParams({
+      type,
+      subject: selectedSubject,
+    });
+    history.push(`/combination-production/new?${params.toString()}`);
+  };
+
+  const openRevisionDraft = (resource: ResourceItem) => {
+    if (!isComposedResourceType(resource.type)) return;
+    const params = new URLSearchParams({ subject: resource.subject });
+    history.push(
+      `/combination-production/revision/${encodeURIComponent(
+        resource.id,
+      )}?${params.toString()}`,
+    );
   };
 
   const closeOwnershipModal = () => {
@@ -937,7 +958,7 @@ const AssetCenterPage: React.FC = () => {
       title: '操作',
       key: 'action',
       fixed: 'right',
-      width: 550,
+      width: 640,
       render: (_, resource) => {
         const lifecycleActions = Object.keys(
           RESOURCE_LIFECYCLE_TRANSITIONS[resource.status],
@@ -977,6 +998,17 @@ const AssetCenterPage: React.FC = () => {
                 {RESOURCE_LIFECYCLE_ACTION_LABELS[action]}
               </Button>
             ))}
+            {isComposedResourceType(resource.type) && (
+              <Button
+                type="link"
+                size="small"
+                icon={<FormOutlined />}
+                disabled={lifecycleBusy}
+                onClick={() => openRevisionDraft(resource)}
+              >
+                编辑内容
+              </Button>
+            )}
             <Button
               type="link"
               size="small"
@@ -1043,13 +1075,36 @@ const AssetCenterPage: React.FC = () => {
               当前仅展示一个学科，资源学科继承自所属节点
             </span>
           </div>
-          <Button
-            type="primary"
-            icon={<UploadOutlined />}
-            onClick={openCreateModal}
-          >
-            上传附件资源
-          </Button>
+          <div className="asset-center-toolbar-actions">
+            <div
+              className="asset-center-composed-entry"
+              aria-label="组合制作快捷入口"
+            >
+              <span className="asset-center-composed-entry-label">
+                <strong>组合制作</strong>
+                <small>前往独立模块</small>
+              </span>
+              <Button
+                icon={<FormOutlined />}
+                onClick={() => openCombinationProduction('studyGuide')}
+              >
+                新建学案
+              </Button>
+              <Button
+                icon={<FormOutlined />}
+                onClick={() => openCombinationProduction('homework')}
+              >
+                新建作业
+              </Button>
+            </div>
+            <Button
+              type="primary"
+              icon={<UploadOutlined />}
+              onClick={openCreateModal}
+            >
+              上传附件资源
+            </Button>
+          </div>
         </div>
 
         <div className="asset-center-filter-panel">
@@ -1112,7 +1167,7 @@ const AssetCenterPage: React.FC = () => {
           loading={loading || treeLoading}
           columns={columns}
           dataSource={resources}
-          scroll={{ x: 2000 }}
+          scroll={{ x: 2090 }}
           locale={{ emptyText: '当前筛选条件下暂无资源' }}
           pagination={{
             pageSize: 10,
@@ -1415,6 +1470,7 @@ const AssetCenterPage: React.FC = () => {
             : undefined
         }
         onClose={() => setDetailRequest(null)}
+        onEditContent={openRevisionDraft}
         isSubjectActive={isSubjectActive}
         onResourceChanged={(resource) => {
           if (activeSubjectRef.current === resource.subject) {

@@ -1156,6 +1156,16 @@ const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
       status: 'archived',
       referenceCount: 1,
     }),
+    createSeedResource({
+      id: `res-${subject}-5`,
+      name: '三轮冲刺综合作业',
+      type: 'homework',
+      carrierType: 'online',
+      subject,
+      nodeId: scoped('rv-3-1'),
+      status: 'listed',
+      referenceCount: 2,
+    }),
   ];
 
   const appendPendingVersion = (

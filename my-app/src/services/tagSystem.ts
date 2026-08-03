@@ -176,8 +176,9 @@ export const isAttachmentResourceType = (
 ): type is AttachmentResourceType =>
   type === 'courseware' || type === 'extension';
 
-export const isComposedResourceType = (type: ResourceType): boolean =>
-  COMPOSED_RESOURCE_TYPES.includes(type as ComposedResourceType);
+export const isComposedResourceType = (
+  type: unknown,
+): type is ComposedResourceType => type === 'studyGuide' || type === 'homework';
 
 export const inferAttachmentCarrierType = (
   originalFileName: string,

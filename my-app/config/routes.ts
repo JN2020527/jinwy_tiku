@@ -56,6 +56,18 @@ export default [
     ],
   },
   {
+    path: '/combination-production/new',
+    name: '组合制作',
+    component: './CombinationProduction',
+    hideInMenu: true,
+  },
+  {
+    path: '/combination-production/revision/:resourceId',
+    name: '组合制作修订',
+    component: './CombinationProduction',
+    hideInMenu: true,
+  },
+  {
     path: '/statistics',
     name: '业务统计',
     icon: 'barChart',
