@@ -26,12 +26,15 @@ import {
   importKnowledgeTree,
   moveKnowledgeNode,
   moveTextbookChapter,
+  RESOURCE_TYPE_LABELS,
   updateKnowledgeNode,
   updateResource,
   updateTextbookChapter,
 } from '@/services/tagSystem';
 import {
+  FileDoneOutlined,
   FilePptOutlined,
+  FileTextOutlined,
   FileZipOutlined,
   HolderOutlined,
   SearchOutlined,
@@ -587,6 +590,42 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   const isResourceNode = (node: TreeNodeData) =>
     node.nodeType === 'resource' || String(node.key).startsWith('res:');
 
+  const renderResourceTypeTag = (type?: string) => {
+    const resourceType = type as ResourceType | undefined;
+    const colors: Record<string, string> = {
+      courseware: 'blue',
+      extension: 'purple',
+      studyGuide: 'cyan',
+      homework: 'orange',
+    };
+    const labels: Record<string, string> = RESOURCE_TYPE_LABELS as Record<
+      string,
+      string
+    >;
+    return (
+      <Tag
+        className="tag-tree-node-resource-tag"
+        color={colors[resourceType || 'courseware']}
+      >
+        {labels[resourceType || 'courseware'] || '资源'}
+      </Tag>
+    );
+  };
+
+  const renderResourceTypeIcon = (type?: string) => {
+    const props = { className: 'tag-tree-node-resource-icon' };
+    switch (type) {
+      case 'extension':
+        return <FileZipOutlined {...props} />;
+      case 'studyGuide':
+        return <FileTextOutlined {...props} />;
+      case 'homework':
+        return <FileDoneOutlined {...props} />;
+      default:
+        return <FilePptOutlined {...props} />;
+    }
+  };
+
   const findResourceByNodeKey = (key: React.Key) => {
     const resourceId = String(key).replace(/^res:/, '');
     return resources.find((item) => item.id === resourceId);
@@ -1042,23 +1081,10 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
                   className="tag-tree-node-resource"
                   actionsVisible={!arrangeMode}
                   showAddChild={false}
-                  leadingIcon={
-                    node.resourceType === 'extension' ? (
-                      <FileZipOutlined className="tag-tree-node-resource-icon" />
-                    ) : (
-                      <FilePptOutlined className="tag-tree-node-resource-icon" />
-                    )
-                  }
+                  leadingIcon={renderResourceTypeIcon(node.resourceType)}
                   meta={
                     <>
-                      <Tag
-                        className="tag-tree-node-resource-tag"
-                        color={
-                          node.resourceType === 'extension' ? 'purple' : 'blue'
-                        }
-                      >
-                        {node.resourceType === 'extension' ? '拓展包' : '课件'}
-                      </Tag>
+                      {renderResourceTypeTag(node.resourceType)}
                       {node.updatedAt ? (
                         <span className="tag-tree-node-resource-time">
                           {node.updatedAt}
@@ -1209,11 +1235,22 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
                 name="type"
                 label="资源类型"
                 rules={[{ required: true, message: '请选择资源类型' }]}
+                extra="学案/作业为组合型资源，原子体系接入前暂不支持"
               >
                 <Select
                   options={[
                     { label: '课件', value: 'courseware' },
                     { label: '拓展包', value: 'extension' },
+                    {
+                      label: '学案（组合型）',
+                      value: 'studyGuide',
+                      disabled: true,
+                    },
+                    {
+                      label: '作业（组合型）',
+                      value: 'homework',
+                      disabled: true,
+                    },
                   ]}
                 />
               </Form.Item>
@@ -1266,21 +1303,9 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
                           )
                         }
                       >
-                        {item.type === 'extension' ? (
-                          <FileZipOutlined
-                            style={{ color: '#722ed1', marginRight: 6 }}
-                          />
-                        ) : (
-                          <FilePptOutlined
-                            style={{ color: '#1677ff', marginRight: 6 }}
-                          />
-                        )}
+                        {renderResourceTypeIcon(item.type)}
                         <span style={{ marginRight: 8 }}>{item.name}</span>
-                        <Tag
-                          color={item.type === 'extension' ? 'purple' : 'blue'}
-                        >
-                          {item.type === 'extension' ? '拓展包' : '课件'}
-                        </Tag>
+                        {renderResourceTypeTag(item.type)}
                       </Checkbox>
                     </List.Item>
                   )}

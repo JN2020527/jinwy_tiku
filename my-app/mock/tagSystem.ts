@@ -115,7 +115,12 @@ interface MockKnowledgeNode {
   children?: MockKnowledgeNode[];
 }
 
-type ResourceType = 'courseware' | 'extension';
+type ResourceType = 'courseware' | 'extension' | 'studyGuide' | 'homework';
+
+const normalizeResourceType = (value: unknown): ResourceType =>
+  value === 'extension' || value === 'studyGuide' || value === 'homework'
+    ? value
+    : 'courseware';
 
 interface MockResourceItem {
   id: string;
@@ -905,6 +910,14 @@ const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
       fileName: '春秋战国复习课件.pptx',
       subject,
       nodeId: scoped('rv-1-1-3'),
+      updatedAt: now,
+    },
+    {
+      id: `res-${subject}-4`,
+      name: '专题·古代政治制度复习学案',
+      type: 'studyGuide',
+      subject,
+      nodeId: scoped('rv-2-1'),
       updatedAt: now,
     },
   ];
@@ -1988,10 +2001,19 @@ export default {
       res.send({ success: false, message: '资源名称不能为空' });
       return;
     }
+    const normalizedType = normalizeResourceType(type);
+    if (normalizedType === 'studyGuide' || normalizedType === 'homework') {
+      res.send({
+        success: false,
+        message:
+          '学案/作业为组合型资源，由原子化知识块与试题组合生成，原子体系未接入暂不支持创建',
+      });
+      return;
+    }
     const item: MockResourceItem = {
       id: `res-${context.subject}-${Date.now()}`,
       name: normalizedName,
-      type: type === 'extension' ? 'extension' : 'courseware',
+      type: normalizedType,
       fileName: normalizeQueryValue(fileName, '') || undefined,
       subject: context.subject,
       nodeId: typeof nodeId === 'string' && nodeId ? nodeId : '',
@@ -2011,7 +2033,16 @@ export default {
     }
     if (req.body.name !== undefined) item.name = String(req.body.name);
     if (req.body.type !== undefined) {
-      item.type = req.body.type === 'extension' ? 'extension' : 'courseware';
+      const nextType = normalizeResourceType(req.body.type);
+      if (nextType === 'studyGuide' || nextType === 'homework') {
+        res.send({
+          success: false,
+          message:
+            '学案/作业为组合型资源，由原子化知识块与试题组合生成，原子体系未接入暂不支持创建',
+        });
+        return;
+      }
+      item.type = nextType;
     }
     if (req.body.fileName !== undefined) {
       item.fileName = normalizeQueryValue(req.body.fileName, '') || undefined;

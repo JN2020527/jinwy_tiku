@@ -5,9 +5,12 @@ import type {
 } from '@/services/tagSystem';
 import {
   addResource,
+  ATTACHMENT_RESOURCE_TYPES,
+  COMPOSED_RESOURCE_TYPES,
   deleteResource,
   getKnowledgeTree,
   getResourceList,
+  RESOURCE_TYPE_LABELS,
   updateResource,
 } from '@/services/tagSystem';
 import {
@@ -55,18 +58,21 @@ const SUBJECT_OPTIONS = [
 
 const RESOURCE_TYPE_OPTIONS = [
   { label: '全部类型', value: 'all' },
-  { label: '课件', value: 'courseware' },
-  { label: '拓展包', value: 'extension' },
+  ...ATTACHMENT_RESOURCE_TYPES.map((type) => ({
+    label: RESOURCE_TYPE_LABELS[type],
+    value: type,
+  })),
+  ...COMPOSED_RESOURCE_TYPES.map((type) => ({
+    label: `${RESOURCE_TYPE_LABELS[type]}（组合型）`,
+    value: type,
+  })),
 ];
-
-const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
-  courseware: '课件',
-  extension: '拓展包',
-};
 
 const RESOURCE_TYPE_COLORS: Record<ResourceType, string> = {
   courseware: 'blue',
   extension: 'purple',
+  studyGuide: 'cyan',
+  homework: 'orange',
 };
 
 interface ResourceFormValues {
@@ -414,13 +420,21 @@ const ResourceCenterPage: React.FC = () => {
             name="type"
             label="资源类型"
             rules={[{ required: true, message: '请选择资源类型' }]}
+            extra="学案/作业为组合型资源，由原子化知识块与试题组合生成，原子体系接入前暂不支持创建"
           >
             <Select
-              options={[
-                { label: '课件', value: 'courseware' },
-                { label: '拓展包', value: 'extension' },
-              ]}
               placeholder="请选择资源类型"
+              options={[
+                ...ATTACHMENT_RESOURCE_TYPES.map((type) => ({
+                  label: RESOURCE_TYPE_LABELS[type],
+                  value: type,
+                })),
+                ...COMPOSED_RESOURCE_TYPES.map((type) => ({
+                  label: `${RESOURCE_TYPE_LABELS[type]}（组合型）`,
+                  value: type,
+                  disabled: true,
+                })),
+              ]}
             />
           </Form.Item>
           <Form.Item name="fileName" label="资源文件">

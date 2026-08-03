@@ -90,7 +90,33 @@ export interface KnowledgeNode {
 
 // --- Resources (复习树附件资源) ---
 
-export type ResourceType = 'courseware' | 'extension';
+/** 附件型资源：课件、拓展包（直接上传文件） */
+export type AttachmentResourceType = 'courseware' | 'extension';
+/** 组合型资源：学案、作业（由原子化知识块与试题组合形成，原子体系未接入前不可创建） */
+export type ComposedResourceType = 'studyGuide' | 'homework';
+
+export type ResourceType = AttachmentResourceType | ComposedResourceType;
+
+/** 附件型资源类型集合 */
+export const ATTACHMENT_RESOURCE_TYPES: readonly AttachmentResourceType[] = [
+  'courseware',
+  'extension',
+];
+/** 组合型资源类型集合（原子体系接入前仅作占位） */
+export const COMPOSED_RESOURCE_TYPES: readonly ComposedResourceType[] = [
+  'studyGuide',
+  'homework',
+];
+
+export const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
+  courseware: '课件',
+  extension: '拓展包',
+  studyGuide: '学案',
+  homework: '作业',
+};
+
+export const isComposedResourceType = (type: ResourceType): boolean =>
+  COMPOSED_RESOURCE_TYPES.includes(type as ComposedResourceType);
 
 export interface ResourceItem {
   id: string;
