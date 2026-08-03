@@ -32,6 +32,7 @@ export interface TreeNodeTitleProps {
   nodeActionsVisible?: boolean;
   showAddChild?: boolean;
   addChildTitle?: string;
+  extraActions?: React.ReactNode;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
   onMoveUp?: (node: TreeNodeData, e: React.MouseEvent) => void;
@@ -52,6 +53,7 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
   nodeActionsVisible = true,
   showAddChild = true,
   addChildTitle = '添加子节点',
+  extraActions,
   canMoveUp = false,
   canMoveDown = false,
   onMoveUp,
@@ -148,7 +150,8 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
     );
 
   const shouldRenderActions =
-    actionsVisible && (Boolean(onMoveUp || onMoveDown) || nodeActionsVisible);
+    actionsVisible &&
+    (Boolean(onMoveUp || onMoveDown || extraActions) || nodeActionsVisible);
 
   return (
     <div
@@ -189,6 +192,7 @@ const TreeNodeTitle: React.FC<TreeNodeTitleProps> = ({
               />
             </Tooltip>
           ) : null}
+          {extraActions}
           {nodeActionsVisible && showAddChild ? (
             <Tooltip title={addChildTitle}>
               <Button

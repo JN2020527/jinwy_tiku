@@ -83,7 +83,31 @@ export interface KnowledgeNode {
   value?: string;
   subject?: string;
   description?: string;
+  /** 仅复习树末级节点有效；教学计划按此值计算排期。 */
+  suggestedHours?: number;
+  /** 仅复习树末级节点有效；停用后不可再被新任务选择。 */
+  enabled?: boolean;
   children?: KnowledgeNode[];
+}
+
+/**
+ * 教学计划可引用的资源树末级节点。
+ * 接口始终返回停用节点，以便既有草稿继续识别引用；新选择需校验 enabled。
+ */
+export interface ResourceTreeLeafNode {
+  id: string;
+  name: string;
+  path: string[];
+  subject: string;
+  suggestedHours: number;
+  enabled: boolean;
+}
+
+export interface UpdateResourceTreeLeafSchedulingInput {
+  id: string;
+  subject: string;
+  suggestedHours: number;
+  enabled: boolean;
 }
 
 // --- Assets (资产中心正式资源) ---
@@ -279,6 +303,7 @@ export interface ImportTreeNode {
 /** 树结构变更影响的正式资源；scope 为空时表示当前学科整棵复习树 */
 export interface TreeMutationResult {
   affectedResourceCount: number;
+  affectedTeachingTaskCount?: number;
   resourceScopeNodeId?: string;
 }
 
@@ -329,6 +354,30 @@ export async function getKnowledgeTree(params?: {
     method: 'GET',
     params,
   });
+}
+
+/** 取得指定学科的全部资源树末级节点（含停用节点，不返回父节点）。 */
+export async function getResourceTreeLeafNodes(params: { subject: string }) {
+  return request<ApiResponse<ResourceTreeLeafNode[]>>(
+    '/api/tags/resource-tree/leaves',
+    {
+      method: 'GET',
+      params,
+    },
+  );
+}
+
+/** 更新资源树末级节点的排期属性；建议课时必须为正数且以 0.5 为步长。 */
+export async function updateResourceTreeLeafScheduling(
+  data: UpdateResourceTreeLeafSchedulingInput,
+) {
+  return request<ApiResponse<ResourceTreeLeafNode>>(
+    '/api/tags/resource-tree/leaf-scheduling',
+    {
+      method: 'PUT',
+      data,
+    },
+  );
 }
 
 /** 清空重建导入：以模板树替换当前学科 + 体系下的整棵树 */

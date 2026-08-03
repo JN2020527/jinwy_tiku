@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 
+import { countTeachingPlanTaskReferences } from './teachingPlanReferenceRegistry';
+
 interface MockAttributeItem {
   id: string;
   name: string;
@@ -101,6 +103,8 @@ interface KnowledgeSeedNode {
   key: string;
   value?: string;
   description?: string;
+  suggestedHours?: number;
+  enabled?: boolean;
   children?: KnowledgeSeedNode[];
 }
 
@@ -111,7 +115,18 @@ interface MockKnowledgeNode {
   value?: string;
   subject: string;
   description?: string;
+  suggestedHours?: number;
+  enabled?: boolean;
   children?: MockKnowledgeNode[];
+}
+
+interface MockResourceTreeLeafNode {
+  id: string;
+  name: string;
+  path: string[];
+  subject: string;
+  suggestedHours: number;
+  enabled: boolean;
 }
 
 type AttachmentResourceType = 'courseware' | 'extension';
@@ -878,6 +893,12 @@ const applyKnowledgeScope = (
     value: node.value ? `${node.value}-${contextKey}` : undefined,
     subject: context.subject,
     description: node.description,
+    ...(context.targetType === 'review' && !node.children?.length
+      ? {
+          suggestedHours: node.suggestedHours ?? 1,
+          enabled: node.enabled ?? true,
+        }
+      : {}),
     children: node.children
       ? applyKnowledgeScope(node.children, context)
       : undefined,
@@ -885,6 +906,17 @@ const applyKnowledgeScope = (
 };
 
 const knowledgeTreeStore: Record<string, MockKnowledgeNode[]> = {};
+
+const ensureReviewLeafScheduling = (nodes: MockKnowledgeNode[]) => {
+  nodes.forEach((node) => {
+    if (node.children?.length) {
+      ensureReviewLeafScheduling(node.children);
+      return;
+    }
+    node.suggestedHours ??= 1;
+    node.enabled ??= true;
+  });
+};
 
 const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
   const storeKey = getKnowledgeStoreKey(context);
@@ -895,7 +927,57 @@ const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
         : defaultKnowledgePointTemplates;
     knowledgeTreeStore[storeKey] = applyKnowledgeScope(templates, context);
   }
+  if (context.targetType === 'review') {
+    // 节点移动后，原父节点可能首次成为末级节点，需要补齐可排期默认值。
+    ensureReviewLeafScheduling(knowledgeTreeStore[storeKey]);
+  }
   return knowledgeTreeStore[storeKey];
+};
+
+const collectResourceTreeLeafNodes = (
+  nodes: MockKnowledgeNode[],
+  parentPath: string[] = [],
+): MockResourceTreeLeafNode[] =>
+  nodes.flatMap((node) => {
+    const path = [...parentPath, node.title];
+    if (node.children?.length) {
+      return collectResourceTreeLeafNodes(node.children, path);
+    }
+    return [
+      {
+        id: node.key,
+        name: node.title,
+        path,
+        subject: node.subject,
+        suggestedHours: node.suggestedHours ?? 1,
+        enabled: node.enabled ?? true,
+      },
+    ];
+  });
+
+/** 供同一 Mock 进程内的教学计划服务读取资源树当前状态。 */
+export const getResourceTreeLeafNodesSnapshot = (
+  subject: string,
+): MockResourceTreeLeafNode[] =>
+  structuredClone(
+    collectResourceTreeLeafNodes(
+      getKnowledgeTreeByContext({ subject, targetType: 'review' }),
+    ),
+  );
+
+const validateSuggestedHours = (value: unknown) => {
+  const suggestedHours = Number(value);
+  if (
+    !Number.isFinite(suggestedHours) ||
+    suggestedHours <= 0 ||
+    !Number.isInteger(suggestedHours * 2)
+  ) {
+    return {
+      valid: false as const,
+      message: '建议课时必须为正数，且以 0.5 课时为最小单位',
+    };
+  }
+  return { valid: true as const, suggestedHours };
 };
 
 // --- Mock Data for Assets (资产中心正式资源) ---
@@ -2016,6 +2098,70 @@ export default {
       data: getKnowledgeTreeByContext(context),
     });
   },
+  'GET /api/tags/resource-tree/leaves': (req: Request, res: Response) => {
+    const subject = normalizeQueryValue(req.query.subject, '').trim();
+    if (!subject) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+
+    res.send({
+      success: true,
+      message: 'Resource tree leaf nodes loaded successfully',
+      // 停用节点仍返回，供草稿识别；调用方仅可把 enabled 节点用于新选择。
+      data: getResourceTreeLeafNodesSnapshot(subject),
+    });
+  },
+  'PUT /api/tags/resource-tree/leaf-scheduling': (
+    req: Request,
+    res: Response,
+  ) => {
+    const subject =
+      typeof req.body?.subject === 'string' ? req.body.subject.trim() : '';
+    const nodeId = typeof req.body?.id === 'string' ? req.body.id.trim() : '';
+    if (!subject || !nodeId) {
+      res.send({ success: false, message: '学科和节点不能为空' });
+      return;
+    }
+    if (typeof req.body?.enabled !== 'boolean') {
+      res.send({ success: false, message: '启用状态必须为布尔值' });
+      return;
+    }
+
+    const hoursValidation = validateSuggestedHours(req.body?.suggestedHours);
+    if (!hoursValidation.valid) {
+      res.send({ success: false, message: hoursValidation.message });
+      return;
+    }
+
+    const tree = getKnowledgeTreeByContext({
+      subject,
+      targetType: 'review',
+    });
+    const node = findTreeNode(tree, nodeId);
+    if (!node || node.subject !== subject) {
+      res.send({ success: false, message: '节点不存在或不属于当前学科' });
+      return;
+    }
+    if (node.children?.length) {
+      res.send({
+        success: false,
+        message: '只有资源树末级节点可以配置排期属性',
+      });
+      return;
+    }
+
+    node.suggestedHours = hoursValidation.suggestedHours;
+    node.enabled = req.body.enabled;
+    const responseNode = collectResourceTreeLeafNodes(tree).find(
+      (item) => item.id === nodeId,
+    );
+    res.send({
+      success: true,
+      message: '排期属性已更新',
+      data: responseNode,
+    });
+  },
   'POST /api/tags/knowledge-tree/import': (req: Request, res: Response) => {
     const context = getKnowledgeContext(req);
     const { nodes } = req.body;
@@ -2123,6 +2269,20 @@ export default {
           success: false,
           message: `当前学科复习树下有 ${affectedResourceCount} 份正式资源，不能清空重建。请改用节点编辑或整理来调整结构。`,
           data: { affectedResourceCount },
+        });
+        return;
+      }
+      const existingNodeIds = new Set<string>();
+      getKnowledgeTreeByContext(context).forEach((node) =>
+        collectTreeNodeKeys(node, existingNodeIds),
+      );
+      const affectedTeachingTaskCount =
+        countTeachingPlanTaskReferences(existingNodeIds);
+      if (affectedTeachingTaskCount > 0) {
+        res.send({
+          success: false,
+          message: `当前学科资源树有 ${affectedTeachingTaskCount} 个教学任务引用，不能清空重建。请保留节点身份并使用节点编辑或整理。`,
+          data: { affectedResourceCount, affectedTeachingTaskCount },
         });
         return;
       }
@@ -2269,6 +2429,17 @@ export default {
           });
           return;
         }
+        const affectedTeachingTaskCount = countTeachingPlanTaskReferences([
+          parentNode.key,
+        ]);
+        if (affectedTeachingTaskCount > 0) {
+          res.send({
+            success: false,
+            message: `该末级节点已被 ${affectedTeachingTaskCount} 个教学任务引用，不能新增子节点。请保留其末级节点身份。`,
+            data: { affectedResourceCount: 0, affectedTeachingTaskCount },
+          });
+          return;
+        }
       }
     }
 
@@ -2351,6 +2522,17 @@ export default {
     }
 
     if (context.targetType === 'review') {
+      const affectedTeachingTaskCount = countTeachingPlanTaskReferences(
+        collectTreeNodeKeys(targetNode),
+      );
+      if (affectedTeachingTaskCount > 0) {
+        res.send({
+          success: false,
+          message: `该节点及其子树已被 ${affectedTeachingTaskCount} 个教学任务引用，不能删除；如需停止新模板使用，请停用对应末级节点。`,
+          data: { affectedResourceCount: 0, affectedTeachingTaskCount },
+        });
+        return;
+      }
       const dependency = getReviewResourceDependency(context, targetNode, true);
       if (dependency.affectedResourceCount > 0) {
         res.send({
@@ -2450,6 +2632,17 @@ export default {
       }
 
       if (position === 'inside') {
+        const affectedTeachingTaskCount = countTeachingPlanTaskReferences([
+          targetNode.key,
+        ]);
+        if (affectedTeachingTaskCount > 0) {
+          res.send({
+            success: false,
+            message: `目标末级节点已被 ${affectedTeachingTaskCount} 个教学任务引用，不能接收其他节点。请保留其末级节点身份。`,
+            data: { affectedResourceCount: 0, affectedTeachingTaskCount },
+          });
+          return;
+        }
         const targetDependency = getReviewResourceDependency(
           context,
           targetNode,

@@ -37,6 +37,11 @@ export default [
         component: './ContentCenter/AssetCenter',
       },
       {
+        path: '/content/teaching-plan-templates',
+        name: '教学计划模板',
+        component: './ContentCenter/TeachingPlanTemplate',
+      },
+      {
         path: '/content/resource-center',
         redirect: '/content/asset-center',
         hideInMenu: true,

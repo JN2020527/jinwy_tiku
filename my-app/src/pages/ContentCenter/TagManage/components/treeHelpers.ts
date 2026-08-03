@@ -13,6 +13,8 @@ export interface TreeNodeData {
   grade?: string;
   subject?: string;
   description?: string;
+  suggestedHours?: number;
+  enabled?: boolean;
   answerCardType?: 'objective' | 'subjective';
   answerArea?: {
     type: 'line' | 'blank';

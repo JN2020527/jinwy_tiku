@@ -1,0 +1,690 @@
+.teaching-plan-page {
+  --plan-ink: #172033;
+  --plan-muted: #667085;
+  --plan-line: #e3e8f0;
+  --plan-soft: #f6f8fc;
+  --plan-blue: #2459d3;
+  --plan-blue-soft: #edf3ff;
+  --plan-green: #16836b;
+  --plan-orange: #c75b12;
+  --plan-red: #c73737;
+
+  .ant-pro-page-container-children-content {
+    margin-block-start: 16px;
+  }
+
+  .ant-card {
+    border-color: var(--plan-line);
+    box-shadow: 0 1px 2px rgba(23, 32, 51, 0.03);
+  }
+
+  .ant-btn:focus-visible,
+  button:focus-visible,
+  [role='button']:focus-visible {
+    outline: 2px solid #7aa2ff;
+    outline-offset: 2px;
+  }
+}
+
+.teaching-plan-list-card .ant-card-body {
+  padding: 0;
+}
+
+.teaching-plan-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--plan-line);
+}
+
+.teaching-plan-list-title {
+  margin: 0;
+  color: var(--plan-ink);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 30px;
+}
+
+.teaching-plan-list-description {
+  max-width: 720px;
+  margin: 4px 0 0;
+  color: var(--plan-muted);
+  font-size: 13px;
+  line-height: 21px;
+}
+
+.teaching-plan-list-table {
+  .ant-table-cell {
+    vertical-align: middle;
+  }
+
+  .ant-table-thead > tr > th {
+    color: #485269;
+    font-size: 12px;
+    font-weight: 600;
+    background: #f8fafc;
+  }
+}
+
+.teaching-plan-name-cell {
+  display: flex;
+  min-width: 220px;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.teaching-plan-name-button {
+  width: fit-content;
+  height: auto;
+  padding: 0;
+  color: var(--plan-ink);
+  font-weight: 600;
+  text-align: left;
+  white-space: normal;
+}
+
+.teaching-plan-name-meta,
+.teaching-plan-version-meta {
+  color: #8791a5;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.teaching-plan-version-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  strong {
+    color: #34405a;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.teaching-plan-capacity-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  color: #34405a;
+  white-space: nowrap;
+
+  strong {
+    color: var(--plan-ink);
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  span {
+    color: #8791a5;
+    font-size: 12px;
+  }
+}
+
+.teaching-plan-editor-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.teaching-plan-editor-header .ant-card-body {
+  padding: 18px 20px;
+}
+
+.teaching-plan-editor-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.teaching-plan-editor-identity {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.teaching-plan-back-button {
+  margin-top: 1px;
+}
+
+.teaching-plan-editor-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.teaching-plan-editor-title {
+  overflow: hidden;
+  margin: 0;
+  color: var(--plan-ink);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 30px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teaching-plan-editor-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  color: var(--plan-muted);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.teaching-plan-editor-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.teaching-plan-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 17px;
+  overflow: hidden;
+  border: 1px solid var(--plan-line);
+  border-radius: 8px;
+  background: var(--plan-line);
+}
+
+.teaching-plan-summary-item {
+  min-width: 0;
+  padding: 11px 14px;
+  background: #fff;
+
+  span {
+    display: block;
+    color: #7d879a;
+    font-size: 12px;
+  }
+
+  strong {
+    display: block;
+    overflow: hidden;
+    margin-top: 2px;
+    color: var(--plan-ink);
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.teaching-plan-summary-item.is-danger strong {
+  color: var(--plan-red);
+}
+
+.teaching-plan-validation-alert {
+  border-color: #f6d4aa;
+  background: #fffaf1;
+}
+
+.teaching-plan-workspace {
+  display: grid;
+  grid-template-columns: 238px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.teaching-plan-week-nav {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 150px);
+  overflow: hidden;
+}
+
+.teaching-plan-week-nav .ant-card-body {
+  padding: 0;
+}
+
+.teaching-plan-week-nav-header {
+  padding: 15px 16px 12px;
+  border-bottom: 1px solid var(--plan-line);
+}
+
+.teaching-plan-week-nav-title {
+  margin: 0;
+  color: var(--plan-ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.teaching-plan-week-nav-note {
+  margin-top: 3px;
+  color: #8791a5;
+  font-size: 12px;
+}
+
+.teaching-plan-week-list {
+  display: flex;
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.teaching-plan-week-button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease, background 120ms ease;
+
+  &:hover {
+    background: #f6f8fc;
+  }
+
+  &.is-active {
+    border-color: #bfd1fb;
+    background: var(--plan-blue-soft);
+  }
+
+  &.has-conflict .teaching-plan-week-number {
+    color: #fff;
+    background: var(--plan-red);
+  }
+}
+
+.teaching-plan-week-number {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #526078;
+  background: #eef1f6;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.teaching-plan-week-button.is-active .teaching-plan-week-number {
+  color: #fff;
+  background: var(--plan-blue);
+}
+
+.teaching-plan-week-copy {
+  min-width: 0;
+
+  strong,
+  span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: #34405a;
+    font-size: 13px;
+  }
+
+  span {
+    margin-top: 2px;
+    color: #8a94a6;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.teaching-plan-week-state {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #cbd3df;
+}
+
+.teaching-plan-week-state.is-filled {
+  background: var(--plan-green);
+}
+
+.teaching-plan-week-state.is-conflict {
+  background: var(--plan-red);
+}
+
+.teaching-plan-week-workbench .ant-card-body {
+  padding: 0;
+}
+
+.teaching-plan-week-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--plan-line);
+}
+
+.teaching-plan-week-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  h2 {
+    margin: 0;
+    color: var(--plan-ink);
+    font-size: 18px;
+    line-height: 28px;
+  }
+}
+
+.teaching-plan-week-capacity {
+  min-width: 240px;
+}
+
+.teaching-plan-week-capacity-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  color: var(--plan-muted);
+  font-size: 12px;
+
+  strong {
+    color: #34405a;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.teaching-plan-week-content {
+  padding: 18px 20px 22px;
+}
+
+.teaching-plan-continuation {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid #c9d9fb;
+  border-radius: 8px;
+  background: #f4f7ff;
+}
+
+.teaching-plan-continuation-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--plan-blue);
+  background: #dfe9ff;
+}
+
+.teaching-plan-continuation-copy {
+  min-width: 0;
+  flex: 1;
+
+  strong,
+  span {
+    display: block;
+  }
+
+  strong {
+    color: #283a61;
+    font-size: 13px;
+  }
+
+  span {
+    margin-top: 2px;
+    color: #63749a;
+    font-size: 12px;
+    line-height: 19px;
+  }
+}
+
+.teaching-plan-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 10px;
+
+  strong {
+    color: #34405a;
+    font-size: 13px;
+  }
+
+  span {
+    color: #8a94a6;
+    font-size: 12px;
+  }
+}
+
+.teaching-plan-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.teaching-plan-task-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--plan-line);
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+
+  &:hover {
+    border-color: #c5d2ea;
+    box-shadow: 0 4px 16px rgba(34, 63, 112, 0.06);
+  }
+
+  &.is-disabled {
+    border-color: #f1bfbc;
+    background: #fffafa;
+  }
+}
+
+.teaching-plan-task-order {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: #53617a;
+  background: #f0f3f8;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.teaching-plan-task-copy {
+  min-width: 0;
+}
+
+.teaching-plan-task-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+
+  strong {
+    overflow: hidden;
+    color: #273247;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.teaching-plan-task-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: #7d879a;
+  font-size: 12px;
+  flex-wrap: wrap;
+
+  .anticon {
+    color: #9aa4b4;
+  }
+}
+
+.teaching-plan-task-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.teaching-plan-empty-week {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #d3dbe8;
+  border-radius: 9px;
+  background: #fbfcfe;
+}
+
+.teaching-plan-workbench-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--plan-line);
+}
+
+.teaching-plan-workbench-hint {
+  color: #7d879a;
+  font-size: 12px;
+}
+
+.teaching-plan-create-note,
+.teaching-plan-resource-note {
+  margin-bottom: 18px;
+  padding: 11px 13px;
+  border-left: 3px solid var(--plan-blue);
+  color: #526078;
+  background: #f5f8ff;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.teaching-plan-resource-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.teaching-plan-resource-option-copy {
+  min-width: 0;
+
+  strong,
+  span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: #29354c;
+    font-size: 13px;
+  }
+
+  span {
+    margin-top: 2px;
+    color: #8a94a6;
+    font-size: 11px;
+  }
+}
+
+.teaching-plan-resource-option-hours {
+  flex: 0 0 auto;
+  color: var(--plan-blue);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+@media (max-width: 1000px) {
+  .teaching-plan-workspace {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  .teaching-plan-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .teaching-plan-list-header,
+  .teaching-plan-editor-topline,
+  .teaching-plan-week-heading,
+  .teaching-plan-workbench-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .teaching-plan-editor-actions {
+    justify-content: flex-start;
+  }
+
+  .teaching-plan-workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .teaching-plan-week-nav {
+    position: static;
+    width: 100%;
+    max-height: none;
+  }
+
+  .teaching-plan-week-list {
+    display: grid;
+    max-height: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teaching-plan-week-capacity {
+    min-width: 0;
+  }
+
+  .teaching-plan-task-card {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .teaching-plan-task-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teaching-plan-week-button,
+  .teaching-plan-task-card {
+    transition: none;
+  }
+}
