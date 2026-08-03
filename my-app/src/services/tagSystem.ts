@@ -1,4 +1,49 @@
 import { request } from '@umijs/max';
+import type {
+  AttachmentResourceType,
+  ResourceCarrierType,
+  ResourceType,
+  ResourceVersionForType,
+  ResourceVersionState,
+} from './resourceModel';
+
+export {
+  assertValidFormalResourceVersionAggregate,
+  ATTACHMENT_RESOURCE_TYPES,
+  COMPOSED_RESOURCE_TYPES,
+  inferAttachmentCarrierType,
+  isAttachmentFileCompatible,
+  isAttachmentResourceType,
+  isComposedResourceType,
+  isResourceCarrierCompatible,
+  isResourceCarrierType,
+  isResourceType,
+  isResourceVersionCompatible,
+  RESOURCE_CARRIERS_BY_TYPE,
+  validateFormalResourceVersion,
+  validateFormalResourceVersionAggregate,
+} from './resourceModel';
+export type {
+  AttachmentCarrierType,
+  AttachmentResourceType,
+  AttachmentResourceVersion,
+  ComposedCarrierType,
+  ComposedResourceType,
+  CoursewareCarrierType,
+  CoursewareResourceVersion,
+  ExtensionCarrierType,
+  ExtensionResourceVersion,
+  OnlineResourceVersion,
+  ResourceCarrierByType,
+  ResourceCarrierForType,
+  ResourceCarrierType,
+  ResourceCreator,
+  ResourceInvariantValidationResult,
+  ResourceType,
+  ResourceVersion,
+  ResourceVersionForType,
+  ResourceVersionState,
+} from './resourceModel';
 
 // --- API Types ---
 
@@ -89,27 +134,9 @@ export interface KnowledgeNode {
 
 // --- Assets (资产中心正式资源) ---
 
-/** 附件型资源：课件、拓展包（在资产中心逐个上传） */
-export type AttachmentResourceType = 'courseware' | 'extension';
-/** 组合型资源：学案、作业（仅由组合制作发布） */
-export type ComposedResourceType = 'studyGuide' | 'homework';
-export type ResourceType = AttachmentResourceType | ComposedResourceType;
-
-/** 附件载体由原始文件名扩展名自动识别，不能由调用方指定 */
-export type AttachmentCarrierType = 'ppt' | 'pdf' | 'audio' | 'video';
-export type ResourceCarrierType = AttachmentCarrierType | 'online';
+/** 资源类型、载体与正式版本结构由 resourceModel.ts 统一约束。 */
 export type ResourceStatus = 'unlisted' | 'listed' | 'archived';
 export type ResourceLifecycleAction = 'list' | 'unlist' | 'archive' | 'restore';
-export type ResourceVersionState = 'current' | 'pending' | 'historical';
-
-export const ATTACHMENT_RESOURCE_TYPES: readonly AttachmentResourceType[] = [
-  'courseware',
-  'extension',
-];
-export const COMPOSED_RESOURCE_TYPES: readonly ComposedResourceType[] = [
-  'studyGuide',
-  'homework',
-];
 
 export const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
   courseware: '课件',
@@ -171,70 +198,15 @@ export const ATTACHMENT_RESOURCE_ACCEPT: Record<
   extension: '.pdf,.mp3,.mp4',
 };
 
-export const isAttachmentResourceType = (
-  type: unknown,
-): type is AttachmentResourceType =>
-  type === 'courseware' || type === 'extension';
-
-export const isComposedResourceType = (
-  type: unknown,
-): type is ComposedResourceType => type === 'studyGuide' || type === 'homework';
-
-export const inferAttachmentCarrierType = (
-  originalFileName: string,
-): AttachmentCarrierType | null => {
-  const extension = originalFileName
-    .trim()
-    .toLowerCase()
-    .match(/\.[^.\\/]+$/)?.[0];
-  if (extension === '.ppt' || extension === '.pptx') return 'ppt';
-  if (extension === '.pdf') return 'pdf';
-  if (extension === '.mp3') return 'audio';
-  if (extension === '.mp4') return 'video';
-  return null;
-};
-
-export const isAttachmentFileCompatible = (
-  type: AttachmentResourceType,
-  originalFileName: string,
-): boolean => {
-  const carrierType = inferAttachmentCarrierType(originalFileName);
-  return type === 'courseware'
-    ? carrierType === 'ppt'
-    : carrierType === 'pdf' ||
-        carrierType === 'audio' ||
-        carrierType === 'video';
-};
-
 export const getDefaultResourceName = (originalFileName: string): string => {
   const normalizedFileName = originalFileName.trim();
   return normalizedFileName.replace(/\.[^.\\/]+$/, '').trim();
 };
 
-export interface ResourceCreator {
+interface ResourceItemFields<T extends ResourceType> {
   readonly id: string;
   readonly name: string;
-}
-
-export interface ResourceVersion {
-  readonly id: string;
-  readonly resourceId: string;
-  readonly versionNumber: number;
-  readonly carrierType: ResourceCarrierType;
-  readonly originalFileName?: string;
-  readonly createdAt: string;
-  readonly createdBy: ResourceCreator;
-  /** 当前、从未生效的待生效版本、曾生效的历史版本三者互斥。 */
-  readonly state: ResourceVersionState;
-  /** 首次或最近一次生效时间；待生效版本为空。 */
-  readonly activatedAt?: string;
-}
-
-/** 资产中心的一行代表一份逻辑资源，节点路径由当前复习树动态投影 */
-export interface ResourceItem {
-  readonly id: string;
-  readonly name: string;
-  readonly type: ResourceType;
+  readonly type: T;
   /** 学科由所属复习树节点继承，不提供独立修改入口 */
   readonly subject: string;
   /** 唯一所属复习树末级节点；响应不保存节点路径文本快照 */
@@ -248,16 +220,23 @@ export interface ResourceItem {
   /** 服务端按引用数计算；删除接口仍会再次校验，不能由调用方覆盖。 */
   readonly canDelete: boolean;
   readonly currentVersionId: string;
-  readonly currentVersion: ResourceVersion;
+  readonly currentVersion: ResourceVersionForType<T>;
   readonly versionCount: number;
   readonly pendingVersionCount: number;
   readonly updatedAt: string;
 }
 
-/** 详情在逻辑资源稳定资料之外返回完整、按版本号递减的版本历史。 */
-export interface ResourceDetail extends ResourceItem {
-  readonly versions: ResourceVersion[];
-}
+/** 资产中心的一行代表一份逻辑资源，类型与当前版本载体保持静态关联。 */
+export type ResourceItem = {
+  [T in ResourceType]: ResourceItemFields<T>;
+}[ResourceType];
+
+/** 详情返回完整版本历史，且每个版本都必须符合该资源类型的载体约束。 */
+export type ResourceDetail = {
+  [T in ResourceType]: ResourceItemFields<T> & {
+    readonly versions: readonly ResourceVersionForType<T>[];
+  };
+}[ResourceType];
 
 /** 单学科资产目录查询；所有可选条件按 AND 组合 */
 export interface ResourceListParams {

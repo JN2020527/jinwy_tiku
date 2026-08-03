@@ -13,10 +13,12 @@ import {
   getResourceDetail,
   isAttachmentFileCompatible,
   isAttachmentResourceType,
+  isResourceVersionCompatible,
   RESOURCE_CARRIER_LABELS,
   RESOURCE_STATUS_LABELS,
   RESOURCE_TYPE_LABELS,
   RESOURCE_VERSION_STATE_LABELS,
+  validateFormalResourceVersionAggregate,
 } from '@/services/tagSystem';
 import {
   AudioOutlined,
@@ -63,7 +65,7 @@ interface ResourceDetailDrawerProps {
   request: ResourceDetailRequest | null;
   nodePath?: string;
   onClose: () => void;
-  onEditContent: (resource: ResourceItem) => void;
+  onStartRevision: (resource: ResourceItem) => void;
   onResourceChanged: (resource: ResourceItem) => void;
   isSubjectActive: (subject: string) => boolean;
 }
@@ -117,7 +119,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
   request,
   nodePath,
   onClose,
-  onEditContent,
+  onStartRevision,
   onResourceChanged,
   isSubjectActive,
 }) => {
@@ -216,6 +218,13 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
         if (!isCurrentRequest()) return;
         if (!response.success) {
           message.error(response.message || '获取资源详情失败');
+          return;
+        }
+        const versionValidation = validateFormalResourceVersionAggregate(
+          response.data,
+        );
+        if (!versionValidation.valid) {
+          message.error(`资源版本数据无效：${versionValidation.message}`);
           return;
         }
         setDetail(response.data);
@@ -343,6 +352,10 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
   };
 
   const preview = (version: ResourceVersion) => {
+    if (!detail || !isResourceVersionCompatible(detail.type, version)) {
+      message.error('该版本载体与资源类型不匹配，不能预览或生效');
+      return;
+    }
     setPreviewedVersionIds((current) => new Set(current).add(version.id));
     setPreviewVersion(version);
   };
@@ -368,7 +381,8 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
       currentDetail.versions.some(
         (candidate) =>
           candidate.id === confirmationContext.versionId &&
-          candidate.state !== 'current',
+          candidate.state !== 'current' &&
+          isResourceVersionCompatible(currentDetail.type, candidate),
       );
 
     // Modal.confirm 持有创建时闭包；必须在请求前以实时 ref 复核完整上下文。
@@ -417,7 +431,14 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
   };
 
   const confirmActivation = (version: ResourceVersion) => {
-    if (!request || !detail || !previewedVersionIds.has(version.id)) return;
+    if (
+      !request ||
+      !detail ||
+      !previewedVersionIds.has(version.id) ||
+      !isResourceVersionCompatible(detail.type, version)
+    ) {
+      return;
+    }
     const expectedContext: ResourceDetailContextIdentity = {
       requestKey: request.key,
       resourceId: detail.id,
@@ -513,19 +534,35 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
       fixed: 'right',
       render: (_, version) => {
         const isCurrent = version.state === 'current';
-        const hasPreviewed = previewedVersionIds.has(version.id);
+        const versionIsValid = Boolean(
+          detail && isResourceVersionCompatible(detail.type, version),
+        );
+        const hasPreviewed =
+          versionIsValid && previewedVersionIds.has(version.id);
         const operationBusy = Boolean(activationVersionId || uploading);
         return (
           <Space size={4}>
-            <Button
-              type="link"
-              size="small"
-              icon={<EyeOutlined />}
-              disabled={version.carrierType === 'online'}
-              onClick={() => preview(version)}
+            <Tooltip
+              title={
+                versionIsValid
+                  ? version.carrierType === 'online'
+                    ? '查看在线组合内容的只读占位预览'
+                    : '查看该附件版本的原型占位预览'
+                  : '版本载体与资源类型不匹配'
+              }
             >
-              预览
-            </Button>
+              <span>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<EyeOutlined />}
+                  disabled={!versionIsValid}
+                  onClick={() => preview(version)}
+                >
+                  预览
+                </Button>
+              </span>
+            </Tooltip>
             {isCurrent ? (
               <span className="asset-version-current-action">
                 <CheckCircleOutlined /> 当前
@@ -533,7 +570,9 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
             ) : (
               <Tooltip
                 title={
-                  hasPreviewed
+                  !versionIsValid
+                    ? '版本载体与资源类型不匹配，不能生效'
+                    : hasPreviewed
                     ? version.state === 'pending'
                       ? '设为当前生效版本'
                       : '将该历史版本重新设为当前版本'
@@ -577,13 +616,15 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
         destroyOnClose
         extra={
           detail && !isAttachmentResourceType(detail.type) ? (
-            <Button
-              type="primary"
-              icon={<FormOutlined />}
-              onClick={() => onEditContent(detail)}
-            >
-              编辑内容
-            </Button>
+            <Tooltip title="进入组合制作只读占位，不会直接修改正式内容">
+              <Button
+                type="primary"
+                icon={<FormOutlined />}
+                onClick={() => onStartRevision(detail)}
+              >
+                发起修订
+              </Button>
+            </Tooltip>
           ) : (
             <Button
               type="primary"

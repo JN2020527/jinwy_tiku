@@ -480,9 +480,12 @@ const AssetCenterPage: React.FC = () => {
     history.push(`/combination-production/new?${params.toString()}`);
   };
 
-  const openRevisionDraft = (resource: ResourceItem) => {
+  const openCombinationRevision = (resource: ResourceItem) => {
     if (!isComposedResourceType(resource.type)) return;
-    const params = new URLSearchParams({ subject: resource.subject });
+    const params = new URLSearchParams({
+      subject: resource.subject,
+      type: resource.type,
+    });
     history.push(
       `/combination-production/revision/${encodeURIComponent(
         resource.id,
@@ -1004,9 +1007,9 @@ const AssetCenterPage: React.FC = () => {
                 size="small"
                 icon={<FormOutlined />}
                 disabled={lifecycleBusy}
-                onClick={() => openRevisionDraft(resource)}
+                onClick={() => openCombinationRevision(resource)}
               >
-                编辑内容
+                发起修订
               </Button>
             )}
             <Button
@@ -1470,7 +1473,7 @@ const AssetCenterPage: React.FC = () => {
             : undefined
         }
         onClose={() => setDetailRequest(null)}
-        onEditContent={openRevisionDraft}
+        onStartRevision={openCombinationRevision}
         isSubjectActive={isSubjectActive}
         onResourceChanged={(resource) => {
           if (activeSubjectRef.current === resource.subject) {

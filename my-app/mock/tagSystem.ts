@@ -1,4 +1,21 @@
 import { Request, Response } from 'express';
+import type {
+  AttachmentResourceType,
+  ComposedResourceType,
+  ResourceCarrierType,
+  ResourceType,
+  ResourceVersionState,
+} from '../src/services/resourceModel';
+import {
+  assertValidFormalResourceVersionAggregate,
+  inferAttachmentCarrierType,
+  isAttachmentFileCompatible,
+  isAttachmentResourceType,
+  isComposedResourceType,
+  isResourceCarrierType,
+  isResourceType,
+  isResourceVersionCompatible,
+} from '../src/services/resourceModel';
 
 interface MockAttributeItem {
   id: string;
@@ -114,12 +131,8 @@ interface MockKnowledgeNode {
   children?: MockKnowledgeNode[];
 }
 
-type AttachmentResourceType = 'courseware' | 'extension';
-type ResourceType = AttachmentResourceType | 'studyGuide' | 'homework';
-type ResourceCarrierType = 'ppt' | 'pdf' | 'audio' | 'video' | 'online';
 type ResourceStatus = 'unlisted' | 'listed' | 'archived';
 type ResourceLifecycleAction = 'list' | 'unlist' | 'archive' | 'restore';
-type ResourceVersionState = 'current' | 'pending' | 'historical';
 
 interface MockResourceCreator {
   id: string;
@@ -947,19 +960,6 @@ const RESOURCE_LIFECYCLE_TRANSITIONS: Record<
 const resourceStore: Record<string, MockResourceItem[]> = {};
 let resourceSequence = 0;
 
-const isResourceType = (value: unknown): value is ResourceType =>
-  value === 'courseware' ||
-  value === 'extension' ||
-  value === 'studyGuide' ||
-  value === 'homework';
-
-const isResourceCarrierType = (value: unknown): value is ResourceCarrierType =>
-  value === 'ppt' ||
-  value === 'pdf' ||
-  value === 'audio' ||
-  value === 'video' ||
-  value === 'online';
-
 const isResourceStatus = (value: unknown): value is ResourceStatus =>
   value === 'unlisted' || value === 'listed' || value === 'archived';
 
@@ -970,35 +970,6 @@ const isResourceLifecycleAction = (
   value === 'unlist' ||
   value === 'archive' ||
   value === 'restore';
-
-const isAttachmentResourceType = (
-  value: unknown,
-): value is AttachmentResourceType =>
-  value === 'courseware' || value === 'extension';
-
-const inferAttachmentCarrierType = (
-  originalFileName: string,
-): Exclude<ResourceCarrierType, 'online'> | null => {
-  const extension = originalFileName
-    .trim()
-    .toLowerCase()
-    .match(/\.[^.\\/]+$/)?.[0];
-  if (extension === '.ppt' || extension === '.pptx') return 'ppt';
-  if (extension === '.pdf') return 'pdf';
-  if (extension === '.mp3') return 'audio';
-  if (extension === '.mp4') return 'video';
-  return null;
-};
-
-const isAttachmentFileCompatible = (
-  type: AttachmentResourceType,
-  carrierType: Exclude<ResourceCarrierType, 'online'>,
-) =>
-  type === 'courseware'
-    ? carrierType === 'ppt'
-    : carrierType === 'pdf' ||
-      carrierType === 'audio' ||
-      carrierType === 'video';
 
 const synchronizeResourceSemantics = (
   resource: MockResourceItem,
@@ -1028,6 +999,7 @@ const synchronizeResourceSemantics = (
   resource.isVisible = isListed;
   resource.canCreateReference = isListed;
   resource.canDelete = resource.referenceCount === 0;
+  assertValidFormalResourceVersionAggregate(resource);
   return resource;
 };
 
@@ -1069,31 +1041,20 @@ const toResourceDetail = (resource: MockResourceItem) => {
   };
 };
 
-const createSeedResource = (data: {
+interface SeedResourceBase {
   id: string;
   name: string;
-  type: ResourceType;
   subject: string;
   nodeId: string;
-  carrierType: ResourceCarrierType;
-  originalFileName?: string;
   status?: ResourceStatus;
   referenceCount?: number;
-}): MockResourceItem => {
-  const createdAt = '2026-07-26T08:00:00.000Z';
-  const currentVersionId = `${data.id}-v1`;
-  const currentVersion: MockResourceVersion = {
-    id: currentVersionId,
-    resourceId: data.id,
-    versionNumber: 1,
-    carrierType: data.carrierType,
-    originalFileName: data.originalFileName,
-    createdAt,
-    createdBy: { ...SEED_MOCK_RESOURCE_CREATOR },
-    state: 'current',
-    activatedAt: createdAt,
-  };
-  return synchronizeResourceSemantics({
+}
+
+const createSeedResourceAggregate = (
+  data: SeedResourceBase & { type: ResourceType },
+  currentVersion: MockResourceVersion,
+): MockResourceItem =>
+  synchronizeResourceSemantics({
     id: data.id,
     name: data.name,
     type: data.type,
@@ -1104,63 +1065,154 @@ const createSeedResource = (data: {
     canCreateReference: false,
     referenceCount: data.referenceCount || 0,
     canDelete: false,
-    currentVersionId,
+    currentVersionId: currentVersion.id,
     currentVersion,
     versions: [currentVersion],
     versionCount: 1,
     pendingVersionCount: 0,
-    updatedAt: createdAt,
+    updatedAt: currentVersion.createdAt,
   });
+
+const createAttachmentSeedResource = (
+  data: SeedResourceBase & {
+    type: AttachmentResourceType;
+    originalFileName: string;
+  },
+): MockResourceItem => {
+  const originalFileName = data.originalFileName.trim();
+  const carrierType = inferAttachmentCarrierType(originalFileName);
+  if (
+    !carrierType ||
+    !isAttachmentFileCompatible(data.type, originalFileName)
+  ) {
+    throw new Error(`Invalid attachment seed ${data.id}`);
+  }
+
+  const createdAt = '2026-07-26T08:00:00.000Z';
+  return createSeedResourceAggregate(data, {
+    id: `${data.id}-v1`,
+    resourceId: data.id,
+    versionNumber: 1,
+    carrierType,
+    originalFileName,
+    createdAt,
+    createdBy: { ...SEED_MOCK_RESOURCE_CREATOR },
+    state: 'current',
+    activatedAt: createdAt,
+  });
+};
+
+const createComposedSeedResource = (
+  data: SeedResourceBase & { type: ComposedResourceType },
+): MockResourceItem => {
+  const createdAt = '2026-07-26T08:00:00.000Z';
+  return createSeedResourceAggregate(data, {
+    id: `${data.id}-v1`,
+    resourceId: data.id,
+    versionNumber: 1,
+    carrierType: 'online',
+    createdAt,
+    createdBy: { ...SEED_MOCK_RESOURCE_CREATOR },
+    state: 'current',
+    activatedAt: createdAt,
+  });
+};
+
+const appendAttachmentSeedVersion = (
+  resource: MockResourceItem,
+  versionNumber: number,
+  originalFileName: string,
+  createdAt: string,
+) => {
+  if (
+    !isAttachmentResourceType(resource.type) ||
+    !isAttachmentFileCompatible(resource.type, originalFileName)
+  ) {
+    throw new Error(`Invalid attachment version seed ${resource.id}`);
+  }
+  const carrierType = inferAttachmentCarrierType(originalFileName);
+  if (!carrierType) throw new Error(`Unknown seed carrier ${resource.id}`);
+
+  resource.versions.push({
+    id: `${resource.id}-v${versionNumber}`,
+    resourceId: resource.id,
+    versionNumber,
+    carrierType,
+    originalFileName,
+    createdAt,
+    createdBy: { ...CURRENT_MOCK_RESOURCE_CREATOR },
+    state: 'pending',
+  });
+  resource.updatedAt = createdAt;
+  synchronizeResourceSemantics(resource);
+};
+
+const appendComposedSeedVersion = (
+  resource: MockResourceItem,
+  versionNumber: number,
+  createdAt: string,
+  activatedAt?: string,
+) => {
+  if (!isComposedResourceType(resource.type)) {
+    throw new Error(`Invalid online version seed ${resource.id}`);
+  }
+  resource.versions.push({
+    id: `${resource.id}-v${versionNumber}`,
+    resourceId: resource.id,
+    versionNumber,
+    carrierType: 'online',
+    createdAt,
+    createdBy: { ...CURRENT_MOCK_RESOURCE_CREATOR },
+    state: activatedAt ? 'historical' : 'pending',
+    activatedAt,
+  });
+  resource.updatedAt = activatedAt || createdAt;
+  synchronizeResourceSemantics(resource);
 };
 
 const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
   const scoped = (nodeKey: string) => `${nodeKey}-${subject}`;
   const resources = [
-    createSeedResource({
+    createAttachmentSeedResource({
       id: `res-${subject}-1`,
       name: '史前时期精品复习课件',
       type: 'courseware',
       originalFileName: '史前时期复习课件.pptx',
-      carrierType: 'ppt',
       subject,
       nodeId: scoped('rv-1-1-1'),
       status: 'listed',
       referenceCount: 3,
     }),
-    createSeedResource({
+    createAttachmentSeedResource({
       id: `res-${subject}-2`,
       name: '夏商周青铜文明拓展包',
       type: 'extension',
       originalFileName: '夏商周拓展素材.pdf',
-      carrierType: 'pdf',
       subject,
       nodeId: scoped('rv-1-1-2'),
     }),
-    createSeedResource({
+    createAttachmentSeedResource({
       id: `res-${subject}-3`,
       name: '春秋战国单元复习课件',
       type: 'courseware',
       originalFileName: '春秋战国复习课件.pptx',
-      carrierType: 'ppt',
       subject,
       nodeId: scoped('rv-1-1-3'),
       status: 'listed',
     }),
-    createSeedResource({
+    createComposedSeedResource({
       id: `res-${subject}-4`,
       name: '专题·古代政治制度复习学案',
       type: 'studyGuide',
-      carrierType: 'online',
       subject,
       nodeId: scoped('rv-2-1'),
       status: 'archived',
       referenceCount: 1,
     }),
-    createSeedResource({
+    createComposedSeedResource({
       id: `res-${subject}-5`,
       name: '三轮冲刺综合作业',
       type: 'homework',
-      carrierType: 'online',
       subject,
       nodeId: scoped('rv-3-1'),
       status: 'listed',
@@ -1168,50 +1220,48 @@ const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
     }),
   ];
 
-  const appendPendingVersion = (
-    resource: MockResourceItem,
-    versionNumber: number,
-    carrierType: Exclude<ResourceCarrierType, 'online'>,
-    originalFileName: string,
-    createdAt: string,
-  ) => {
-    resource.versions.push({
-      id: `${resource.id}-v${versionNumber}`,
-      resourceId: resource.id,
-      versionNumber,
-      carrierType,
-      originalFileName,
-      createdAt,
-      createdBy: { ...CURRENT_MOCK_RESOURCE_CREATOR },
-      state: 'pending',
-    });
-    resource.updatedAt = createdAt;
-    synchronizeResourceSemantics(resource);
-  };
-
-  appendPendingVersion(
+  appendAttachmentSeedVersion(
     resources[0]!,
     2,
-    'ppt',
     '史前时期复习课件-课堂修订.pptx',
     '2026-08-01T09:20:00.000Z',
   );
-  appendPendingVersion(
+  appendAttachmentSeedVersion(
     resources[1]!,
     2,
-    'audio',
     '夏商周青铜器讲解.mp3',
     '2026-08-01T10:15:00.000Z',
   );
-  appendPendingVersion(
+  appendAttachmentSeedVersion(
     resources[1]!,
     3,
-    'video',
     '夏商周青铜文明短片.mp4',
     '2026-08-02T03:30:00.000Z',
   );
+  appendComposedSeedVersion(resources[3]!, 2, '2026-08-01T11:10:00.000Z');
+  appendComposedSeedVersion(
+    resources[4]!,
+    2,
+    '2026-08-01T12:00:00.000Z',
+    '2026-08-01T12:15:00.000Z',
+  );
+  resources[4]!.currentVersionId = `${resources[4]!.id}-v2`;
+  synchronizeResourceSemantics(resources[4]!);
+  appendComposedSeedVersion(resources[4]!, 3, '2026-08-02T05:20:00.000Z');
   return resources;
 };
+
+const SUBJECT_KEYS = [
+  'math',
+  'chinese',
+  'english',
+  'physics',
+  'chemistry',
+  'biology',
+  'history',
+  'geography',
+  'politics',
+] as const;
 
 const getResourceStoreKey = (context: KnowledgeContext) =>
   `review-${context.subject}`;
@@ -1220,8 +1270,13 @@ const getRequiredAssetResourceContext = (
   req: Request,
 ): KnowledgeContext | null => {
   const subject = req.body?.subject ?? req.query.subject;
-  if (typeof subject !== 'string' || !subject.trim()) return null;
-  return { subject: subject.trim(), targetType: 'review' };
+  const normalizedSubject = typeof subject === 'string' ? subject.trim() : '';
+  if (
+    !SUBJECT_KEYS.includes(normalizedSubject as (typeof SUBJECT_KEYS)[number])
+  ) {
+    return null;
+  }
+  return { subject: normalizedSubject, targetType: 'review' };
 };
 
 const getResourcesByContext = (context: KnowledgeContext) => {
@@ -1757,18 +1812,6 @@ const moveTreeNode = <T extends { key: string; children?: T[] }>(
   );
   return { success: true, message: `${label} moved successfully` };
 };
-
-const SUBJECT_KEYS = [
-  'math',
-  'chinese',
-  'english',
-  'physics',
-  'chemistry',
-  'biology',
-  'history',
-  'geography',
-  'politics',
-] as const;
 
 const ATTRIBUTE_TARGET_ORDER: Record<AttributeTarget, number> = {
   paper: 0,
@@ -2697,6 +2740,20 @@ export default {
       });
       return;
     }
+    const acceptedFields = new Set([
+      'name',
+      'type',
+      'originalFileName',
+      'nodeId',
+      'subject',
+    ]);
+    if (Object.keys(body).some((field) => !acceptedFields.has(field))) {
+      res.send({
+        success: false,
+        message: '附件资源载体只能由原始文件名推导，不能指定额外内容或载体字段',
+      });
+      return;
+    }
 
     const nameValidation = validateResourceName(name);
     if (!nameValidation.valid) {
@@ -2726,7 +2783,10 @@ export default {
     }
     const normalizedOriginalFileName = originalFileName.trim();
     const carrierType = inferAttachmentCarrierType(normalizedOriginalFileName);
-    if (!carrierType || !isAttachmentFileCompatible(type, carrierType)) {
+    if (
+      !carrierType ||
+      !isAttachmentFileCompatible(type, normalizedOriginalFileName)
+    ) {
       res.send({
         success: false,
         message:
@@ -2855,7 +2915,10 @@ export default {
       return;
     }
     const carrierType = inferAttachmentCarrierType(originalFileName);
-    if (!carrierType || !isAttachmentFileCompatible(item.type, carrierType)) {
+    if (
+      !carrierType ||
+      !isAttachmentFileCompatible(item.type, originalFileName)
+    ) {
       res.send({
         success: false,
         message:
@@ -2928,27 +2991,29 @@ export default {
       res.send({ success: false, message: '请选择要生效的资源版本' });
       return;
     }
-    const item = getResourcesByContext(context).find(
+    const resources = getResourcesByContext(context);
+    const itemIndex = resources.findIndex(
       (resource) =>
         resource.id === resourceId && resource.subject === context.subject,
     );
-    if (!item) {
+    if (itemIndex < 0) {
       res.send({ success: false, message: '资源不存在' });
       return;
     }
-    if (!isAttachmentResourceType(item.type)) {
-      res.send({
-        success: false,
-        message: '组合型资源版本不在附件版本生效流程中',
-      });
-      return;
-    }
+    const item = synchronizeResourceSemantics(resources[itemIndex]!);
     const version = item.versions.find(
       (candidate) =>
         candidate.id === versionId && candidate.resourceId === item.id,
     );
     if (!version) {
       res.send({ success: false, message: '资源版本不存在' });
+      return;
+    }
+    if (!isResourceVersionCompatible(item.type, version)) {
+      res.send({
+        success: false,
+        message: '资源版本载体与资源类型不匹配，不能生效',
+      });
       return;
     }
     if (item.currentVersionId === version.id) {
@@ -2960,19 +3025,33 @@ export default {
     }
 
     const versionCount = item.versions.length;
+    const status = item.status;
     const activatedAt = new Date().toISOString();
-    version.activatedAt = activatedAt;
-    item.currentVersionId = version.id;
-    item.updatedAt = activatedAt;
-    synchronizeResourceSemantics(item);
-    if (item.versions.length !== versionCount) {
-      throw new Error('Activating a version changed version history length');
+    const nextVersions = item.versions.map(cloneResourceVersion);
+    const nextVersion = nextVersions.find(
+      (candidate) => candidate.id === version.id,
+    )!;
+    nextVersion.activatedAt = activatedAt;
+    const nextItem = synchronizeResourceSemantics({
+      ...item,
+      currentVersionId: nextVersion.id,
+      versions: nextVersions,
+      updatedAt: activatedAt,
+    });
+    if (
+      nextItem.versions.length !== versionCount ||
+      nextItem.status !== status
+    ) {
+      throw new Error('Activating a version changed stable resource data');
     }
 
+    // 附件与在线组合正式版本共用同一切换语义：不复制、不删除版本，
+    // 当前版本转历史，待生效或历史版本成为新的 current。
+    resources[itemIndex] = nextItem;
     res.send({
       success: true,
       message: `V${version.versionNumber} 已设为当前生效版本`,
-      data: toResourceDetail(item),
+      data: toResourceDetail(nextItem),
     });
   },
   'PUT /api/resources/ownership': (req: Request, res: Response) => {
@@ -3129,6 +3208,15 @@ export default {
       res.send({
         success: false,
         message: '资源状态、可见性与引用信息不能通过资料编辑修改',
+      });
+      return;
+    }
+    const acceptedFields = new Set(['id', 'name', 'subject']);
+    if (Object.keys(body).some((field) => !acceptedFields.has(field))) {
+      res.send({
+        success: false,
+        message:
+          '资源资料编辑仅接受资源身份与名称，正式内容必须通过新增版本与生效流程变更',
       });
       return;
     }

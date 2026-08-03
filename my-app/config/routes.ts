@@ -68,6 +68,12 @@ export default [
     hideInMenu: true,
   },
   {
+    path: '/combination-production/revision',
+    name: '组合制作修订',
+    component: './CombinationProduction',
+    hideInMenu: true,
+  },
+  {
     path: '/statistics',
     name: '业务统计',
     icon: 'barChart',

@@ -1,10 +1,17 @@
-import type { ResourceVersion } from '@/services/tagSystem';
-import { RESOURCE_CARRIER_LABELS } from '@/services/tagSystem';
+import type {
+  AttachmentResourceVersion,
+  ResourceVersion,
+} from '@/services/tagSystem';
+import {
+  RESOURCE_CARRIER_LABELS,
+  RESOURCE_VERSION_STATE_LABELS,
+} from '@/services/tagSystem';
 import {
   AudioOutlined,
   CloudDownloadOutlined,
   FilePdfOutlined,
   FilePptOutlined,
+  FileTextOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons';
 import { Button, Modal, Tag } from 'antd';
@@ -59,10 +66,9 @@ export interface PrototypeDownloadPlaceholder {
 }
 
 export const createPrototypeDownloadPlaceholder = (
-  version: ResourceVersion,
+  version: AttachmentResourceVersion,
 ): PrototypeDownloadPlaceholder => {
-  const originalFileName =
-    version.originalFileName || `resource-v${version.versionNumber}`;
+  const originalFileName = version.originalFileName;
   const safeOriginalFileName = originalFileName.replace(/[\\/:*?"<>|]/g, '_');
   return {
     fileName: `${safeOriginalFileName}.prototype-placeholder.txt`,
@@ -79,7 +85,7 @@ export const createPrototypeDownloadPlaceholder = (
   };
 };
 
-const downloadPrototypePlaceholder = (version: ResourceVersion) => {
+const downloadPrototypePlaceholder = (version: AttachmentResourceVersion) => {
   const placeholder = createPrototypeDownloadPlaceholder(version);
   const url = URL.createObjectURL(
     new Blob([placeholder.content], { type: placeholder.mimeType }),
@@ -97,7 +103,15 @@ export const PrototypeFileNotice: React.FC = () => (
   <div className="asset-version-preview-note" role="note">
     当前纯前端 Mock
     不保存真实文件字节；以下内容均为原型占位预览。“下载原型占位说明”只生成说明文本
-    Blob，并非原始文件。接入文件存储后，此入口仍按产品契约下载对应版本原文件。
+    Blob，并非原始文件。接入文件存储后，此入口应下载对应附件版本的真实文件。
+  </div>
+);
+
+export const OnlineCombinationPreviewNotice: React.FC = () => (
+  <div className="asset-version-preview-note" role="note">
+    当前 Mock
+    只保存在线组合正式版本的身份与版本元数据，不保存原子化知识块、试题或排版快照。
+    下方不是实际内容预览，只用于在切换当前版本前明确核对目标版本；在线版本没有附件原始文件名或下载入口。
   </div>
 );
 
@@ -247,15 +261,52 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
     }
 
     return (
-      <div className="asset-version-preview-unavailable">
-        在线组合内容不在附件预览范围内。
+      <div className="asset-version-preview-adapter">
+        <PreviewHeader
+          icon={<FileTextOutlined />}
+          label="在线组合版本占位预览"
+          version={version}
+        />
+        <div
+          className="asset-version-online-preview"
+          role="status"
+          aria-label={`${resourceName} 在线组合版本元数据占位预览`}
+        >
+          <span className="asset-version-online-preview-icon">
+            <FileTextOutlined />
+          </span>
+          <div>
+            <span className="asset-version-online-preview-eyebrow">
+              仅展示版本元数据
+            </span>
+            <h3>{resourceName}</h3>
+            <p>
+              <strong>这不是实际组合内容预览。</strong>
+              当前原型没有可渲染的知识块、试题和排版快照。
+            </p>
+            <dl>
+              <div>
+                <dt>目标版本</dt>
+                <dd>V{version.versionNumber}</dd>
+              </div>
+              <div>
+                <dt>版本状态</dt>
+                <dd>{RESOURCE_VERSION_STATE_LABELS[version.state]}</dd>
+              </div>
+              <div>
+                <dt>内容载体</dt>
+                <dd>{RESOURCE_CARRIER_LABELS[version.carrierType]}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
       </div>
     );
   };
 
   return (
     <Modal
-      title={version ? `原型占位预览 V${version.versionNumber}` : '版本预览'}
+      title={version ? `版本占位预览 V${version.versionNumber}` : '版本预览'}
       open={open}
       onCancel={onClose}
       width={820}
@@ -263,13 +314,17 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
       footer={
         version
           ? [
-              <Button
-                key="download"
-                icon={<CloudDownloadOutlined />}
-                onClick={() => downloadPrototypePlaceholder(version)}
-              >
-                下载原型占位说明
-              </Button>,
+              ...(version.carrierType !== 'online'
+                ? [
+                    <Button
+                      key="download"
+                      icon={<CloudDownloadOutlined />}
+                      onClick={() => downloadPrototypePlaceholder(version)}
+                    >
+                      下载原型占位说明
+                    </Button>,
+                  ]
+                : []),
               <Button key="close" type="primary" onClick={onClose}>
                 关闭预览
               </Button>,
@@ -277,7 +332,11 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
           : null
       }
     >
-      <PrototypeFileNotice />
+      {version?.carrierType === 'online' ? (
+        <OnlineCombinationPreviewNotice />
+      ) : (
+        <PrototypeFileNotice />
+      )}
       {renderPreview()}
     </Modal>
   );
