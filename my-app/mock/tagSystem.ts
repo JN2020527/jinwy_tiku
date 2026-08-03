@@ -111,7 +111,6 @@ interface MockKnowledgeNode {
   value?: string;
   subject: string;
   description?: string;
-  nodeType?: 'category' | 'resource';
   children?: MockKnowledgeNode[];
 }
 

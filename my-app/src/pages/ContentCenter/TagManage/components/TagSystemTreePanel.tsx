@@ -3,8 +3,6 @@ import type {
   KnowledgeNode,
   NodeAttributeRelation,
   NodeAttributeTargetType,
-  ResourceItem,
-  ResourceType,
   TagCategory,
   TextbookChapter,
   TextbookVersion,
@@ -14,40 +12,26 @@ import {
   addKnowledgeNode,
   addTextbookChapter,
   deleteKnowledgeNode,
-  deleteResource,
   deleteTextbookChapter,
   getAttributeUsageRules,
   getKnowledgeTree,
   getNodeAttributeRelations,
-  getResourceList,
   getTagCategories,
   getTextbookChapters,
   getTextbookVersions,
   importKnowledgeTree,
   moveKnowledgeNode,
   moveTextbookChapter,
-  RESOURCE_TYPE_LABELS,
   updateKnowledgeNode,
-  updateResource,
   updateTextbookChapter,
 } from '@/services/tagSystem';
-import {
-  FileDoneOutlined,
-  FilePptOutlined,
-  FileTextOutlined,
-  FileZipOutlined,
-  HolderOutlined,
-  SearchOutlined,
-} from '@ant-design/icons';
+import { HolderOutlined, SearchOutlined } from '@ant-design/icons';
 import type { TreeProps } from 'antd';
 import {
   Alert,
   Button,
   Card,
-  Checkbox,
-  Form,
   Input,
-  List,
   message,
   Modal,
   Select,
@@ -102,8 +86,6 @@ export interface TagSystemTreePanelProps {
   supportsSyncContext?: boolean;
   /** 是否展示节点属性标签并拉取属性元数据；复习树等不接入属性体系的场景传 false */
   enableAttributeTags?: boolean;
-  /** 是否启用资源挂载能力（复习树）：树中展示资源叶子、支持从资源中心选择资源挂载/改挂 */
-  enableResources?: boolean;
   /** 搜索框占位文案 */
   searchPlaceholder?: string;
   /** 行内编辑输入占位文案 */
@@ -125,6 +107,12 @@ interface InlineEditState {
 }
 
 const createDraftNodeKey = () => `draft-${Date.now()}`;
+
+const TREE_TYPE_LABELS: Record<TreeTargetType, string> = {
+  knowledge: '知识点树',
+  topic: '专题树',
+  review: '复习树',
+};
 
 const filterTextbookChaptersByContext = (
   nodes: TreeNodeData[],
@@ -151,7 +139,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   contextOptions = KNOWLEDGE_TREE_CONTEXT_OPTIONS,
   supportsSyncContext = false,
   enableAttributeTags = true,
-  enableResources = false,
   searchPlaceholder = '搜索节点…',
   nodeNamePlaceholder = '请输入节点名称…',
   deleteTargetName = '节点',
@@ -174,19 +161,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   const [nodeRelations, setNodeRelations] = useState<NodeAttributeRelation[]>(
     [],
   );
-  const [resources, setResources] = useState<ResourceItem[]>([]);
-  const [selectedNodeKey, setSelectedNodeKey] = useState<React.Key>();
-  const [mountOpen, setMountOpen] = useState<boolean>(false);
-  const [mountSelectedKeys, setMountSelectedKeys] = useState<React.Key[]>([]);
-  const [mounting, setMounting] = useState<boolean>(false);
-  const [editingResource, setEditingResource] = useState<ResourceItem | null>(
-    null,
-  );
-  const [resourceEditForm] = Form.useForm<{
-    name: string;
-    type: ResourceType;
-    nodeId?: string;
-  }>();
   const [loading, setLoading] = useState<boolean>(false);
   const treeRequestIdRef = useRef(0);
   const versionsRequestIdRef = useRef(0);
@@ -205,49 +179,19 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   const [importSubmitting, setImportSubmitting] = useState(false);
   const isMiddleExamContext = selectedTreeContext === MIDDLE_EXAM_TREE_VALUE;
   const isSyncContext = supportsSyncContext && !isMiddleExamContext;
-
-  /** 把资源叶子合并到对应分类节点下（仅资源模式） */
-  const mergeResourcesIntoTree = useCallback(
-    (nodes: TreeNodeData[]): TreeNodeData[] => {
-      if (!enableResources || resources.length === 0) {
-        return nodes;
-      }
-      return nodes.map((node) => {
-        const nodeResources = resources.filter(
-          (item) => item.nodeId === String(node.key),
-        );
-        const resourceChildren = nodeResources.map((item) => ({
-          key: `res:${item.id}`,
-          title: item.name,
-          nodeType: 'resource' as const,
-          resourceType: item.type,
-          fileName: item.fileName,
-          updatedAt: item.updatedAt,
-        }));
-        const children = mergeResourcesIntoTree(node.children || []);
-        if (resourceChildren.length) {
-          children.push(...resourceChildren);
-        }
-        return { ...node, children: children.length ? children : undefined };
-      });
-    },
-    [enableResources, resources],
-  );
-
   const displayTree = useMemo(() => {
-    const baseTree =
-      !inlineEdit || inlineEdit.mode !== 'add'
-        ? treeData
-        : appendTreeNode(
-            treeData,
-            {
-              key: inlineEdit.key,
-              title: inlineEdit.initialValue,
-            },
-            inlineEdit.parentKey,
-          );
-    return mergeResourcesIntoTree(baseTree);
-  }, [inlineEdit, mergeResourcesIntoTree, treeData]);
+    if (!inlineEdit || inlineEdit.mode !== 'add') {
+      return treeData;
+    }
+    return appendTreeNode(
+      treeData,
+      {
+        key: inlineEdit.key,
+        title: inlineEdit.initialValue,
+      },
+      inlineEdit.parentKey,
+    );
+  }, [inlineEdit, treeData]);
   const treeSearch = useTreeSearch(displayTree);
   const visibleTree = arrangeMode ? displayTree : treeSearch.filteredTreeData;
   const isSearching = Boolean(treeSearch.searchValue.trim());
@@ -334,19 +278,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       } else {
         message.error(res.message || '获取知识体系失败');
       }
-
-      if (enableResources) {
-        const resourceRes = await getResourceList({
-          subject: selectedSubject,
-          targetType,
-        });
-        if (treeRequestIdRef.current !== requestId) {
-          return;
-        }
-        if (resourceRes.success) {
-          setResources(resourceRes.data);
-        }
-      }
     } catch {
       if (treeRequestIdRef.current === requestId) {
         message.error('获取知识体系失败');
@@ -357,7 +288,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       }
     }
   }, [
-    enableResources,
     isSyncContext,
     selectedSemester,
     selectedSubject,
@@ -512,8 +442,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
     if (isImportExportDisabled || treeData.length === 0) return;
     setExporting(true);
     try {
-      const treeLabel = targetType === 'knowledge' ? '知识点树' : '专题树';
-      const filename = `${treeLabel}_${subjectLabel}_模板.xlsx`;
+      const filename = `${TREE_TYPE_LABELS[targetType]}_${subjectLabel}_模板.xlsx`;
       await exportTreeToExcel(treeData, filename);
       message.success('导出成功');
     } catch {
@@ -587,64 +516,8 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
     });
   };
 
-  const isResourceNode = (node: TreeNodeData) =>
-    node.nodeType === 'resource' || String(node.key).startsWith('res:');
-
-  const renderResourceTypeTag = (type?: string) => {
-    const resourceType = type as ResourceType | undefined;
-    const colors: Record<string, string> = {
-      courseware: 'blue',
-      extension: 'purple',
-      studyGuide: 'cyan',
-      homework: 'orange',
-    };
-    const labels: Record<string, string> = RESOURCE_TYPE_LABELS as Record<
-      string,
-      string
-    >;
-    return (
-      <Tag
-        className="tag-tree-node-resource-tag"
-        color={colors[resourceType || 'courseware']}
-      >
-        {labels[resourceType || 'courseware'] || '资源'}
-      </Tag>
-    );
-  };
-
-  const renderResourceTypeIcon = (type?: string) => {
-    const props = { className: 'tag-tree-node-resource-icon' };
-    switch (type) {
-      case 'extension':
-        return <FileZipOutlined {...props} />;
-      case 'studyGuide':
-        return <FileTextOutlined {...props} />;
-      case 'homework':
-        return <FileDoneOutlined {...props} />;
-      default:
-        return <FilePptOutlined {...props} />;
-    }
-  };
-
-  const findResourceByNodeKey = (key: React.Key) => {
-    const resourceId = String(key).replace(/^res:/, '');
-    return resources.find((item) => item.id === resourceId);
-  };
-
   const handleEdit = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isResourceNode(node)) {
-      const resource = findResourceByNodeKey(node.key);
-      if (!resource) return;
-      setEditingResource(resource);
-      resourceEditForm.setFieldsValue({
-        name: resource.name,
-        type: resource.type,
-        nodeId: resource.nodeId,
-      });
-      setMountOpen(true);
-      return;
-    }
     setInlineEdit({
       key: node.key,
       mode: 'edit',
@@ -656,27 +529,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
 
   const handleDelete = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isResourceNode(node)) {
-      const resource = findResourceByNodeKey(node.key);
-      if (!resource) return;
-      Modal.confirm({
-        title: '确认删除',
-        content: `确定要删除资源 "${resource.name}" 吗？删除后从资源中心与复习树中移除。`,
-        onOk: async () => {
-          const res = await deleteResource(resource.id, {
-            subject: selectedSubject,
-            targetType,
-          });
-          if (res.success) {
-            message.success('删除成功');
-            fetchTree();
-          } else {
-            message.error(res.message || '删除失败');
-          }
-        },
-      });
-      return;
-    }
     if (isSyncContext && !selectedTextbookVersion) {
       message.warning('请选择教材版本');
       return;
@@ -703,108 +555,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
         }
       },
     });
-  };
-
-  // --- Resource mount / edit handlers ---
-
-  const collectLeafCategoryNodes = useCallback(
-    (nodes: TreeNodeData[]): TreeNodeData[] => {
-      const leaves: TreeNodeData[] = [];
-      const walk = (list: TreeNodeData[]) => {
-        list.forEach((node) => {
-          if (node.nodeType === 'resource') {
-            return;
-          }
-          if (node.children?.length) {
-            walk(node.children);
-          } else {
-            leaves.push(node);
-          }
-        });
-      };
-      walk(nodes);
-      return leaves;
-    },
-    [],
-  );
-
-  const leafCategoryNodes = useMemo(
-    () => collectLeafCategoryNodes(treeData),
-    [collectLeafCategoryNodes, treeData],
-  );
-
-  const handleOpenMount = () => {
-    if (!selectedNodeKey) {
-      message.warning('请先在左侧树中选择要挂载资源的末级节点');
-      return;
-    }
-    setMountSelectedKeys([]);
-    setEditingResource(null);
-    resourceEditForm.resetFields();
-    setMountOpen(true);
-  };
-
-  const handleMountSubmit = async () => {
-    if (!selectedNodeKey) {
-      message.warning('请先选择要挂载资源的节点');
-      return;
-    }
-    if (mountSelectedKeys.length === 0) {
-      message.warning('请先勾选要挂载的资源');
-      return;
-    }
-    setMounting(true);
-    try {
-      for (const key of mountSelectedKeys) {
-        const resource = findResourceByNodeKey(key);
-        if (!resource) continue;
-        const res = await updateResource({
-          id: resource.id,
-          nodeId: String(selectedNodeKey),
-          subject: selectedSubject,
-          targetType,
-        });
-        if (!res.success) {
-          message.error(res.message || `挂载 "${resource.name}" 失败`);
-          return;
-        }
-      }
-      message.success('挂载成功');
-      setMountOpen(false);
-      fetchTree();
-    } catch {
-      message.error('挂载失败');
-    } finally {
-      setMounting(false);
-    }
-  };
-
-  const handleResourceEditSubmit = async () => {
-    if (!editingResource) return;
-    const values = await resourceEditForm.validateFields();
-    setMounting(true);
-    try {
-      const res = await updateResource({
-        id: editingResource.id,
-        name: values.name,
-        type: values.type,
-        nodeId: values.nodeId || '',
-        subject: selectedSubject,
-        targetType,
-      });
-      if (res.success) {
-        message.success('资源更新成功');
-        setEditingResource(null);
-        setMountOpen(false);
-        fetchTree();
-      } else {
-        message.error(res.message || '资源更新失败');
-      }
-    } catch {
-      message.error('保存失败');
-    } finally {
-      setMounting(false);
-    }
   };
 
   const allowDrop = useCallback<NonNullable<TreeProps['allowDrop']>>(
@@ -1040,11 +790,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
                 添加根节点
               </Button>
             )}
-            {enableResources && !arrangeMode ? (
-              <Button size="small" onClick={handleOpenMount}>
-                挂载资源
-              </Button>
-            ) : null}
           </div>
         </div>
       }
@@ -1057,7 +802,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
             onExpand={treeSearch.onExpand}
             expandedKeys={treeSearch.expandedKeys}
             autoExpandParent={treeSearch.autoExpandParent}
-            onSelect={(keys) => setSelectedNodeKey(keys[0])}
             draggable={
               arrangeMode
                 ? {
@@ -1073,52 +817,28 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
             onDrop={arrangeMode ? handleDrop : undefined}
             showLine
             blockNode
-            titleRender={(node: TreeNodeData) =>
-              isResourceNode(node) ? (
-                <TreeNodeTitle
-                  nodeData={node}
-                  searchValue={treeSearch.searchValue}
-                  className="tag-tree-node-resource"
-                  actionsVisible={!arrangeMode}
-                  showAddChild={false}
-                  leadingIcon={renderResourceTypeIcon(node.resourceType)}
-                  meta={
-                    <>
-                      {renderResourceTypeTag(node.resourceType)}
-                      {node.updatedAt ? (
-                        <span className="tag-tree-node-resource-time">
-                          {node.updatedAt}
-                        </span>
-                      ) : null}
-                    </>
-                  }
-                  onAddChild={handleAddChild}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                />
-              ) : (
-                <TreeNodeTitle
-                  nodeData={node}
-                  searchValue={treeSearch.searchValue}
-                  inlineEdit={
-                    inlineEdit?.key === node.key
-                      ? {
-                          initialValue: inlineEdit.initialValue,
-                          placeholder: nodeNamePlaceholder,
-                          saving: inlineEdit.saving,
-                          onSubmit: handleInlineEditSubmit,
-                          onCancel: handleCancelInlineEdit,
-                        }
-                      : undefined
-                  }
-                  actionsVisible={!arrangeMode}
-                  meta={renderNodeRelationMeta(node.key)}
-                  onAddChild={handleAddChild}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                />
-              )
-            }
+            titleRender={(node: TreeNodeData) => (
+              <TreeNodeTitle
+                nodeData={node}
+                searchValue={treeSearch.searchValue}
+                inlineEdit={
+                  inlineEdit?.key === node.key
+                    ? {
+                        initialValue: inlineEdit.initialValue,
+                        placeholder: nodeNamePlaceholder,
+                        saving: inlineEdit.saving,
+                        onSubmit: handleInlineEditSubmit,
+                        onCancel: handleCancelInlineEdit,
+                      }
+                    : undefined
+                }
+                actionsVisible={!arrangeMode}
+                meta={renderNodeRelationMeta(node.key)}
+                onAddChild={handleAddChild}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            )}
             fieldNames={{
               title: 'title',
               key: 'key',
@@ -1174,8 +894,12 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
                 description={`文件「${
                   importPreview.fileName
                 }」将清空当前${subjectLabel}的${
-                  targetType === 'knowledge' ? '知识点树' : '专题树'
-                }并重建，原有节点及其属性标签将被替换。`}
+                  TREE_TYPE_LABELS[targetType]
+                }并重建，${
+                  targetType === 'review'
+                    ? '原有节点将被替换。'
+                    : '原有节点及其属性标签将被替换。'
+                }`}
               />
             )}
             {importPreview.errors.length > 0 ? (
@@ -1199,122 +923,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
           </div>
         </Modal>
       )}
-      {enableResources ? (
-        <Modal
-          title={
-            editingResource ? `编辑资源：${editingResource.name}` : '挂载资源'
-          }
-          open={mountOpen}
-          width={640}
-          onCancel={() => {
-            if (!mounting) {
-              setMountOpen(false);
-              setEditingResource(null);
-            }
-          }}
-          onOk={editingResource ? handleResourceEditSubmit : handleMountSubmit}
-          okText={editingResource ? '保存' : '挂载到当前节点'}
-          okButtonProps={{ loading: mounting }}
-          cancelButtonProps={{ disabled: mounting }}
-          destroyOnClose
-        >
-          {editingResource ? (
-            <Form
-              form={resourceEditForm}
-              layout="vertical"
-              style={{ marginTop: 12 }}
-            >
-              <Form.Item
-                name="name"
-                label="资源名称"
-                rules={[{ required: true, message: '请输入资源名称' }]}
-              >
-                <Input maxLength={40} />
-              </Form.Item>
-              <Form.Item
-                name="type"
-                label="资源类型"
-                rules={[{ required: true, message: '请选择资源类型' }]}
-                extra="学案/作业为组合型资源，原子体系接入前暂不支持"
-              >
-                <Select
-                  options={[
-                    { label: '课件', value: 'courseware' },
-                    { label: '拓展包', value: 'extension' },
-                    {
-                      label: '学案（组合型）',
-                      value: 'studyGuide',
-                      disabled: true,
-                    },
-                    {
-                      label: '作业（组合型）',
-                      value: 'homework',
-                      disabled: true,
-                    },
-                  ]}
-                />
-              </Form.Item>
-              <Form.Item name="nodeId" label="所属节点" extra="清空即解除挂载">
-                <Select
-                  allowClear
-                  showSearch
-                  optionFilterProp="label"
-                  placeholder="选择复习树末级节点"
-                  options={leafCategoryNodes.map((node) => ({
-                    label: String(node.title),
-                    value: String(node.key),
-                  }))}
-                />
-              </Form.Item>
-            </Form>
-          ) : (
-            <>
-              <Alert
-                type="info"
-                showIcon
-                message="从资源中心选择资源挂载到当前选中节点"
-                description="勾选未挂载的资源进行挂载；已挂载的资源可勾选以改挂到当前节点。上传资源请到「资源中心」。"
-                style={{ marginBottom: 12 }}
-              />
-              <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-                <List
-                  size="small"
-                  dataSource={resources}
-                  locale={{ emptyText: '资源中心暂无资源' }}
-                  renderItem={(item) => (
-                    <List.Item
-                      key={item.id}
-                      style={{ paddingInline: 4 }}
-                      extra={
-                        item.nodeId ? (
-                          <Tag color="green">已挂载</Tag>
-                        ) : (
-                          <Tag>未挂载</Tag>
-                        )
-                      }
-                    >
-                      <Checkbox
-                        checked={mountSelectedKeys.includes(`res:${item.id}`)}
-                        onChange={(e) =>
-                          setMountSelectedKeys((keys) =>
-                            e.target.checked
-                              ? [...keys, `res:${item.id}`]
-                              : keys.filter((k) => k !== `res:${item.id}`),
-                          )
-                        }
-                      >
-                        {renderResourceTypeIcon(item.type)}
-                        <span style={{ marginRight: 8 }}>{item.name}</span>
-                        {renderResourceTypeTag(item.type)}
-                      </Checkbox>
-                    </List.Item>
-                  )}
-                />
-              </div>
-            </>
-          )}
-        </Modal>
-      ) : null}
     </Card>
   );
 };

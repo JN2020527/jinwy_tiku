@@ -18,14 +18,6 @@ export interface TreeNodeData {
     type: 'line' | 'blank';
     rows: number;
   };
-  /** 节点类型：分类节点（默认）或资源节点（复习树资源叶子） */
-  nodeType?: 'category' | 'resource';
-  /** 资源节点的资源类型：courseware（课件）/ extension（拓展包） */
-  resourceType?: string;
-  /** 资源节点的文件信息 */
-  fileName?: string;
-  /** 资源节点的更新时间 */
-  updatedAt?: string;
   children?: TreeNodeData[];
 }
 

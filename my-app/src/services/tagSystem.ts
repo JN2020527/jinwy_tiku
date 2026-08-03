@@ -83,8 +83,6 @@ export interface KnowledgeNode {
   value?: string;
   subject?: string;
   description?: string;
-  /** 节点类型：分类节点（默认）或资源节点（复习树资源叶子，见资源体系）；默认缺省为分类节点 */
-  nodeType?: 'category' | 'resource';
   children?: KnowledgeNode[];
 }
 
