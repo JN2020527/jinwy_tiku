@@ -3,6 +3,7 @@ import type {
   KnowledgeNode,
   ResourceCarrierType,
   ResourceItem,
+  ResourceLifecycleAction,
   ResourceStatus,
   ResourceType,
 } from '@/services/tagSystem';
@@ -19,18 +20,24 @@ import {
   isAttachmentFileCompatible,
   isAttachmentResourceType,
   RESOURCE_CARRIER_LABELS,
+  RESOURCE_LIFECYCLE_ACTION_LABELS,
+  RESOURCE_LIFECYCLE_TRANSITIONS,
   RESOURCE_STATUS_LABELS,
   RESOURCE_TYPE_LABELS,
+  transitionResourceLifecycle,
   updateResourceMetadata,
 } from '@/services/tagSystem';
 import {
   AudioOutlined,
+  CloudDownloadOutlined,
+  CloudUploadOutlined,
   DeleteOutlined,
   EditOutlined,
   FilePdfOutlined,
   FilePptOutlined,
   FileTextOutlined,
   InboxOutlined,
+  RollbackOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
   SwapOutlined,
@@ -50,6 +57,7 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   TreeSelect,
   Upload,
 } from 'antd';
@@ -74,6 +82,11 @@ interface ResourceFormValues {
 
 interface OwnershipFormValues {
   targetNodeId: string;
+}
+
+interface LifecycleOperation {
+  resourceId: string;
+  action: ResourceLifecycleAction;
 }
 
 interface ReviewTreeSelectNode {
@@ -201,6 +214,13 @@ const getCarrierIcon = (carrierType: ResourceCarrierType) => {
 
 const formatUpdatedAt = (value: string) => value.replace('T', ' ').slice(0, 16);
 
+const getLifecycleActionIcon = (action: ResourceLifecycleAction) => {
+  if (action === 'list') return <CloudUploadOutlined />;
+  if (action === 'unlist') return <CloudDownloadOutlined />;
+  if (action === 'restore') return <RollbackOutlined />;
+  return <InboxOutlined />;
+};
+
 const normalizeUploadChange = (
   event: UploadChangeParam<UploadFile> | UploadFile[],
 ) => (Array.isArray(event) ? event : event?.fileList?.slice(-1));
@@ -255,6 +275,8 @@ const AssetCenterPage: React.FC = () => {
   const [ownershipOpen, setOwnershipOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [ownershipSubmitting, setOwnershipSubmitting] = useState(false);
+  const [lifecycleOperation, setLifecycleOperation] =
+    useState<LifecycleOperation | null>(null);
   const [catalogRefreshToken, setCatalogRefreshToken] = useState(0);
   const [form] = Form.useForm<ResourceFormValues>();
   const [ownershipForm] = Form.useForm<OwnershipFormValues>();
@@ -263,6 +285,8 @@ const AssetCenterPage: React.FC = () => {
   const treeRequestIdRef = useRef(0);
   const formOperationGenerationRef = useRef(0);
   const ownershipOperationGenerationRef = useRef(0);
+  const lifecycleOperationGenerationRef = useRef(0);
+  const lifecycleOperationTokenRef = useRef<number | null>(null);
 
   const selectedFormType = Form.useWatch('type', form);
   const selectedFormNodeId = Form.useWatch('nodeId', form);
@@ -381,6 +405,8 @@ const AssetCenterPage: React.FC = () => {
     treeRequestIdRef.current += 1;
     formOperationGenerationRef.current += 1;
     ownershipOperationGenerationRef.current += 1;
+    lifecycleOperationGenerationRef.current += 1;
+    lifecycleOperationTokenRef.current = null;
 
     setSelectedSubject(subject);
     setResources([]);
@@ -396,6 +422,7 @@ const AssetCenterPage: React.FC = () => {
     setOwnershipResource(null);
     setOwnershipSubmitting(false);
     ownershipForm.resetFields();
+    setLifecycleOperation(null);
   };
 
   const closeForm = () => {
@@ -618,24 +645,100 @@ const AssetCenterPage: React.FC = () => {
     }
   };
 
-  const handleDelete = (resource: ResourceItem) => {
+  const executeLifecycleAction = async (
+    resource: ResourceItem,
+    action: ResourceLifecycleAction,
+  ) => {
+    if (lifecycleOperationTokenRef.current !== null) return;
+
+    const operationGeneration = (lifecycleOperationGenerationRef.current += 1);
+    lifecycleOperationTokenRef.current = operationGeneration;
+    const operationSubject = selectedSubject;
+    const isCurrentOperation = () =>
+      lifecycleOperationGenerationRef.current === operationGeneration &&
+      activeSubjectRef.current === operationSubject;
+
+    setLifecycleOperation({ resourceId: resource.id, action });
+    try {
+      const response = await transitionResourceLifecycle({
+        id: resource.id,
+        subject: operationSubject,
+        action,
+      });
+      if (!isCurrentOperation()) return;
+      if (!response.success) {
+        message.error(response.message || '资源状态更新失败');
+        return;
+      }
+      message.success(response.message || '资源状态更新成功');
+      setCatalogRefreshToken((current) => current + 1);
+    } catch {
+      if (isCurrentOperation()) message.error('资源状态更新失败');
+    } finally {
+      if (lifecycleOperationTokenRef.current === operationGeneration) {
+        lifecycleOperationTokenRef.current = null;
+      }
+      if (isCurrentOperation()) setLifecycleOperation(null);
+    }
+  };
+
+  const handleLifecycleAction = (
+    resource: ResourceItem,
+    action: ResourceLifecycleAction,
+  ) => {
+    if (action !== 'archive') {
+      void executeLifecycleAction(resource, action);
+      return;
+    }
+
     const operationSubject = selectedSubject;
     Modal.confirm({
-      title: '确认删除资源',
-      content: `确定要从资产中心删除“${resource.name}”吗？`,
-      okText: '删除',
-      okButtonProps: { danger: true },
-      onOk: async () => {
+      title: '确认归档资源',
+      content: `归档“${resource.name}”后将停止前台展示和新业务引用；资源身份、节点归属、当前版本与版本历史及已有引用都会保留。`,
+      okText: '确认归档',
+      onOk: () => {
+        if (activeSubjectRef.current !== operationSubject) return;
+        void executeLifecycleAction(resource, action);
+      },
+    });
+  };
+
+  const handleDelete = (resource: ResourceItem) => {
+    if (!resource.canDelete) {
+      message.warning(
+        `该资源已有 ${resource.referenceCount} 个业务引用，只能归档，不能彻底删除`,
+      );
+      return;
+    }
+
+    const operationSubject = selectedSubject;
+    const executeHardDelete = async () => {
+      try {
         const response = await deleteResource(resource.id, {
           subject: operationSubject,
         });
         if (activeSubjectRef.current !== operationSubject) return;
         if (!response.success) {
-          message.error(response.message || '资源删除失败');
+          message.error(response.message || '资源彻底删除失败');
           return;
         }
-        message.success('资源删除成功');
+        message.success(response.message || '资源已彻底删除');
         setCatalogRefreshToken((current) => current + 1);
+      } catch {
+        if (activeSubjectRef.current === operationSubject) {
+          message.error('资源彻底删除失败');
+        }
+      }
+    };
+
+    Modal.confirm({
+      title: '确认彻底删除资源',
+      content: `“${resource.name}”当前无业务引用。彻底删除将永久移除资源身份、当前版本与版本历史，且无法恢复。`,
+      okText: '彻底删除',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        if (activeSubjectRef.current !== operationSubject) return;
+        void executeHardDelete();
       },
     });
   };
@@ -707,14 +810,32 @@ const AssetCenterPage: React.FC = () => {
       ),
     },
     {
-      title: '状态',
+      title: '状态与可用性',
       dataIndex: 'status',
       key: 'status',
-      width: 96,
-      render: (status: ResourceStatus) => (
-        <Tag color={RESOURCE_STATUS_COLORS[status]}>
-          {RESOURCE_STATUS_LABELS[status]}
-        </Tag>
+      width: 180,
+      render: (status: ResourceStatus, resource) => (
+        <div className="asset-center-status-cell">
+          <Tag color={RESOURCE_STATUS_COLORS[status]}>
+            {RESOURCE_STATUS_LABELS[status]}
+          </Tag>
+          <span>
+            {resource.isVisible ? '前台可见' : '前台不可见'} ·{' '}
+            {resource.canCreateReference ? '可新引用' : '不可新引用'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      title: '业务引用',
+      dataIndex: 'referenceCount',
+      key: 'referenceCount',
+      width: 112,
+      render: (referenceCount: number, resource) => (
+        <div className="asset-center-reference-cell">
+          <strong>{referenceCount}</strong>
+          <span>{resource.canDelete ? '可彻底删除' : '需保留'}</span>
+        </div>
       ),
     },
     {
@@ -728,36 +849,72 @@ const AssetCenterPage: React.FC = () => {
       title: '操作',
       key: 'action',
       fixed: 'right',
-      width: 250,
-      render: (_, resource) => (
-        <Space size={0}>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEditModal(resource)}
-          >
-            编辑名称
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<SwapOutlined />}
-            onClick={() => openOwnershipModal(resource)}
-          >
-            调整归属
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(resource)}
-          >
-            删除
-          </Button>
-        </Space>
-      ),
+      width: 460,
+      render: (_, resource) => {
+        const lifecycleActions = Object.keys(
+          RESOURCE_LIFECYCLE_TRANSITIONS[resource.status],
+        ) as ResourceLifecycleAction[];
+        const lifecycleBusy = Boolean(lifecycleOperation);
+        const deleteDisabled = !resource.canDelete || lifecycleBusy;
+        const deleteTip = lifecycleBusy
+          ? '请等待当前生命周期操作完成'
+          : resource.canDelete
+          ? '仅无业务引用的资源可以彻底删除'
+          : `已有 ${resource.referenceCount} 个业务引用，不能彻底删除，请使用归档`;
+
+        return (
+          <Space size={0} wrap>
+            {lifecycleActions.map((action) => (
+              <Button
+                key={action}
+                type="link"
+                size="small"
+                icon={getLifecycleActionIcon(action)}
+                loading={
+                  lifecycleOperation?.resourceId === resource.id &&
+                  lifecycleOperation.action === action
+                }
+                disabled={lifecycleBusy}
+                onClick={() => handleLifecycleAction(resource, action)}
+              >
+                {RESOURCE_LIFECYCLE_ACTION_LABELS[action]}
+              </Button>
+            ))}
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              disabled={lifecycleBusy}
+              onClick={() => openEditModal(resource)}
+            >
+              编辑名称
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              icon={<SwapOutlined />}
+              disabled={lifecycleBusy}
+              onClick={() => openOwnershipModal(resource)}
+            >
+              调整归属
+            </Button>
+            <Tooltip title={deleteTip}>
+              <span>
+                <Button
+                  type="link"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  disabled={deleteDisabled}
+                  onClick={() => handleDelete(resource)}
+                >
+                  彻底删除
+                </Button>
+              </span>
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -858,7 +1015,7 @@ const AssetCenterPage: React.FC = () => {
           loading={loading || treeLoading}
           columns={columns}
           dataSource={resources}
-          scroll={{ x: 1500 }}
+          scroll={{ x: 1900 }}
           locale={{ emptyText: '当前筛选条件下暂无资源' }}
           pagination={{
             pageSize: 10,

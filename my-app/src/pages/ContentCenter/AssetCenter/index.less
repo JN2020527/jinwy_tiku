@@ -184,6 +184,29 @@
   font-weight: 600;
 }
 
+.asset-center-status-cell,
+.asset-center-reference-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+
+  span {
+    color: #64748b;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}
+
+.asset-center-status-cell .ant-tag {
+  margin-inline-end: 0;
+}
+
+.asset-center-reference-cell strong {
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+
 .asset-center-upload-guardrail,
 .asset-center-ownership-guardrail {
   display: flex;

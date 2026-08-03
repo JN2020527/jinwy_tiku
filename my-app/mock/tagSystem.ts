@@ -118,6 +118,7 @@ type AttachmentResourceType = 'courseware' | 'extension';
 type ResourceType = AttachmentResourceType | 'studyGuide' | 'homework';
 type ResourceCarrierType = 'ppt' | 'pdf' | 'audio' | 'video' | 'online';
 type ResourceStatus = 'unlisted' | 'listed' | 'archived';
+type ResourceLifecycleAction = 'list' | 'unlist' | 'archive' | 'restore';
 
 interface MockResourceVersion {
   id: string;
@@ -135,6 +136,10 @@ interface MockResourceItem {
   subject: string;
   nodeId: string;
   status: ResourceStatus;
+  isVisible: boolean;
+  canCreateReference: boolean;
+  referenceCount: number;
+  canDelete: boolean;
   currentVersionId: string;
   currentVersion: MockResourceVersion;
   updatedAt: string;
@@ -896,6 +901,28 @@ const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
 // --- Mock Data for Assets (资产中心正式资源) ---
 
 const RESOURCE_NAME_MAX_LENGTH = 40;
+const RESOURCE_STATUS_LABELS: Record<ResourceStatus, string> = {
+  unlisted: '未上架',
+  listed: '已上架',
+  archived: '已归档',
+};
+const RESOURCE_LIFECYCLE_ACTION_LABELS: Record<
+  ResourceLifecycleAction,
+  string
+> = {
+  list: '上架',
+  unlist: '下架',
+  archive: '归档',
+  restore: '恢复',
+};
+const RESOURCE_LIFECYCLE_TRANSITIONS: Record<
+  ResourceStatus,
+  Partial<Record<ResourceLifecycleAction, ResourceStatus>>
+> = {
+  unlisted: { list: 'listed', archive: 'archived' },
+  listed: { unlist: 'unlisted', archive: 'archived' },
+  archived: { restore: 'unlisted' },
+};
 const resourceStore: Record<string, MockResourceItem[]> = {};
 let resourceSequence = 0;
 
@@ -914,6 +941,14 @@ const isResourceCarrierType = (value: unknown): value is ResourceCarrierType =>
 
 const isResourceStatus = (value: unknown): value is ResourceStatus =>
   value === 'unlisted' || value === 'listed' || value === 'archived';
+
+const isResourceLifecycleAction = (
+  value: unknown,
+): value is ResourceLifecycleAction =>
+  value === 'list' ||
+  value === 'unlist' ||
+  value === 'archive' ||
+  value === 'restore';
 
 const isAttachmentResourceType = (
   value: unknown,
@@ -944,6 +979,16 @@ const isAttachmentFileCompatible = (
       carrierType === 'audio' ||
       carrierType === 'video';
 
+const synchronizeResourceLifecycleSemantics = (
+  resource: MockResourceItem,
+): MockResourceItem => {
+  const isListed = resource.status === 'listed';
+  resource.isVisible = isListed;
+  resource.canCreateReference = isListed;
+  resource.canDelete = resource.referenceCount === 0;
+  return resource;
+};
+
 const createSeedResource = (data: {
   id: string;
   name: string;
@@ -953,16 +998,21 @@ const createSeedResource = (data: {
   carrierType: ResourceCarrierType;
   originalFileName?: string;
   status?: ResourceStatus;
+  referenceCount?: number;
 }): MockResourceItem => {
   const createdAt = '2026-07-26T08:00:00.000Z';
   const currentVersionId = `${data.id}-v1`;
-  return {
+  return synchronizeResourceLifecycleSemantics({
     id: data.id,
     name: data.name,
     type: data.type,
     subject: data.subject,
     nodeId: data.nodeId,
     status: data.status || 'unlisted',
+    isVisible: false,
+    canCreateReference: false,
+    referenceCount: data.referenceCount || 0,
+    canDelete: false,
     currentVersionId,
     currentVersion: {
       id: currentVersionId,
@@ -973,7 +1023,7 @@ const createSeedResource = (data: {
       createdAt,
     },
     updatedAt: createdAt,
-  };
+  });
 };
 
 const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
@@ -988,6 +1038,7 @@ const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
       subject,
       nodeId: scoped('rv-1-1-1'),
       status: 'listed',
+      referenceCount: 3,
     }),
     createSeedResource({
       id: `res-${subject}-2`,
@@ -1015,6 +1066,8 @@ const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
       carrierType: 'online',
       subject,
       nodeId: scoped('rv-2-1'),
+      status: 'archived',
+      referenceCount: 1,
     }),
   ];
 };
@@ -2449,7 +2502,9 @@ export default {
     res.send({
       success: true,
       data: filterResources(
-        getResourcesByContext(context),
+        getResourcesByContext(context).map(
+          synchronizeResourceLifecycleSemantics,
+        ),
         filterValidation.filters,
       ),
     });
@@ -2460,7 +2515,23 @@ export default {
       res.send({ success: false, message: '请选择学科上下文' });
       return;
     }
-    const { name, type, originalFileName, nodeId } = req.body || {};
+    const body = req.body || {};
+    const { name, type, originalFileName, nodeId } = body;
+    if (
+      body.status !== undefined ||
+      body.isVisible !== undefined ||
+      body.canCreateReference !== undefined ||
+      body.referenceCount !== undefined ||
+      body.canDelete !== undefined ||
+      body.currentVersion !== undefined ||
+      body.currentVersionId !== undefined
+    ) {
+      res.send({
+        success: false,
+        message: '新资源固定创建为未上架、零引用的 V1，不能指定生命周期字段',
+      });
+      return;
+    }
 
     const nameValidation = validateResourceName(name);
     if (!nameValidation.valid) {
@@ -2529,6 +2600,10 @@ export default {
       subject: context.subject,
       nodeId: ownershipValidation.nodeId,
       status: 'unlisted',
+      isVisible: false,
+      canCreateReference: false,
+      referenceCount: 0,
+      canDelete: true,
       currentVersionId: versionId,
       currentVersion: {
         id: versionId,
@@ -2562,7 +2637,12 @@ export default {
       body.name !== undefined ||
       body.type !== undefined ||
       body.status !== undefined ||
-      body.currentVersion !== undefined
+      body.isVisible !== undefined ||
+      body.canCreateReference !== undefined ||
+      body.referenceCount !== undefined ||
+      body.canDelete !== undefined ||
+      body.currentVersion !== undefined ||
+      body.currentVersionId !== undefined
     ) {
       res.send({
         success: false,
@@ -2608,6 +2688,54 @@ export default {
     item.updatedAt = new Date().toISOString();
     res.send({ success: true, message: '资源归属调整成功', data: item });
   },
+  'PUT /api/resources/lifecycle': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const body = req.body || {};
+    const { id, action } = body;
+    const acceptedFields = new Set(['id', 'subject', 'action']);
+    if (Object.keys(body).some((field) => !acceptedFields.has(field))) {
+      res.send({
+        success: false,
+        message: '生命周期转换仅接受资源身份和合法动作',
+      });
+      return;
+    }
+    if (!isResourceLifecycleAction(action)) {
+      res.send({ success: false, message: '资源生命周期动作无效' });
+      return;
+    }
+
+    const resources = getResourcesByContext(context);
+    const item = resources.find((resource) => resource.id === id);
+    if (!item || item.subject !== context.subject) {
+      res.send({ success: false, message: '资源不存在' });
+      return;
+    }
+
+    const nextStatus = RESOURCE_LIFECYCLE_TRANSITIONS[item.status][action];
+    if (!nextStatus) {
+      res.send({
+        success: false,
+        message: `${RESOURCE_STATUS_LABELS[item.status]}资源不能执行“${
+          RESOURCE_LIFECYCLE_ACTION_LABELS[action]
+        }”操作`,
+      });
+      return;
+    }
+
+    item.status = nextStatus;
+    item.updatedAt = new Date().toISOString();
+    synchronizeResourceLifecycleSemantics(item);
+    res.send({
+      success: true,
+      message: `资源${RESOURCE_LIFECYCLE_ACTION_LABELS[action]}成功`,
+      data: item,
+    });
+  },
   'PUT /api/resources': (req: Request, res: Response) => {
     const context = getRequiredAssetResourceContext(req);
     if (!context) {
@@ -2636,13 +2764,23 @@ export default {
     if (
       body.originalFileName !== undefined ||
       body.fileName !== undefined ||
-      body.currentVersion !== undefined
+      body.currentVersion !== undefined ||
+      body.currentVersionId !== undefined
     ) {
       res.send({ success: false, message: '当前版本不能通过资料编辑修改' });
       return;
     }
-    if (body.status !== undefined) {
-      res.send({ success: false, message: '资源状态不能通过资料编辑修改' });
+    if (
+      body.status !== undefined ||
+      body.isVisible !== undefined ||
+      body.canCreateReference !== undefined ||
+      body.referenceCount !== undefined ||
+      body.canDelete !== undefined
+    ) {
+      res.send({
+        success: false,
+        message: '资源状态、可见性与引用信息不能通过资料编辑修改',
+      });
       return;
     }
 
@@ -2684,11 +2822,32 @@ export default {
       res.send({ success: false, message: '请选择学科上下文' });
       return;
     }
-    const { id } = req.query;
+    const id = typeof req.query.id === 'string' ? req.query.id.trim() : '';
+    if (!id) {
+      res.send({ success: false, message: '请选择要彻底删除的资源' });
+      return;
+    }
+
     const resources = getResourcesByContext(context);
-    const next = resources.filter((item) => item.id !== id);
-    resources.splice(0, resources.length, ...next);
-    res.send({ success: true, message: '资源删除成功' });
+    const itemIndex = resources.findIndex(
+      (item) => item.id === id && item.subject === context.subject,
+    );
+    if (itemIndex < 0) {
+      res.send({ success: false, message: '资源不存在' });
+      return;
+    }
+
+    const item = resources[itemIndex]!;
+    if (item.referenceCount > 0) {
+      res.send({
+        success: false,
+        message: `该资源已有 ${item.referenceCount} 个业务引用，不能彻底删除，请改为归档`,
+      });
+      return;
+    }
+
+    resources.splice(itemIndex, 1);
+    res.send({ success: true, message: '资源已彻底删除' });
   },
 
   // Question Type CRUD

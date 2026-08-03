@@ -98,6 +98,7 @@ export type ResourceType = AttachmentResourceType | ComposedResourceType;
 export type AttachmentCarrierType = 'ppt' | 'pdf' | 'audio' | 'video';
 export type ResourceCarrierType = AttachmentCarrierType | 'online';
 export type ResourceStatus = 'unlisted' | 'listed' | 'archived';
+export type ResourceLifecycleAction = 'list' | 'unlist' | 'archive' | 'restore';
 
 export const ATTACHMENT_RESOURCE_TYPES: readonly AttachmentResourceType[] = [
   'courseware',
@@ -127,6 +128,26 @@ export const RESOURCE_STATUS_LABELS: Record<ResourceStatus, string> = {
   unlisted: '未上架',
   listed: '已上架',
   archived: '已归档',
+};
+
+export const RESOURCE_LIFECYCLE_ACTION_LABELS: Record<
+  ResourceLifecycleAction,
+  string
+> = {
+  list: '上架',
+  unlist: '下架',
+  archive: '归档',
+  restore: '恢复',
+};
+
+/** 归档恢复到未上架，需再次上架后才会重新对前台可见。 */
+export const RESOURCE_LIFECYCLE_TRANSITIONS: Record<
+  ResourceStatus,
+  Partial<Record<ResourceLifecycleAction, ResourceStatus>>
+> = {
+  unlisted: { list: 'listed', archive: 'archived' },
+  listed: { unlist: 'unlisted', archive: 'archived' },
+  archived: { restore: 'unlisted' },
 };
 
 export const ATTACHMENT_RESOURCE_ACCEPT: Record<
@@ -195,6 +216,13 @@ export interface ResourceItem {
   /** 唯一所属复习树末级节点；响应不保存节点路径文本快照 */
   readonly nodeId: string;
   readonly status: ResourceStatus;
+  /** 仅已上架资源对前台可见并允许产生新的业务引用。 */
+  readonly isVisible: boolean;
+  readonly canCreateReference: boolean;
+  /** 已有业务对象对该逻辑资源具体版本的引用总数。 */
+  readonly referenceCount: number;
+  /** 服务端按引用数计算；删除接口仍会再次校验，不能由调用方覆盖。 */
+  readonly canDelete: boolean;
   readonly currentVersionId: string;
   readonly currentVersion: ResourceVersion;
   readonly updatedAt: string;
@@ -232,6 +260,13 @@ export interface AdjustResourceOwnershipInput {
   id: string;
   subject: string;
   targetNodeId: string;
+}
+
+/** 生命周期只接受动作命令，不能通过资料编辑直接写入任意状态。 */
+export interface TransitionResourceLifecycleInput {
+  id: string;
+  subject: string;
+  action: ResourceLifecycleAction;
 }
 
 /** 树导入载荷中的节点（不含 key/id，由后端重建） */
@@ -436,6 +471,15 @@ export async function adjustResourceOwnership(
   data: AdjustResourceOwnershipInput,
 ) {
   return request<ApiResponse<ResourceItem>>('/api/resources/ownership', {
+    method: 'PUT',
+    data,
+  });
+}
+
+export async function transitionResourceLifecycle(
+  data: TransitionResourceLifecycleInput,
+) {
+  return request<ApiResponse<ResourceItem>>('/api/resources/lifecycle', {
     method: 'PUT',
     data,
   });
