@@ -1,6 +1,7 @@
 export type AttachmentResourceType = 'courseware' | 'extension';
 export type ComposedResourceType = 'studyGuide' | 'homework';
 export type ResourceType = AttachmentResourceType | ComposedResourceType;
+export type ResourceStatus = 'unlisted' | 'listed' | 'archived';
 
 export type CoursewareCarrierType = 'ppt';
 export type ExtensionCarrierType = 'pdf' | 'audio' | 'video';

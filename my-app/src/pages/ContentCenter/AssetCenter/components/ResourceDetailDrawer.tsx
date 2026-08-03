@@ -53,6 +53,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import ResourceOperationTimeline from './ResourceOperationTimeline';
 import ResourceVersionPreview from './ResourceVersionPreview';
 
 export interface ResourceDetailRequest {
@@ -669,6 +670,22 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
                   label: '版本概况',
                   children: `${detail.versionCount} 个版本 · ${detail.pendingVersionCount} 个待生效`,
                 },
+                {
+                  label: '业务引用',
+                  children: `${detail.referenceCount} 个固定版本引用`,
+                },
+                {
+                  label: '删除保护',
+                  span: 2,
+                  children: detail.hardDeleteBlockedReason ? (
+                    <span className="asset-detail-delete-protection">
+                      <SafetyCertificateOutlined />
+                      {detail.hardDeleteBlockedReason}
+                    </span>
+                  ) : (
+                    '当前无业务引用，可彻底删除'
+                  ),
+                },
               ]}
             />
 
@@ -702,6 +719,8 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
                 <span>待生效</span>
               </div>
             </section>
+
+            <ResourceOperationTimeline records={detail.operationRecords} />
 
             <div className="asset-version-history-heading">
               <div>

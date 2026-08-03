@@ -815,7 +815,8 @@ const AssetCenterPage: React.FC = () => {
   const handleDelete = (resource: ResourceItem) => {
     if (!resource.canDelete) {
       message.warning(
-        `该资源已有 ${resource.referenceCount} 个业务引用，只能归档，不能彻底删除`,
+        resource.hardDeleteBlockedReason ||
+          `该资源已有 ${resource.referenceCount} 个业务引用，只能归档，不能彻底删除`,
       );
       return;
     }
@@ -942,11 +943,14 @@ const AssetCenterPage: React.FC = () => {
       title: '业务引用',
       dataIndex: 'referenceCount',
       key: 'referenceCount',
-      width: 112,
+      width: 150,
       render: (referenceCount: number, resource) => (
-        <div className="asset-center-reference-cell">
+        <div
+          className="asset-center-reference-cell"
+          title={resource.hardDeleteBlockedReason || '当前无固定版本引用'}
+        >
           <strong>{referenceCount}</strong>
-          <span>{resource.canDelete ? '可彻底删除' : '需保留'}</span>
+          <span>{resource.canDelete ? '可彻底删除' : '固定版本 · 需保留'}</span>
         </div>
       ),
     },
@@ -972,7 +976,8 @@ const AssetCenterPage: React.FC = () => {
           ? '请等待当前生命周期操作完成'
           : resource.canDelete
           ? '仅无业务引用的资源可以彻底删除'
-          : `已有 ${resource.referenceCount} 个业务引用，不能彻底删除，请使用归档`;
+          : resource.hardDeleteBlockedReason ||
+            `已有 ${resource.referenceCount} 个业务引用，不能彻底删除，请使用归档`;
 
         return (
           <Space size={0} wrap>

@@ -1,7 +1,12 @@
 import { request } from '@umijs/max';
 import type {
+  ResourceDeletionResult,
+  ResourceOperationRecord,
+} from './resourceAuditModel';
+import type {
   AttachmentResourceType,
   ResourceCarrierType,
+  ResourceStatus,
   ResourceType,
   ResourceVersionForType,
   ResourceVersionState,
@@ -23,6 +28,16 @@ export {
   validateFormalResourceVersion,
   validateFormalResourceVersionAggregate,
 } from './resourceModel';
+export {
+  RESOURCE_HAS_REFERENCES_CODE,
+  RESOURCE_OPERATION_ACTION_LABELS,
+} from './resourceAuditModel';
+export type {
+  ResourceDeletionResult,
+  ResourceOperationAction,
+  ResourceOperationChange,
+  ResourceOperationRecord,
+} from './resourceAuditModel';
 export type {
   AttachmentCarrierType,
   AttachmentResourceType,
@@ -39,6 +54,7 @@ export type {
   ResourceCarrierType,
   ResourceCreator,
   ResourceInvariantValidationResult,
+  ResourceStatus,
   ResourceType,
   ResourceVersion,
   ResourceVersionForType,
@@ -135,7 +151,6 @@ export interface KnowledgeNode {
 // --- Assets (资产中心正式资源) ---
 
 /** 资源类型、载体与正式版本结构由 resourceModel.ts 统一约束。 */
-export type ResourceStatus = 'unlisted' | 'listed' | 'archived';
 export type ResourceLifecycleAction = 'list' | 'unlist' | 'archive' | 'restore';
 
 export const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
@@ -217,8 +232,10 @@ interface ResourceItemFields<T extends ResourceType> {
   readonly canCreateReference: boolean;
   /** 已有业务对象对该逻辑资源具体版本的引用总数。 */
   readonly referenceCount: number;
-  /** 服务端按引用数计算；删除接口仍会再次校验，不能由调用方覆盖。 */
+  /** 服务端按引用存储实时计算；删除接口仍会再次校验，不能由调用方覆盖。 */
   readonly canDelete: boolean;
+  /** 有固定版本引用时给出可直接展示的删除阻止原因。 */
+  readonly hardDeleteBlockedReason: string | null;
   readonly currentVersionId: string;
   readonly currentVersion: ResourceVersionForType<T>;
   readonly versionCount: number;
@@ -235,6 +252,8 @@ export type ResourceItem = {
 export type ResourceDetail = {
   [T in ResourceType]: ResourceItemFields<T> & {
     readonly versions: readonly ResourceVersionForType<T>[];
+    /** 独立只追加账本按发生时间倒序返回；客户端没有修改或删除契约。 */
+    readonly operationRecords: readonly ResourceOperationRecord[];
   };
 }[ResourceType];
 
@@ -492,6 +511,17 @@ export async function getResourceDetail(params: {
   });
 }
 
+/** 独立查询只追加操作账本；资源彻底删除后仍可用于删除记录探针。 */
+export async function getResourceOperationRecords(params: {
+  id: string;
+  subject: string;
+}) {
+  return request<ApiResponse<ResourceOperationRecord[]>>(
+    '/api/resources/operations',
+    { method: 'GET', params },
+  );
+}
+
 export async function createAttachmentResourceVersion(
   data: CreateAttachmentResourceVersionInput,
 ) {
@@ -541,7 +571,7 @@ export async function transitionResourceLifecycle(
 }
 
 export async function deleteResource(id: string, params: { subject: string }) {
-  return request<ApiResponse<void>>('/api/resources', {
+  return request<ApiResponse<ResourceDeletionResult>>('/api/resources', {
     method: 'DELETE',
     params: { id, ...params },
   });
