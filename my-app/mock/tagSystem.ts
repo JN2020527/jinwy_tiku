@@ -1065,6 +1065,28 @@ const collectResourceSubtreeNodeIds = (
   return result;
 };
 
+const countResourcesOwnedByNodes = (
+  context: KnowledgeContext,
+  nodeIds: Set<string>,
+) =>
+  getResourcesByContext(context).filter((resource) =>
+    nodeIds.has(resource.nodeId),
+  ).length;
+
+const getReviewResourceDependency = (
+  context: KnowledgeContext,
+  node: MockKnowledgeNode,
+  includeDescendants: boolean,
+) => {
+  const nodeIds = includeDescendants
+    ? collectResourceSubtreeNodeIds(node)
+    : new Set([node.key]);
+  return {
+    affectedResourceCount: countResourcesOwnedByNodes(context, nodeIds),
+    resourceScopeNodeId: node.key,
+  };
+};
+
 const validateResourceListFilters = (
   context: KnowledgeContext,
   query: Request['query'],
@@ -1220,16 +1242,6 @@ const hasDuplicatedResourceName = (
       item.type === data.type &&
       item.name.trim() === data.name,
   );
-
-const removeResourcesUnderNodes = (
-  context: KnowledgeContext,
-  nodeIds: Set<string>,
-) => {
-  const resources = resourceStore[getResourceStoreKey(context)];
-  if (!resources) return;
-  const next = resources.filter((item) => !nodeIds.has(item.nodeId));
-  resources.splice(0, resources.length, ...next);
-};
 
 const applyQuestionTypeScope = (
   nodes: QuestionTypeSeedNode[],
@@ -2051,6 +2063,18 @@ export default {
       return;
     }
 
+    if (context.targetType === 'review') {
+      const affectedResourceCount = getResourcesByContext(context).length;
+      if (affectedResourceCount > 0) {
+        res.send({
+          success: false,
+          message: `当前学科复习树下有 ${affectedResourceCount} 份正式资源，不能清空重建。请改用节点编辑或整理来调整结构。`,
+          data: { affectedResourceCount },
+        });
+        return;
+      }
+    }
+
     // 清空重建：收集旧节点 key，清理其属性挂载关系后整体替换
     const oldKeys = new Set<string>();
     (knowledgeTreeStore[storeKey] || []).forEach((node) => {
@@ -2067,7 +2091,10 @@ export default {
     res.send({
       success: true,
       message: '导入成功',
-      data: { count: countTreeNodes(nextTree) },
+      data: {
+        count: countTreeNodes(nextTree),
+        affectedResourceCount: 0,
+      },
     });
   },
   // Replaced /api/tags/attributes with /api/tags/categories
@@ -2172,13 +2199,37 @@ export default {
     const { parentId, title, description } = req.body;
     const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
+
+    if (context.targetType === 'review' && parentId) {
+      const parentNode = findTreeNode(knowledgePoints, String(parentId));
+      if (parentNode) {
+        const dependency = getReviewResourceDependency(
+          context,
+          parentNode,
+          false,
+        );
+        if (dependency.affectedResourceCount > 0) {
+          res.send({
+            success: false,
+            message: `该末级节点已有 ${dependency.affectedResourceCount} 份正式资源，不能新增子节点。请先在资产中心调整相关资源归属。`,
+            data: dependency,
+          });
+          return;
+        }
+      }
+    }
+
     const siblingNodes = getTreeSiblingListByParentId(
       knowledgePoints,
       parentId,
     );
     const validation = validateTreeNodeTitle(siblingNodes, title);
     if (!validation.valid) {
-      res.send({ success: false, message: validation.message });
+      res.send({
+        success: false,
+        message: validation.message,
+        data: { affectedResourceCount: 0 },
+      });
       return;
     }
 
@@ -2195,7 +2246,11 @@ export default {
     };
 
     siblingNodes!.push(newNode);
-    res.send({ success: true, message: 'Node created successfully' });
+    res.send({
+      success: true,
+      message: 'Node created successfully',
+      data: { affectedResourceCount: 0 },
+    });
   },
   'PUT /api/tags/knowledge-node': (req: Request, res: Response) => {
     const { id, title, description } = req.body;
@@ -2228,15 +2283,38 @@ export default {
     });
   },
   'DELETE /api/tags/knowledge-node': (req: Request, res: Response) => {
-    const { id } = req.query;
+    const nodeId = normalizeQueryValue(req.query.id, '');
     const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
+    const targetNode = findTreeNode(knowledgePoints, nodeId);
+
+    if (!targetNode) {
+      res.send({
+        success: false,
+        message: '节点不存在或不属于当前学科',
+        data: { affectedResourceCount: 0 },
+      });
+      return;
+    }
+
+    if (context.targetType === 'review') {
+      const dependency = getReviewResourceDependency(context, targetNode, true);
+      if (dependency.affectedResourceCount > 0) {
+        res.send({
+          success: false,
+          message: `该节点及其子树下有 ${dependency.affectedResourceCount} 份正式资源，不能删除。请先在资产中心将相关资源调整到其他末级节点。`,
+          data: dependency,
+        });
+        return;
+      }
+    }
+
     let deletedNodeKeys = new Set<string>();
     const deleteNode = (nodes: MockKnowledgeNode[]) => {
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
         if (!node) continue;
-        if (node.key === id) {
+        if (node.key === nodeId) {
           deletedNodeKeys = collectTreeNodeKeys(node);
           nodes.splice(i, 1);
           return true;
@@ -2255,24 +2333,105 @@ export default {
           relation.subject === context.subject &&
           deletedNodeKeys.has(relation.nodeId),
       );
-      if (context.targetType === 'review') {
-        removeResourcesUnderNodes(context, deletedNodeKeys);
-      }
     }
-    res.send({ success: true, message: 'Node deleted successfully' });
+    res.send({
+      success: deleted,
+      message: deleted ? 'Node deleted successfully' : 'Node not found',
+      data: { affectedResourceCount: 0 },
+    });
   },
   'PUT /api/tags/knowledge-node/move': (req: Request, res: Response) => {
     const { id, targetId, position } = req.body;
     const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
+    const sourceNodeId = String(id);
+    const targetNodeId = String(targetId);
+    let affectedResourceCount = 0;
+
+    if (context.targetType === 'review') {
+      if (!['before', 'after', 'inside'].includes(position)) {
+        res.send({
+          success: false,
+          message: '移动位置无效',
+          data: { affectedResourceCount: 0 },
+        });
+        return;
+      }
+      if (sourceNodeId === targetNodeId) {
+        res.send({
+          success: false,
+          message: '不能将复习节点移动到自身',
+          data: { affectedResourceCount: 0 },
+        });
+        return;
+      }
+      if (isTreeDescendant(knowledgePoints, sourceNodeId, targetNodeId)) {
+        res.send({
+          success: false,
+          message: '不能将复习节点移动到其后代节点',
+          data: { affectedResourceCount: 0 },
+        });
+        return;
+      }
+
+      const sourceNode = findTreeNode(knowledgePoints, sourceNodeId);
+      const targetNode = findTreeNode(knowledgePoints, targetNodeId);
+      if (!sourceNode || !targetNode) {
+        res.send({
+          success: false,
+          message: '源节点或目标节点不存在，不能跨学科移动',
+          data: { affectedResourceCount: 0 },
+        });
+        return;
+      }
+      if (
+        sourceNode.subject !== context.subject ||
+        targetNode.subject !== context.subject
+      ) {
+        res.send({
+          success: false,
+          message: '复习节点只能在当前学科树内移动',
+          data: { affectedResourceCount: 0 },
+        });
+        return;
+      }
+
+      if (position === 'inside') {
+        const targetDependency = getReviewResourceDependency(
+          context,
+          targetNode,
+          false,
+        );
+        if (targetDependency.affectedResourceCount > 0) {
+          res.send({
+            success: false,
+            message: `目标末级节点已有 ${targetDependency.affectedResourceCount} 份正式资源，不能接收其他节点。请先在资产中心调整相关资源归属。`,
+            data: targetDependency,
+          });
+          return;
+        }
+      }
+
+      affectedResourceCount = getReviewResourceDependency(
+        context,
+        sourceNode,
+        true,
+      ).affectedResourceCount;
+    }
+
     const result = moveTreeNode(
       knowledgePoints,
-      String(id),
-      String(targetId),
+      sourceNodeId,
+      targetNodeId,
       position as TreeMovePosition,
       'Knowledge node',
     );
-    res.send(result);
+    res.send({
+      ...result,
+      data: {
+        affectedResourceCount: result.success ? affectedResourceCount : 0,
+      },
+    });
   },
 
   // Asset Center（资产中心正式资源）

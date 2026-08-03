@@ -241,6 +241,16 @@ export interface ImportTreeNode {
   children?: ImportTreeNode[];
 }
 
+/** 树结构变更影响的正式资源；scope 为空时表示当前学科整棵复习树 */
+export interface TreeMutationResult {
+  affectedResourceCount: number;
+  resourceScopeNodeId?: string;
+}
+
+export interface ImportTreeResult extends TreeMutationResult {
+  count: number;
+}
+
 export type AnswerAreaType = 'line' | 'blank';
 export type QuestionTypeAnswerCardType = 'objective' | 'subjective';
 
@@ -292,7 +302,7 @@ export async function importKnowledgeTree(data: {
   targetType?: TreeTargetType;
   nodes: ImportTreeNode[];
 }) {
-  return request<ApiResponse<{ count: number }>>(
+  return request<ApiResponse<ImportTreeResult>>(
     '/api/tags/knowledge-tree/import',
     {
       method: 'POST',
@@ -350,7 +360,7 @@ export async function addKnowledgeNode(data: {
   targetType?: TreeTargetType;
   description?: string;
 }) {
-  return request<ApiResponse<KnowledgeNode>>('/api/tags/knowledge-node', {
+  return request<ApiResponse<TreeMutationResult>>('/api/tags/knowledge-node', {
     method: 'POST',
     data,
   });
@@ -373,7 +383,7 @@ export async function deleteKnowledgeNode(
   id: string,
   params?: { subject?: string; targetType?: TreeTargetType },
 ) {
-  return request<ApiResponse<void>>('/api/tags/knowledge-node', {
+  return request<ApiResponse<TreeMutationResult>>('/api/tags/knowledge-node', {
     method: 'DELETE',
     params: { id, ...params },
   });
@@ -386,10 +396,13 @@ export async function moveKnowledgeNode(data: {
   subject: string;
   targetType?: TreeTargetType;
 }) {
-  return request<ApiResponse<void>>('/api/tags/knowledge-node/move', {
-    method: 'PUT',
-    data,
-  });
+  return request<ApiResponse<TreeMutationResult>>(
+    '/api/tags/knowledge-node/move',
+    {
+      method: 'PUT',
+      data,
+    },
+  );
 }
 
 // --- Asset Center (资产中心) ---

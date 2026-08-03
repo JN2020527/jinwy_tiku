@@ -38,6 +38,7 @@ import {
   VideoCameraOutlined,
 } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
+import { useSearchParams } from '@umijs/max';
 import {
   Button,
   Card,
@@ -204,15 +205,44 @@ const normalizeUploadChange = (
   event: UploadChangeParam<UploadFile> | UploadFile[],
 ) => (Array.isArray(event) ? event : event?.fileList?.slice(-1));
 
+interface AssetCenterInitialFilters {
+  subject: string;
+  nodeId?: string;
+}
+
+const ASSET_CENTER_SUBJECTS = new Set(
+  SUBJECT_OPTIONS.map((option) => option.value),
+);
+
+const getAssetCenterInitialFilters = (
+  searchParams: URLSearchParams,
+): AssetCenterInitialFilters => {
+  const requestedSubject = searchParams.get('subject')?.trim();
+  const requestedNodeId = searchParams.get('nodeId')?.trim();
+  return {
+    subject:
+      requestedSubject && ASSET_CENTER_SUBJECTS.has(requestedSubject)
+        ? requestedSubject
+        : 'math',
+    nodeId: requestedNodeId || undefined,
+  };
+};
+
 const AssetCenterPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const initialFiltersRef = useRef(getAssetCenterInitialFilters(searchParams));
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [reviewTree, setReviewTree] = useState<KnowledgeNode[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState('math');
+  const [selectedSubject, setSelectedSubject] = useState(
+    initialFiltersRef.current.subject,
+  );
   const [typeFilter, setTypeFilter] = useState<ResourceTypeFilter>('all');
   const [carrierFilter, setCarrierFilter] =
     useState<ResourceCarrierFilter>('all');
   const [statusFilter, setStatusFilter] = useState<ResourceStatusFilter>('all');
-  const [nodeFilter, setNodeFilter] = useState<string>();
+  const [nodeFilter, setNodeFilter] = useState<string | undefined>(
+    initialFiltersRef.current.nodeId,
+  );
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);

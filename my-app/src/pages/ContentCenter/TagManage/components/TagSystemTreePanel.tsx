@@ -6,6 +6,7 @@ import type {
   TagCategory,
   TextbookChapter,
   TextbookVersion,
+  TreeMutationResult,
   TreeTargetType,
 } from '@/services/tagSystem';
 import {
@@ -25,7 +26,12 @@ import {
   updateKnowledgeNode,
   updateTextbookChapter,
 } from '@/services/tagSystem';
-import { HolderOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+  ExclamationCircleOutlined,
+  HolderOutlined,
+  SearchOutlined,
+} from '@ant-design/icons';
+import { history } from '@umijs/max';
 import type { TreeProps } from 'antd';
 import {
   Alert,
@@ -106,7 +112,25 @@ interface InlineEditState {
   saving?: boolean;
 }
 
+interface TreeMutationResponse {
+  message?: string;
+  data?: unknown;
+}
+
+const getTreeMutationResult = (
+  response: TreeMutationResponse,
+): Partial<TreeMutationResult> | undefined =>
+  response.data && typeof response.data === 'object'
+    ? (response.data as Partial<TreeMutationResult>)
+    : undefined;
+
 const createDraftNodeKey = () => `draft-${Date.now()}`;
+
+const getAssetCenterResourceUrl = (subject: string, nodeId?: string) => {
+  const searchParams = new URLSearchParams({ subject });
+  if (nodeId) searchParams.set('nodeId', nodeId);
+  return `/content/asset-center?${searchParams.toString()}`;
+};
 
 const TREE_TYPE_LABELS: Record<TreeTargetType, string> = {
   knowledge: '知识点树',
@@ -195,6 +219,53 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   const treeSearch = useTreeSearch(displayTree);
   const visibleTree = arrangeMode ? displayTree : treeSearch.filteredTreeData;
   const isSearching = Boolean(treeSearch.searchValue.trim());
+
+  const showReviewTreeResourceGuard = useCallback(
+    (
+      title: string,
+      response: TreeMutationResponse,
+      fallbackNodeId?: React.Key,
+    ) => {
+      const mutationResult = getTreeMutationResult(response);
+      const affectedResourceCount = mutationResult?.affectedResourceCount || 0;
+      if (targetType !== 'review' || affectedResourceCount <= 0) {
+        return false;
+      }
+
+      const resourceScopeNodeId =
+        mutationResult?.resourceScopeNodeId ||
+        (fallbackNodeId === undefined ? undefined : String(fallbackNodeId));
+      let guardModal: ReturnType<typeof Modal.confirm>;
+      guardModal = Modal.confirm({
+        title,
+        icon: <ExclamationCircleOutlined />,
+        transitionName: '',
+        maskTransitionName: '',
+        content: (
+          <div>
+            <p>
+              {response.message ||
+                `检测到 ${affectedResourceCount} 份相关正式资源，本次操作已停止。`}
+            </p>
+            <p style={{ marginBottom: 0, color: '#64748b' }}>
+              树结构和资源归属均未改变，资源不会被删除或自动解绑。
+            </p>
+          </div>
+        ),
+        okText: '查看相关资源',
+        cancelText: '留在当前页',
+        onOk: () => {
+          guardModal.destroy();
+          history.push(
+            getAssetCenterResourceUrl(selectedSubject, resourceScopeNodeId),
+          );
+        },
+        onCancel: () => guardModal.destroy(),
+      });
+      return true;
+    },
+    [selectedSubject, targetType],
+  );
 
   useEffect(() => {
     const requestId = (versionsRequestIdRef.current += 1);
@@ -492,7 +563,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
         setImportPreview(null);
         treeSearch.resetSearch();
         fetchTree();
-      } else {
+      } else if (!showReviewTreeResourceGuard('无法清空重建复习树', res)) {
         message.error(res.message || '导入失败');
       }
     } catch {
@@ -533,27 +604,39 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       message.warning('请选择教材版本');
       return;
     }
-    Modal.confirm({
+    let deleteModal: ReturnType<typeof Modal.confirm>;
+    deleteModal = Modal.confirm({
       title: '确认删除',
       content: `确定要删除${deleteTargetName} "${node.title}" 吗？`,
+      transitionName: '',
+      maskTransitionName: '',
       onOk: async () => {
-        const res =
-          isSyncContext && selectedTextbookVersion
-            ? await deleteTextbookChapter(String(node.key), {
-                version: selectedTextbookVersion,
-                subject: selectedSubject,
-              })
-            : await deleteKnowledgeNode(String(node.key), {
-                subject: selectedSubject,
-                targetType,
-              });
-        if (res.success) {
-          message.success('删除成功');
-          fetchTree();
-        } else {
+        try {
+          const res =
+            isSyncContext && selectedTextbookVersion
+              ? await deleteTextbookChapter(String(node.key), {
+                  version: selectedTextbookVersion,
+                  subject: selectedSubject,
+                })
+              : await deleteKnowledgeNode(String(node.key), {
+                  subject: selectedSubject,
+                  targetType,
+                });
+          deleteModal.destroy();
+          if (res.success) {
+            message.success('删除成功');
+            fetchTree();
+          } else if (
+            !showReviewTreeResourceGuard('无法删除复习节点', res, node.key)
+          ) {
+            message.error(res.message || '删除失败');
+          }
+        } catch {
+          deleteModal.destroy();
           message.error('删除失败');
         }
       },
+      onCancel: () => deleteModal.destroy(),
     });
   };
 
@@ -590,9 +673,21 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
           });
 
     if (res.success) {
-      message.success('移动成功');
+      const affectedResourceCount =
+        getTreeMutationResult(res)?.affectedResourceCount || 0;
+      message.success(
+        targetType === 'review' && affectedResourceCount > 0
+          ? `移动成功，${affectedResourceCount} 份资源的目录路径已同步更新`
+          : '移动成功',
+      );
       fetchTree();
-    } else {
+    } else if (
+      !showReviewTreeResourceGuard(
+        '无法移入该复习节点',
+        res,
+        moveRequest.targetId,
+      )
+    ) {
       message.error(res.message || '移动失败');
     }
   };
@@ -665,7 +760,15 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       setInlineEdit(null);
       fetchTree();
     } else {
-      message.error(res.message || '保存失败');
+      if (
+        !showReviewTreeResourceGuard(
+          '无法新增子节点',
+          res,
+          inlineEdit.parentKey || undefined,
+        )
+      ) {
+        message.error(res.message || '保存失败');
+      }
       setInlineEdit({ ...inlineEdit, saving: false });
     }
   };
