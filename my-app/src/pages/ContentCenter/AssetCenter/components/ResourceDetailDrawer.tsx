@@ -49,7 +49,7 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ResourceVersionPreview from './ResourceVersionPreview';
 
 export interface ResourceDetailRequest {
@@ -65,6 +65,28 @@ interface ResourceDetailDrawerProps {
   onResourceChanged: (resource: ResourceItem) => void;
   isSubjectActive: (subject: string) => boolean;
 }
+
+export interface ResourceDetailContextIdentity {
+  requestKey: number;
+  resourceId: string;
+  subject: string;
+}
+
+interface ActivationConfirmationContext extends ResourceDetailContextIdentity {
+  generation: number;
+  versionId: string;
+}
+
+export const isResourceDetailContextCurrent = (
+  current: ResourceDetailContextIdentity | null,
+  expected: ResourceDetailContextIdentity,
+) =>
+  Boolean(
+    current &&
+      current.requestKey === expected.requestKey &&
+      current.resourceId === expected.resourceId &&
+      current.subject === expected.subject,
+  );
 
 const RESOURCE_STATUS_COLORS: Record<ResourceStatus, string> = {
   unlisted: 'default',
@@ -114,11 +136,49 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
   const operationGenerationRef = useRef(0);
   const operationTokenRef = useRef<number | null>(null);
   const activeRequestKeyRef = useRef<number | null>(null);
+  const activationConfirmationGenerationRef = useRef(0);
+  const activationConfirmationRef = useRef<{
+    generation: number;
+    modal: ReturnType<typeof Modal.confirm>;
+  } | null>(null);
+  const latestRequestContextRef = useRef<ResourceDetailContextIdentity | null>(
+    null,
+  );
+  const latestDetailRef = useRef<ResourceDetail | null>(null);
 
-  useEffect(() => {
-    const requestId = (requestIdRef.current += 1);
+  latestRequestContextRef.current = request
+    ? {
+        requestKey: request.key,
+        resourceId: request.resource.id,
+        subject: request.resource.subject,
+      }
+    : null;
+  latestDetailRef.current = detail;
+
+  const destroyActivationConfirmation = useCallback(() => {
+    activationConfirmationGenerationRef.current += 1;
+    const confirmation = activationConfirmationRef.current;
+    activationConfirmationRef.current = null;
+    confirmation?.modal.destroy();
+  }, []);
+
+  const releaseActivationConfirmation = useCallback((generation: number) => {
+    if (activationConfirmationRef.current?.generation !== generation) return;
+    activationConfirmationRef.current = null;
+    activationConfirmationGenerationRef.current += 1;
+  }, []);
+
+  const invalidateOperations = useCallback(() => {
+    requestIdRef.current += 1;
     operationGenerationRef.current += 1;
     operationTokenRef.current = null;
+    activeRequestKeyRef.current = null;
+    destroyActivationConfirmation();
+  }, [destroyActivationConfirmation]);
+
+  useEffect(() => {
+    invalidateOperations();
+    const requestId = (requestIdRef.current += 1);
     activeRequestKeyRef.current = request?.key ?? null;
     setDetail(null);
     setLoading(Boolean(request));
@@ -129,11 +189,20 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
     setPreviewVersion(null);
     setPreviewedVersionIds(new Set());
 
-    if (!request) return undefined;
+    if (!request) return invalidateOperations;
     const currentRequest = request;
+    const expectedContext: ResourceDetailContextIdentity = {
+      requestKey: currentRequest.key,
+      resourceId: currentRequest.resource.id,
+      subject: currentRequest.resource.subject,
+    };
     const isCurrentRequest = () =>
       requestIdRef.current === requestId &&
       activeRequestKeyRef.current === currentRequest.key &&
+      isResourceDetailContextCurrent(
+        latestRequestContextRef.current,
+        expectedContext,
+      ) &&
       isSubjectActive(currentRequest.resource.subject);
 
     void getResourceDetail({
@@ -162,17 +231,8 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
         if (isCurrentRequest()) setLoading(false);
       });
 
-    return () => {
-      requestIdRef.current += 1;
-    };
-  }, [isSubjectActive, request]);
-
-  const invalidateOperations = () => {
-    requestIdRef.current += 1;
-    operationGenerationRef.current += 1;
-    operationTokenRef.current = null;
-    activeRequestKeyRef.current = null;
-  };
+    return invalidateOperations;
+  }, [invalidateOperations, isSubjectActive, request]);
 
   const handleClose = () => {
     invalidateOperations();
@@ -230,6 +290,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
     const operationResourceId = detail.id;
     const operationSubject = detail.subject;
     const previousCurrentVersion = detail.currentVersion.versionNumber;
+    const previousStatus = detail.status;
     const isCurrentOperation = () =>
       operationGenerationRef.current === operationGeneration &&
       activeRequestKeyRef.current === operationRequestKey &&
@@ -259,10 +320,14 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
           version.state === 'pending' &&
           version.createdAt === response.data.updatedAt,
       );
+      const restoredFromArchive =
+        previousStatus === 'archived' && response.data.status === 'unlisted';
       message.success(
         `${
           pendingVersion ? `V${pendingVersion.versionNumber}` : '新版本'
-        } 已待生效，当前仍为 V${previousCurrentVersion}`,
+        } 已待生效，当前仍为 V${previousCurrentVersion}${
+          restoredFromArchive ? '；资源已原子恢复为未上架' : ''
+        }`,
       );
     } catch {
       if (isCurrentOperation()) message.error('新版本上传失败');
@@ -279,23 +344,52 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
     setPreviewVersion(version);
   };
 
-  const executeActivation = async (version: ResourceVersion) => {
-    if (!request || !detail || operationTokenRef.current !== null) return;
+  const executeActivation = async (
+    version: ResourceVersion,
+    confirmationContext: ActivationConfirmationContext,
+  ) => {
+    const currentDetail = latestDetailRef.current;
+    const contextIsCurrent =
+      activationConfirmationGenerationRef.current ===
+        confirmationContext.generation &&
+      activationConfirmationRef.current?.generation ===
+        confirmationContext.generation &&
+      isResourceDetailContextCurrent(
+        latestRequestContextRef.current,
+        confirmationContext,
+      ) &&
+      activeRequestKeyRef.current === confirmationContext.requestKey &&
+      isSubjectActive(confirmationContext.subject) &&
+      currentDetail?.id === confirmationContext.resourceId &&
+      currentDetail.subject === confirmationContext.subject &&
+      currentDetail.versions.some(
+        (candidate) =>
+          candidate.id === confirmationContext.versionId &&
+          candidate.state !== 'current',
+      );
+
+    // Modal.confirm 持有创建时闭包；必须在请求前以实时 ref 复核完整上下文。
+    if (!contextIsCurrent || operationTokenRef.current !== null) return;
+
     const operationGeneration = (operationGenerationRef.current += 1);
     operationTokenRef.current = operationGeneration;
-    const operationRequestKey = request.key;
-    const operationResourceId = detail.id;
-    const operationSubject = detail.subject;
+    const operationRequestKey = confirmationContext.requestKey;
+    const operationResourceId = confirmationContext.resourceId;
+    const operationSubject = confirmationContext.subject;
     const isCurrentOperation = () =>
       operationGenerationRef.current === operationGeneration &&
       activeRequestKeyRef.current === operationRequestKey &&
+      isResourceDetailContextCurrent(
+        latestRequestContextRef.current,
+        confirmationContext,
+      ) &&
       isSubjectActive(operationSubject);
 
     setActivationVersionId(version.id);
     try {
       const response = await activateResourceVersion({
         resourceId: operationResourceId,
-        versionId: version.id,
+        versionId: confirmationContext.versionId,
         subject: operationSubject,
       });
       if (!isCurrentOperation()) {
@@ -320,9 +414,30 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
   };
 
   const confirmActivation = (version: ResourceVersion) => {
-    if (!detail || !previewedVersionIds.has(version.id)) return;
+    if (!request || !detail || !previewedVersionIds.has(version.id)) return;
+    const expectedContext: ResourceDetailContextIdentity = {
+      requestKey: request.key,
+      resourceId: detail.id,
+      subject: detail.subject,
+    };
+    if (
+      !isResourceDetailContextCurrent(
+        latestRequestContextRef.current,
+        expectedContext,
+      )
+    ) {
+      return;
+    }
+
+    destroyActivationConfirmation();
+    const generation = (activationConfirmationGenerationRef.current += 1);
+    const confirmationContext: ActivationConfirmationContext = {
+      ...expectedContext,
+      generation,
+      versionId: version.id,
+    };
     const actionLabel = version.state === 'pending' ? '生效' : '重新生效';
-    Modal.confirm({
+    const modal = Modal.confirm({
       title: `确认${actionLabel} V${version.versionNumber}`,
       content: (
         <div className="asset-version-activation-confirm">
@@ -337,8 +452,10 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
         </div>
       ),
       okText: `确认${actionLabel}`,
-      onOk: () => executeActivation(version),
+      onOk: () => executeActivation(version, confirmationContext),
+      afterClose: () => releaseActivationConfirmation(generation),
     });
+    activationConfirmationRef.current = { generation, modal };
   };
 
   const versionColumns: ColumnsType<ResourceVersion> = [
@@ -587,12 +704,20 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
               type="info"
               showIcon
               icon={<SafetyCertificateOutlined />}
-              message="新文件先进入待生效"
-              description={`创建后当前 V${
-                detail.currentVersion.versionNumber
-              } 继续有效；预览并确认生效后才会切换。资源类型、归属和“${
-                RESOURCE_STATUS_LABELS[detail.status]
-              }”状态不变。`}
+              message={
+                detail.status === 'archived'
+                  ? '新版本与归档恢复将在服务端原子完成'
+                  : '新文件先进入待生效'
+              }
+              description={
+                detail.status === 'archived'
+                  ? `创建后当前 V${detail.currentVersion.versionNumber} 继续有效，新文件进入待生效；资源在同一次变更中恢复为未上架，不会新建重复资源，需再次上架后才会前台可见。`
+                  : `创建后当前 V${
+                      detail.currentVersion.versionNumber
+                    } 继续有效；预览并确认生效后才会切换。资源类型、归属和“${
+                      RESOURCE_STATUS_LABELS[detail.status]
+                    }”状态不变。`
+              }
             />
             <Upload.Dragger
               accept={ATTACHMENT_RESOURCE_ACCEPT[attachmentType]}

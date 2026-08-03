@@ -525,7 +525,11 @@ const AssetCenterPage: React.FC = () => {
   ) => {
     closeForm();
     openResourceDetail(resource, initialFileList);
-    message.info('已定位到同名逻辑资源，请将文件上传为新版本');
+    message.info(
+      resource.status === 'archived'
+        ? '已定位到同名的已归档资源；上传兼容新版本时将原子恢复为未上架'
+        : '已定位到同名逻辑资源，请将文件上传为新版本',
+    );
   };
 
   const duplicatedCreateResource =
@@ -643,7 +647,9 @@ const AssetCenterPage: React.FC = () => {
             Modal.confirm({
               title: '同名内容归入已有资源',
               content:
-                '该末级节点下已有同类型、同名称资源。为保持一个逻辑资源及完整版本历史，请把本次文件上传为新版本。',
+                duplicatedResource.status === 'archived'
+                  ? '该末级节点下已有同类型、同名称的已归档资源。请把本次文件上传为新版本；服务端将在同一次变更中恢复为未上架，不会创建重复资源。'
+                  : '该末级节点下已有同类型、同名称资源。为保持一个逻辑资源及完整版本历史，请把本次文件上传为新版本。',
               okText: '进入新增版本',
               cancelText: '返回修改名称',
               onOk: () => {
@@ -1306,7 +1312,11 @@ const AssetCenterPage: React.FC = () => {
               showIcon
               className="asset-center-same-name-guide"
               message="已存在同名逻辑资源"
-              description={`“${duplicatedCreateResource.name}”已有 ${duplicatedCreateResource.versionCount} 个版本。请保留资源身份、类型与归属，把本次文件作为新版本上传。`}
+              description={
+                duplicatedCreateResource.status === 'archived'
+                  ? `“${duplicatedCreateResource.name}”已有 ${duplicatedCreateResource.versionCount} 个版本且当前已归档。上传兼容新版本时，服务端会原子恢复为未上架，不会创建重复资源。`
+                  : `“${duplicatedCreateResource.name}”已有 ${duplicatedCreateResource.versionCount} 个版本。请保留资源身份、类型与归属，把本次文件作为新版本上传。`
+              }
               action={
                 <Button
                   size="small"

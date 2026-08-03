@@ -17,15 +17,7 @@ interface ResourceVersionPreviewProps {
   onClose: () => void;
 }
 
-const RESOURCE_MIME_TYPES: Record<ResourceVersion['carrierType'], string> = {
-  ppt: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  pdf: 'application/pdf',
-  audio: 'audio/mpeg',
-  video: 'video/mp4',
-  online: 'text/plain;charset=utf-8',
-};
-
-const createAudioPreviewUrl = () => {
+const createPrototypeAudioPlaceholderUrl = () => {
   const sampleRate = 8000;
   const duration = 1.2;
   const sampleCount = Math.floor(sampleRate * duration);
@@ -60,28 +52,54 @@ const createAudioPreviewUrl = () => {
   return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
 };
 
-const downloadMockOriginalFile = (version: ResourceVersion) => {
-  const fileName =
-    version.originalFileName || `resource-v${version.versionNumber}.txt`;
-  const content = [
-    '资产中心原型文件下载兜底',
-    `版本：V${version.versionNumber}`,
-    `原始文件名：${fileName}`,
-    `载体：${RESOURCE_CARRIER_LABELS[version.carrierType]}`,
-    '',
-    '当前为纯前端原型，不保存上传文件二进制；生产环境由对象存储返回原文件。',
-  ].join('\n');
+export interface PrototypeDownloadPlaceholder {
+  fileName: string;
+  mimeType: 'text/plain;charset=utf-8';
+  content: string;
+}
+
+export const createPrototypeDownloadPlaceholder = (
+  version: ResourceVersion,
+): PrototypeDownloadPlaceholder => {
+  const originalFileName =
+    version.originalFileName || `resource-v${version.versionNumber}`;
+  const safeOriginalFileName = originalFileName.replace(/[\\/:*?"<>|]/g, '_');
+  return {
+    fileName: `${safeOriginalFileName}.prototype-placeholder.txt`,
+    mimeType: 'text/plain;charset=utf-8',
+    content: [
+      '资产中心原型下载占位说明（不是原始文件）',
+      `版本：V${version.versionNumber}`,
+      `产品约定的原始文件名：${originalFileName}`,
+      `载体：${RESOURCE_CARRIER_LABELS[version.carrierType]}`,
+      '',
+      '当前纯前端 Mock 不保存上传文件字节；此文本 Blob 仅用于演示下载入口，不能作为原始文件使用。',
+      '接入文件存储后，该入口应按上述原始文件名下载对应版本的真实文件。',
+    ].join('\n'),
+  };
+};
+
+const downloadPrototypePlaceholder = (version: ResourceVersion) => {
+  const placeholder = createPrototypeDownloadPlaceholder(version);
   const url = URL.createObjectURL(
-    new Blob([content], { type: RESOURCE_MIME_TYPES[version.carrierType] }),
+    new Blob([placeholder.content], { type: placeholder.mimeType }),
   );
   const link = document.createElement('a');
   link.href = url;
-  link.download = fileName;
+  link.download = placeholder.fileName;
   document.body.appendChild(link);
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 };
+
+export const PrototypeFileNotice: React.FC = () => (
+  <div className="asset-version-preview-note" role="note">
+    当前纯前端 Mock
+    不保存真实文件字节；以下内容均为原型占位预览。“下载原型占位说明”只生成说明文本
+    Blob，并非原始文件。接入文件存储后，此入口仍按产品契约下载对应版本原文件。
+  </div>
+);
 
 const PreviewHeader: React.FC<{
   icon: React.ReactNode;
@@ -94,7 +112,7 @@ const PreviewHeader: React.FC<{
       <strong>{label}</strong>
       <span>{version.originalFileName || '在线组合内容'}</span>
     </div>
-    <Tag>前端 Mock</Tag>
+    <Tag>原型占位</Tag>
   </div>
 );
 
@@ -111,7 +129,7 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
       setAudioPreviewUrl('');
       return undefined;
     }
-    const url = createAudioPreviewUrl();
+    const url = createPrototypeAudioPlaceholderUrl();
     setAudioPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [open, version?.id, version?.carrierType]);
@@ -120,7 +138,7 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
     `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540"><rect width="960" height="540" fill="#0f172a"/><circle cx="480" cy="245" r="58" fill="#2563eb"/><path d="M462 211l55 34-55 34z" fill="white"/><text x="480" y="355" text-anchor="middle" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="25">${resourceName.replace(
       /[<>&"']/g,
       '',
-    )}</text><text x="480" y="394" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="18">VIDEO PREVIEW · FRONTEND MOCK</text></svg>`,
+    )}</text><text x="480" y="394" text-anchor="middle" fill="#64748b" font-family="Arial,sans-serif" font-size="18">PROTOTYPE VIDEO PLACEHOLDER</text></svg>`,
   )}`;
 
   const renderPreview = () => {
@@ -131,20 +149,20 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
         <div className="asset-version-preview-adapter">
           <PreviewHeader
             icon={<FilePptOutlined />}
-            label="PPT 幻灯片预览"
+            label="PPT 原型占位预览"
             version={version}
           />
           <div
             className="asset-version-ppt-preview"
             role="img"
-            aria-label="PPT 模拟预览"
+            aria-label="PPT 原型占位预览"
           >
             <div className="asset-version-ppt-slide-index">
               V{version.versionNumber} · 01 / 03
             </div>
             <span className="asset-version-ppt-eyebrow">课堂复习课件</span>
             <h3>{resourceName}</h3>
-            <p>当前原型以幻灯片画布验证预览与生效流程</p>
+            <p>占位画布仅验证预览与生效流程，不包含原始 PPT 页面</p>
             <div className="asset-version-ppt-rule" />
           </div>
         </div>
@@ -156,20 +174,22 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
         <div className="asset-version-preview-adapter">
           <PreviewHeader
             icon={<FilePdfOutlined />}
-            label="PDF 文档预览"
+            label="PDF 原型占位预览"
             version={version}
           />
           <div className="asset-version-pdf-stage">
             <article
               className="asset-version-pdf-page"
-              aria-label="PDF 模拟预览第 1 页"
+              aria-label="PDF 原型占位预览第 1 页"
             >
               <span>拓展阅读 · V{version.versionNumber}</span>
               <h3>{resourceName}</h3>
               <div className="asset-version-pdf-line asset-version-pdf-line-wide" />
               <div className="asset-version-pdf-line" />
               <div className="asset-version-pdf-line" />
-              <div className="asset-version-pdf-callout">PDF PREVIEW</div>
+              <div className="asset-version-pdf-callout">
+                PROTOTYPE PLACEHOLDER
+              </div>
               <div className="asset-version-pdf-line asset-version-pdf-line-wide" />
               <div className="asset-version-pdf-line" />
             </article>
@@ -183,7 +203,7 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
         <div className="asset-version-preview-adapter">
           <PreviewHeader
             icon={<AudioOutlined />}
-            label="音频播放器预览"
+            label="音频原型占位预览"
             version={version}
           />
           <div className="asset-version-audio-preview">
@@ -192,12 +212,12 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
             </span>
             <div>
               <strong>{resourceName}</strong>
-              <span>试听音轨用于验证前端播放器，原文件可通过下载兜底获取</span>
+              <span>合成试听音轨仅验证播放器，不包含原始音频字节</span>
               <audio
                 controls
                 preload="metadata"
                 src={audioPreviewUrl}
-                aria-label={`${resourceName} 音频模拟预览`}
+                aria-label={`${resourceName} 音频原型占位预览`}
               />
             </div>
           </div>
@@ -210,7 +230,7 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
         <div className="asset-version-preview-adapter">
           <PreviewHeader
             icon={<VideoCameraOutlined />}
-            label="视频播放器预览"
+            label="视频原型占位预览"
             version={version}
           />
           <div className="asset-version-video-preview">
@@ -218,9 +238,9 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
               controls
               preload="none"
               poster={videoPoster}
-              aria-label={`${resourceName} 视频模拟预览`}
+              aria-label={`${resourceName} 视频原型占位预览`}
             />
-            <p>原型不保存视频流；适配器展示封面帧，无法播放时请下载原文件。</p>
+            <p>当前仅展示原型占位封面，不保存或播放原始视频流。</p>
           </div>
         </div>
       );
@@ -235,7 +255,7 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
 
   return (
     <Modal
-      title={version ? `预览 V${version.versionNumber}` : '版本预览'}
+      title={version ? `原型占位预览 V${version.versionNumber}` : '版本预览'}
       open={open}
       onCancel={onClose}
       width={820}
@@ -246,9 +266,9 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
               <Button
                 key="download"
                 icon={<CloudDownloadOutlined />}
-                onClick={() => downloadMockOriginalFile(version)}
+                onClick={() => downloadPrototypePlaceholder(version)}
               >
-                下载原文件
+                下载原型占位说明
               </Button>,
               <Button key="close" type="primary" onClick={onClose}>
                 关闭预览
@@ -257,10 +277,7 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
           : null
       }
     >
-      <div className="asset-version-preview-note">
-        预览由载体适配器提供；当前纯前端 Mock
-        不保存真实文件，始终保留同名原文件下载兜底。
-      </div>
+      <PrototypeFileNotice />
       {renderPreview()}
     </Modal>
   );

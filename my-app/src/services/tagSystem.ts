@@ -278,7 +278,7 @@ export interface CreateAttachmentResourceInput {
   subject: string;
 }
 
-/** 新文件只追加待生效版本，不接受资源类型、归属、状态或当前版本字段。 */
+/** 新文件原子追加为待生效版本；已归档资源同步恢复为未上架。 */
 export interface CreateAttachmentResourceVersionInput {
   resourceId: string;
   subject: string;

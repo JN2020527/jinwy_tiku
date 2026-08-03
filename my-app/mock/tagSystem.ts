@@ -2739,7 +2739,9 @@ export default {
         success: false,
         code: RESOURCE_NAME_CONFLICT_CODE,
         message:
-          '该末级节点下已存在同类型、同名称资源，请在已有资源中上传新版本',
+          duplicatedResource.status === 'archived'
+            ? '该末级节点下已有同类型、同名称的已归档资源，请上传为新版本；成功后将原子恢复为未上架'
+            : '该末级节点下已存在同类型、同名称资源，请在已有资源中上传新版本',
         data: toResourceSummary(duplicatedResource),
       });
       return;
@@ -2816,14 +2818,16 @@ export default {
       res.send({ success: false, message: '请选择要新增版本的资源' });
       return;
     }
-    const item = getResourcesByContext(context).find(
+    const resources = getResourcesByContext(context);
+    const itemIndex = resources.findIndex(
       (resource) =>
         resource.id === resourceId && resource.subject === context.subject,
     );
-    if (!item) {
+    if (itemIndex < 0) {
       res.send({ success: false, message: '资源不存在' });
       return;
     }
+    const item = resources[itemIndex]!;
     if (!isAttachmentResourceType(item.type)) {
       res.send({
         success: false,
@@ -2866,18 +2870,27 @@ export default {
       state: 'pending',
     };
     const unchangedCurrentVersionId = item.currentVersionId;
-    item.versions.push(version);
-    item.updatedAt = createdAt;
-    synchronizeResourceSemantics(item);
+    const restoresArchivedResource = item.status === 'archived';
+    const nextItem = synchronizeResourceSemantics({
+      ...item,
+      status: restoresArchivedResource ? 'unlisted' : item.status,
+      versions: [...item.versions.map(cloneResourceVersion), version],
+      updatedAt: createdAt,
+    });
 
-    // 追加版本不得隐式切换当前版本，也不得改变资源稳定资料和生命周期。
-    if (item.currentVersionId !== unchangedCurrentVersionId) {
+    if (nextItem.currentVersionId !== unchangedCurrentVersionId) {
       throw new Error('Creating a version changed the current version');
     }
+
+    // 所有校验和聚合派生完成后再替换目标资源：新增版本与归档恢复同次生效，
+    // 且不会遍历或改写同一学科下其他资源的生命周期。
+    resources[itemIndex] = nextItem;
     res.send({
       success: true,
-      message: `V${versionNumber} 已创建为待生效版本，当前版本保持不变`,
-      data: toResourceDetail(item),
+      message: restoresArchivedResource
+        ? `V${versionNumber} 已创建为待生效版本，资源已恢复为未上架，当前版本保持不变`
+        : `V${versionNumber} 已创建为待生效版本，当前版本保持不变`,
+      data: toResourceDetail(nextItem),
     });
   },
   'PUT /api/resources/versions/activate': (req: Request, res: Response) => {
