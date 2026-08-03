@@ -22,6 +22,7 @@ import {
   RESOURCE_CARRIER_LABELS,
   RESOURCE_LIFECYCLE_ACTION_LABELS,
   RESOURCE_LIFECYCLE_TRANSITIONS,
+  RESOURCE_NAME_CONFLICT_CODE,
   RESOURCE_STATUS_LABELS,
   RESOURCE_TYPE_LABELS,
   transitionResourceLifecycle,
@@ -36,6 +37,7 @@ import {
   FilePdfOutlined,
   FilePptOutlined,
   FileTextOutlined,
+  HistoryOutlined,
   InboxOutlined,
   RollbackOutlined,
   SafetyCertificateOutlined,
@@ -47,6 +49,7 @@ import {
 import { PageContainer } from '@ant-design/pro-components';
 import { useSearchParams } from '@umijs/max';
 import {
+  Alert,
   Button,
   Card,
   Form,
@@ -71,6 +74,8 @@ import React, {
   useState,
 } from 'react';
 import { SUBJECT_OPTIONS } from '../TagManage/components/treeFilterConstants';
+import type { ResourceDetailRequest } from './components/ResourceDetailDrawer';
+import ResourceDetailDrawer from './components/ResourceDetailDrawer';
 import './index.less';
 
 interface ResourceFormValues {
@@ -277,6 +282,8 @@ const AssetCenterPage: React.FC = () => {
   const [ownershipSubmitting, setOwnershipSubmitting] = useState(false);
   const [lifecycleOperation, setLifecycleOperation] =
     useState<LifecycleOperation | null>(null);
+  const [detailRequest, setDetailRequest] =
+    useState<ResourceDetailRequest | null>(null);
   const [catalogRefreshToken, setCatalogRefreshToken] = useState(0);
   const [form] = Form.useForm<ResourceFormValues>();
   const [ownershipForm] = Form.useForm<OwnershipFormValues>();
@@ -287,13 +294,20 @@ const AssetCenterPage: React.FC = () => {
   const ownershipOperationGenerationRef = useRef(0);
   const lifecycleOperationGenerationRef = useRef(0);
   const lifecycleOperationTokenRef = useRef<number | null>(null);
+  const detailRequestSequenceRef = useRef(0);
 
   const selectedFormType = Form.useWatch('type', form);
   const selectedFormNodeId = Form.useWatch('nodeId', form);
+  const selectedFormName = Form.useWatch('name', form);
 
   const reviewTreeMetadata = useMemo(
     () => buildReviewTreeMetadata(reviewTree),
     [reviewTree],
+  );
+
+  const isSubjectActive = useCallback(
+    (subject: string) => activeSubjectRef.current === subject,
+    [],
   );
 
   const fetchResources = useCallback(async () => {
@@ -423,6 +437,7 @@ const AssetCenterPage: React.FC = () => {
     setOwnershipSubmitting(false);
     ownershipForm.resetFields();
     setLifecycleOperation(null);
+    setDetailRequest(null);
   };
 
   const closeForm = () => {
@@ -470,24 +485,57 @@ const AssetCenterPage: React.FC = () => {
     setOwnershipOpen(true);
   };
 
-  const isDuplicatedResourceName = (
+  const findDuplicatedResourceName = (
     name: string,
     type?: ResourceType,
     nodeId?: string,
   ) => {
     const scopedNodeId = nodeId || editingResource?.nodeId;
-    return Boolean(
-      type &&
-        scopedNodeId &&
-        resources.some(
-          (resource) =>
-            resource.id !== editingResource?.id &&
-            resource.type === type &&
-            resource.nodeId === scopedNodeId &&
-            resource.name.trim() === name.trim(),
-        ),
+    if (!type || !scopedNodeId || !name.trim()) return undefined;
+    return resources.find(
+      (resource) =>
+        resource.id !== editingResource?.id &&
+        resource.type === type &&
+        resource.nodeId === scopedNodeId &&
+        resource.name.trim() === name.trim(),
     );
   };
+
+  const isDuplicatedResourceName = (
+    name: string,
+    type?: ResourceType,
+    nodeId?: string,
+  ) => Boolean(findDuplicatedResourceName(name, type, nodeId));
+
+  const openResourceDetail = (
+    resource: ResourceItem,
+    initialFileList?: UploadFile[],
+  ) => {
+    detailRequestSequenceRef.current += 1;
+    setDetailRequest({
+      key: detailRequestSequenceRef.current,
+      resource,
+      initialFileList: initialFileList?.slice(-1),
+    });
+  };
+
+  const enterExistingResourceVersionFlow = (
+    resource: ResourceItem,
+    initialFileList?: UploadFile[],
+  ) => {
+    closeForm();
+    openResourceDetail(resource, initialFileList);
+    message.info('已定位到同名逻辑资源，请将文件上传为新版本');
+  };
+
+  const duplicatedCreateResource =
+    !editingResource && selectedFormName
+      ? findDuplicatedResourceName(
+          selectedFormName,
+          selectedFormType,
+          selectedFormNodeId,
+        )
+      : undefined;
 
   const handleTypeChange = (type: AttachmentResourceType) => {
     const selectedFile = form.getFieldValue('fileList')?.[0];
@@ -531,6 +579,18 @@ const AssetCenterPage: React.FC = () => {
       return;
     }
     if (!isCurrentOperation()) return;
+
+    if (!operationResource) {
+      const duplicatedResource = findDuplicatedResourceName(
+        values.name,
+        values.type,
+        values.nodeId,
+      );
+      if (duplicatedResource) {
+        enterExistingResourceVersionFlow(duplicatedResource, values.fileList);
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -577,6 +637,25 @@ const AssetCenterPage: React.FC = () => {
           return;
         }
         if (!response.success) {
+          if (response.code === RESOURCE_NAME_CONFLICT_CODE && response.data) {
+            const duplicatedResource = response.data;
+            const selectedFiles = values.fileList?.slice(-1);
+            Modal.confirm({
+              title: '同名内容归入已有资源',
+              content:
+                '该末级节点下已有同类型、同名称资源。为保持一个逻辑资源及完整版本历史，请把本次文件上传为新版本。',
+              okText: '进入新增版本',
+              cancelText: '返回修改名称',
+              onOk: () => {
+                if (activeSubjectRef.current !== operationSubject) return;
+                enterExistingResourceVersionFlow(
+                  duplicatedResource,
+                  selectedFiles,
+                );
+              },
+            });
+            return;
+          }
           message.error(response.message || '附件资源上传失败');
           return;
         }
@@ -804,8 +883,11 @@ const AssetCenterPage: React.FC = () => {
       key: 'currentVersion',
       width: 96,
       render: (_, resource) => (
-        <span className="asset-center-version-label">
-          V{resource.currentVersion.versionNumber}
+        <span className="asset-center-version-summary">
+          <strong>V{resource.currentVersion.versionNumber}</strong>
+          {resource.pendingVersionCount > 0 && (
+            <small>{resource.pendingVersionCount} 个待生效</small>
+          )}
         </span>
       ),
     },
@@ -849,7 +931,7 @@ const AssetCenterPage: React.FC = () => {
       title: '操作',
       key: 'action',
       fixed: 'right',
-      width: 460,
+      width: 550,
       render: (_, resource) => {
         const lifecycleActions = Object.keys(
           RESOURCE_LIFECYCLE_TRANSITIONS[resource.status],
@@ -864,6 +946,15 @@ const AssetCenterPage: React.FC = () => {
 
         return (
           <Space size={0} wrap>
+            <Button
+              type="link"
+              size="small"
+              icon={<HistoryOutlined />}
+              disabled={lifecycleBusy}
+              onClick={() => openResourceDetail(resource)}
+            >
+              详情 / 版本
+            </Button>
             {lifecycleActions.map((action) => (
               <Button
                 key={action}
@@ -1015,7 +1106,7 @@ const AssetCenterPage: React.FC = () => {
           loading={loading || treeLoading}
           columns={columns}
           dataSource={resources}
-          scroll={{ x: 1900 }}
+          scroll={{ x: 2000 }}
           locale={{ emptyText: '当前筛选条件下暂无资源' }}
           pagination={{
             pageSize: 10,
@@ -1030,7 +1121,13 @@ const AssetCenterPage: React.FC = () => {
         open={formOpen}
         onOk={handleSubmit}
         onCancel={closeForm}
-        okText={editingResource ? '保存' : '创建资源并生成 V1'}
+        okText={
+          editingResource
+            ? '保存'
+            : duplicatedCreateResource
+            ? '上传为新版本'
+            : '创建资源并生成 V1'
+        }
         cancelText="取消"
         confirmLoading={submitting}
         width={640}
@@ -1178,6 +1275,7 @@ const AssetCenterPage: React.FC = () => {
               {
                 validator: (_, name?: string) => {
                   if (
+                    editingResource &&
                     name?.trim() &&
                     isDuplicatedResourceName(
                       name,
@@ -1201,6 +1299,30 @@ const AssetCenterPage: React.FC = () => {
           >
             <Input placeholder="请输入资源名称" maxLength={40} showCount />
           </Form.Item>
+
+          {!editingResource && duplicatedCreateResource && (
+            <Alert
+              type="warning"
+              showIcon
+              className="asset-center-same-name-guide"
+              message="已存在同名逻辑资源"
+              description={`“${duplicatedCreateResource.name}”已有 ${duplicatedCreateResource.versionCount} 个版本。请保留资源身份、类型与归属，把本次文件作为新版本上传。`}
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() =>
+                    enterExistingResourceVersionFlow(
+                      duplicatedCreateResource,
+                      form.getFieldValue('fileList'),
+                    )
+                  }
+                >
+                  上传为新版本
+                </Button>
+              }
+            />
+          )}
         </Form>
       </Modal>
 
@@ -1274,6 +1396,22 @@ const AssetCenterPage: React.FC = () => {
           </>
         )}
       </Modal>
+
+      <ResourceDetailDrawer
+        request={detailRequest}
+        nodePath={
+          detailRequest
+            ? reviewTreeMetadata.nodePathMap.get(detailRequest.resource.nodeId)
+            : undefined
+        }
+        onClose={() => setDetailRequest(null)}
+        isSubjectActive={isSubjectActive}
+        onResourceChanged={(resource) => {
+          if (activeSubjectRef.current === resource.subject) {
+            setCatalogRefreshToken((current) => current + 1);
+          }
+        }}
+      />
     </PageContainer>
   );
 };

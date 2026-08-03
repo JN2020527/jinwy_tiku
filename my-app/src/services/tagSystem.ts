@@ -6,6 +6,7 @@ export interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
+  code?: string;
 }
 
 export type AttributeStatus = 'enabled' | 'disabled';
@@ -99,6 +100,7 @@ export type AttachmentCarrierType = 'ppt' | 'pdf' | 'audio' | 'video';
 export type ResourceCarrierType = AttachmentCarrierType | 'online';
 export type ResourceStatus = 'unlisted' | 'listed' | 'archived';
 export type ResourceLifecycleAction = 'list' | 'unlist' | 'archive' | 'restore';
+export type ResourceVersionState = 'current' | 'pending' | 'historical';
 
 export const ATTACHMENT_RESOURCE_TYPES: readonly AttachmentResourceType[] = [
   'courseware',
@@ -129,6 +131,17 @@ export const RESOURCE_STATUS_LABELS: Record<ResourceStatus, string> = {
   listed: '已上架',
   archived: '已归档',
 };
+
+export const RESOURCE_VERSION_STATE_LABELS: Record<
+  ResourceVersionState,
+  string
+> = {
+  current: '当前生效',
+  pending: '待生效',
+  historical: '历史版本',
+};
+
+export const RESOURCE_NAME_CONFLICT_CODE = 'RESOURCE_NAME_CONFLICT';
 
 export const RESOURCE_LIFECYCLE_ACTION_LABELS: Record<
   ResourceLifecycleAction,
@@ -197,6 +210,11 @@ export const getDefaultResourceName = (originalFileName: string): string => {
   return normalizedFileName.replace(/\.[^.\\/]+$/, '').trim();
 };
 
+export interface ResourceCreator {
+  readonly id: string;
+  readonly name: string;
+}
+
 export interface ResourceVersion {
   readonly id: string;
   readonly resourceId: string;
@@ -204,6 +222,11 @@ export interface ResourceVersion {
   readonly carrierType: ResourceCarrierType;
   readonly originalFileName?: string;
   readonly createdAt: string;
+  readonly createdBy: ResourceCreator;
+  /** 当前、从未生效的待生效版本、曾生效的历史版本三者互斥。 */
+  readonly state: ResourceVersionState;
+  /** 首次或最近一次生效时间；待生效版本为空。 */
+  readonly activatedAt?: string;
 }
 
 /** 资产中心的一行代表一份逻辑资源，节点路径由当前复习树动态投影 */
@@ -225,7 +248,14 @@ export interface ResourceItem {
   readonly canDelete: boolean;
   readonly currentVersionId: string;
   readonly currentVersion: ResourceVersion;
+  readonly versionCount: number;
+  readonly pendingVersionCount: number;
   readonly updatedAt: string;
+}
+
+/** 详情在逻辑资源稳定资料之外返回完整、按版本号递减的版本历史。 */
+export interface ResourceDetail extends ResourceItem {
+  readonly versions: ResourceVersion[];
 }
 
 /** 单学科资产目录查询；所有可选条件按 AND 组合 */
@@ -245,6 +275,20 @@ export interface CreateAttachmentResourceInput {
   type: AttachmentResourceType;
   originalFileName: string;
   nodeId: string;
+  subject: string;
+}
+
+/** 新文件只追加待生效版本，不接受资源类型、归属、状态或当前版本字段。 */
+export interface CreateAttachmentResourceVersionInput {
+  resourceId: string;
+  subject: string;
+  originalFileName: string;
+}
+
+/** 任意非当前版本均可直接切换为当前版本，不复制或删除版本记录。 */
+export interface ActivateResourceVersionInput {
+  resourceId: string;
+  versionId: string;
   subject: string;
 }
 
@@ -456,6 +500,37 @@ export async function createAttachmentResource(
     method: 'POST',
     data,
   });
+}
+
+export async function getResourceDetail(params: {
+  id: string;
+  subject: string;
+}) {
+  return request<ApiResponse<ResourceDetail>>('/api/resources/detail', {
+    method: 'GET',
+    params,
+  });
+}
+
+export async function createAttachmentResourceVersion(
+  data: CreateAttachmentResourceVersionInput,
+) {
+  return request<ApiResponse<ResourceDetail>>('/api/resources/versions', {
+    method: 'POST',
+    data,
+  });
+}
+
+export async function activateResourceVersion(
+  data: ActivateResourceVersionInput,
+) {
+  return request<ApiResponse<ResourceDetail>>(
+    '/api/resources/versions/activate',
+    {
+      method: 'PUT',
+      data,
+    },
+  );
 }
 
 export async function updateResourceMetadata(
