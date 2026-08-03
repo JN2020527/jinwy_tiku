@@ -114,20 +114,29 @@ interface MockKnowledgeNode {
   children?: MockKnowledgeNode[];
 }
 
-type ResourceType = 'courseware' | 'extension' | 'studyGuide' | 'homework';
+type AttachmentResourceType = 'courseware' | 'extension';
+type ResourceType = AttachmentResourceType | 'studyGuide' | 'homework';
+type ResourceCarrierType = 'ppt' | 'pdf' | 'audio' | 'video' | 'online';
+type ResourceStatus = 'unlisted' | 'listed' | 'archived';
 
-const normalizeResourceType = (value: unknown): ResourceType =>
-  value === 'extension' || value === 'studyGuide' || value === 'homework'
-    ? value
-    : 'courseware';
+interface MockResourceVersion {
+  id: string;
+  resourceId: string;
+  versionNumber: number;
+  carrierType: ResourceCarrierType;
+  originalFileName?: string;
+  createdAt: string;
+}
 
 interface MockResourceItem {
   id: string;
   name: string;
   type: ResourceType;
-  fileName?: string;
   subject: string;
   nodeId: string;
+  status: ResourceStatus;
+  currentVersionId: string;
+  currentVersion: MockResourceVersion;
   updatedAt: string;
 }
 
@@ -876,54 +885,134 @@ const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
   return knowledgeTreeStore[storeKey];
 };
 
-// --- Mock Data for Resources (复习树附件资源) ---
+// --- Mock Data for Assets (资产中心正式资源) ---
 
+const RESOURCE_NAME_MAX_LENGTH = 40;
 const resourceStore: Record<string, MockResourceItem[]> = {};
+let resourceSequence = 0;
+
+const isAttachmentResourceType = (
+  value: unknown,
+): value is AttachmentResourceType =>
+  value === 'courseware' || value === 'extension';
+
+const inferAttachmentCarrierType = (
+  originalFileName: string,
+): Exclude<ResourceCarrierType, 'online'> | null => {
+  const extension = originalFileName
+    .trim()
+    .toLowerCase()
+    .match(/\.[^.\\/]+$/)?.[0];
+  if (extension === '.ppt' || extension === '.pptx') return 'ppt';
+  if (extension === '.pdf') return 'pdf';
+  if (extension === '.mp3') return 'audio';
+  if (extension === '.mp4') return 'video';
+  return null;
+};
+
+const isAttachmentFileCompatible = (
+  type: AttachmentResourceType,
+  carrierType: Exclude<ResourceCarrierType, 'online'>,
+) =>
+  type === 'courseware'
+    ? carrierType === 'ppt'
+    : carrierType === 'pdf' ||
+      carrierType === 'audio' ||
+      carrierType === 'video';
+
+const createSeedResource = (data: {
+  id: string;
+  name: string;
+  type: ResourceType;
+  subject: string;
+  nodeId: string;
+  carrierType: ResourceCarrierType;
+  originalFileName?: string;
+  status?: ResourceStatus;
+}): MockResourceItem => {
+  const createdAt = '2026-07-26T08:00:00.000Z';
+  const currentVersionId = `${data.id}-v1`;
+  return {
+    id: data.id,
+    name: data.name,
+    type: data.type,
+    subject: data.subject,
+    nodeId: data.nodeId,
+    status: data.status || 'unlisted',
+    currentVersionId,
+    currentVersion: {
+      id: currentVersionId,
+      resourceId: data.id,
+      versionNumber: 1,
+      carrierType: data.carrierType,
+      originalFileName: data.originalFileName,
+      createdAt,
+    },
+    updatedAt: createdAt,
+  };
+};
 
 const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
   const scoped = (nodeKey: string) => `${nodeKey}-${subject}`;
-  const now = '2026-07-26';
   return [
-    {
+    createSeedResource({
       id: `res-${subject}-1`,
       name: '史前时期精品复习课件',
       type: 'courseware',
-      fileName: '史前时期复习课件.pptx',
+      originalFileName: '史前时期复习课件.pptx',
+      carrierType: 'ppt',
       subject,
       nodeId: scoped('rv-1-1-1'),
-      updatedAt: now,
-    },
-    {
+      status: 'listed',
+    }),
+    createSeedResource({
       id: `res-${subject}-2`,
       name: '夏商周青铜文明拓展包',
       type: 'extension',
-      fileName: '夏商周拓展素材.zip',
+      originalFileName: '夏商周拓展素材.pdf',
+      carrierType: 'pdf',
       subject,
       nodeId: scoped('rv-1-1-2'),
-      updatedAt: now,
-    },
-    {
+    }),
+    createSeedResource({
       id: `res-${subject}-3`,
       name: '春秋战国单元复习课件',
       type: 'courseware',
-      fileName: '春秋战国复习课件.pptx',
+      originalFileName: '春秋战国复习课件.pptx',
+      carrierType: 'ppt',
       subject,
       nodeId: scoped('rv-1-1-3'),
-      updatedAt: now,
-    },
-    {
+      status: 'listed',
+    }),
+    createSeedResource({
       id: `res-${subject}-4`,
       name: '专题·古代政治制度复习学案',
       type: 'studyGuide',
+      carrierType: 'online',
       subject,
       nodeId: scoped('rv-2-1'),
-      updatedAt: now,
-    },
+    }),
   ];
 };
 
 const getResourceStoreKey = (context: KnowledgeContext) =>
-  `${context.targetType}-${context.subject}`;
+  `review-${context.subject}`;
+
+const getAssetResourceContext = (req: Request): KnowledgeContext => ({
+  subject: normalizeQueryValue(
+    req.body?.subject ?? req.query.subject,
+    DEFAULT_KNOWLEDGE_CONTEXT.subject,
+  ),
+  targetType: 'review',
+});
+
+const getRequiredAssetResourceContext = (
+  req: Request,
+): KnowledgeContext | null => {
+  const subject = req.body?.subject ?? req.query.subject;
+  if (typeof subject !== 'string' || !subject.trim()) return null;
+  return { subject: subject.trim(), targetType: 'review' };
+};
 
 const getResourcesByContext = (context: KnowledgeContext) => {
   const storeKey = getResourceStoreKey(context);
@@ -932,6 +1021,64 @@ const getResourcesByContext = (context: KnowledgeContext) => {
   }
   return resourceStore[storeKey];
 };
+
+const validateResourceName = (value: unknown) => {
+  const name = typeof value === 'string' ? value.trim() : '';
+  if (!name) {
+    return { valid: false, name, message: '资源名称不能为空' };
+  }
+  if (name.length > RESOURCE_NAME_MAX_LENGTH) {
+    return {
+      valid: false,
+      name,
+      message: `资源名称不能超过 ${RESOURCE_NAME_MAX_LENGTH} 个字符`,
+    };
+  }
+  return { valid: true, name };
+};
+
+const validateResourceOwnership = (
+  context: KnowledgeContext,
+  nodeId: unknown,
+) => {
+  if (typeof nodeId !== 'string' || !nodeId.trim()) {
+    return { valid: false, message: '请选择复习树末级节点' };
+  }
+
+  const normalizedNodeId = nodeId.trim();
+  const reviewTree = getKnowledgeTreeByContext({
+    subject: context.subject,
+    targetType: 'review',
+  });
+  const node = findTreeNode(reviewTree, normalizedNodeId);
+  if (!node || node.subject !== context.subject) {
+    return {
+      valid: false,
+      message: '请选择当前学科的有效复习树末级节点',
+    };
+  }
+  if (node.children?.length) {
+    return { valid: false, message: '资源只能归属复习树末级节点' };
+  }
+  return { valid: true, nodeId: normalizedNodeId };
+};
+
+const hasDuplicatedResourceName = (
+  resources: MockResourceItem[],
+  data: {
+    name: string;
+    type: ResourceType;
+    nodeId: string;
+    excludeId?: string;
+  },
+) =>
+  resources.some(
+    (item) =>
+      item.id !== data.excludeId &&
+      item.nodeId === data.nodeId &&
+      item.type === data.type &&
+      item.name.trim() === data.name,
+  );
 
 const removeResourcesUnderNodes = (
   context: KnowledgeContext,
@@ -1987,76 +2134,177 @@ export default {
     res.send(result);
   },
 
-  // Resource CRUD (复习树附件资源)
+  // Asset Center（资产中心正式资源）
   'GET /api/resources': (req: Request, res: Response) => {
-    const context = getKnowledgeContext(req);
+    const context = getAssetResourceContext(req);
     res.send({ success: true, data: getResourcesByContext(context) });
   },
   'POST /api/resources': (req: Request, res: Response) => {
-    const context = getKnowledgeContext(req);
-    const { name, type, fileName, nodeId } = req.body;
-    const normalizedName = normalizeQueryValue(name, '');
-    if (!normalizedName) {
-      res.send({ success: false, message: '资源名称不能为空' });
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
       return;
     }
-    const normalizedType = normalizeResourceType(type);
-    if (normalizedType === 'studyGuide' || normalizedType === 'homework') {
+    const { name, type, originalFileName, nodeId } = req.body || {};
+
+    const nameValidation = validateResourceName(name);
+    if (!nameValidation.valid) {
+      res.send({ success: false, message: nameValidation.message });
+      return;
+    }
+    if (!isAttachmentResourceType(type)) {
       res.send({
         success: false,
         message:
-          '学案/作业为组合型资源，由原子化知识块与试题组合生成，原子体系未接入暂不支持创建',
+          type === 'studyGuide' || type === 'homework'
+            ? '学案和作业不能通过附件上传创建'
+            : '请选择有效的附件资源类型',
       });
       return;
     }
+
+    const ownershipValidation = validateResourceOwnership(context, nodeId);
+    if (!ownershipValidation.valid || !ownershipValidation.nodeId) {
+      res.send({ success: false, message: ownershipValidation.message });
+      return;
+    }
+
+    if (typeof originalFileName !== 'string' || !originalFileName.trim()) {
+      res.send({ success: false, message: '请选择一个资源文件' });
+      return;
+    }
+    const normalizedOriginalFileName = originalFileName.trim();
+    const carrierType = inferAttachmentCarrierType(normalizedOriginalFileName);
+    if (!carrierType || !isAttachmentFileCompatible(type, carrierType)) {
+      res.send({
+        success: false,
+        message:
+          type === 'courseware'
+            ? '课件仅支持 .ppt 或 .pptx 文件'
+            : '拓展包仅支持 .pdf、.mp3 或 .mp4 文件',
+      });
+      return;
+    }
+
+    const resources = getResourcesByContext(context);
+    if (
+      hasDuplicatedResourceName(resources, {
+        name: nameValidation.name,
+        type,
+        nodeId: ownershipValidation.nodeId,
+      })
+    ) {
+      res.send({
+        success: false,
+        message: '该末级节点下已存在同类型、同名称的资源',
+      });
+      return;
+    }
+
+    resourceSequence += 1;
+    const resourceId = `res-${
+      context.subject
+    }-${Date.now()}-${resourceSequence}`;
+    const versionId = `${resourceId}-v1`;
+    const createdAt = new Date().toISOString();
     const item: MockResourceItem = {
-      id: `res-${context.subject}-${Date.now()}`,
-      name: normalizedName,
-      type: normalizedType,
-      fileName: normalizeQueryValue(fileName, '') || undefined,
+      id: resourceId,
+      name: nameValidation.name,
+      type,
       subject: context.subject,
-      nodeId: typeof nodeId === 'string' && nodeId ? nodeId : '',
-      updatedAt: new Date().toISOString().slice(0, 10),
+      nodeId: ownershipValidation.nodeId,
+      status: 'unlisted',
+      currentVersionId: versionId,
+      currentVersion: {
+        id: versionId,
+        resourceId,
+        versionNumber: 1,
+        carrierType,
+        originalFileName: normalizedOriginalFileName,
+        createdAt,
+      },
+      updatedAt: createdAt,
     };
-    getResourcesByContext(context).push(item);
-    res.send({ success: true, message: '资源上传成功', data: item });
+
+    // 单次写入完整聚合，Mock 中不存在未归属或无初始版本的中间记录。
+    resources.push(item);
+    res.send({
+      success: true,
+      message: '附件资源上传成功',
+      data: item,
+    });
   },
   'PUT /api/resources': (req: Request, res: Response) => {
-    const { id } = req.body;
-    const context = getKnowledgeContext(req);
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const body = req.body || {};
+    const { id } = body;
     const resources = getResourcesByContext(context);
-    const item = resources.find((r) => r.id === id);
+    const item = resources.find((resource) => resource.id === id);
     if (!item) {
       res.send({ success: false, message: '资源不存在' });
       return;
     }
-    if (req.body.name !== undefined) item.name = String(req.body.name);
-    if (req.body.type !== undefined) {
-      const nextType = normalizeResourceType(req.body.type);
-      if (nextType === 'studyGuide' || nextType === 'homework') {
-        res.send({
-          success: false,
-          message:
-            '学案/作业为组合型资源，由原子化知识块与试题组合生成，原子体系未接入暂不支持创建',
-        });
-        return;
-      }
-      item.type = nextType;
+    if (body.type !== undefined) {
+      res.send({ success: false, message: '资源类型创建后不可修改' });
+      return;
     }
-    if (req.body.fileName !== undefined) {
-      item.fileName = normalizeQueryValue(req.body.fileName, '') || undefined;
+    if (
+      body.originalFileName !== undefined ||
+      body.fileName !== undefined ||
+      body.currentVersion !== undefined
+    ) {
+      res.send({ success: false, message: '当前版本不能通过资料编辑修改' });
+      return;
     }
-    if (req.body.nodeId !== undefined) item.nodeId = String(req.body.nodeId);
-    item.updatedAt = new Date().toISOString().slice(0, 10);
-    res.send({ success: true, message: '资源更新成功', data: item });
+
+    const nameValidation = validateResourceName(body.name ?? item.name);
+    if (!nameValidation.valid) {
+      res.send({ success: false, message: nameValidation.message });
+      return;
+    }
+    const ownershipValidation = validateResourceOwnership(
+      context,
+      body.nodeId ?? item.nodeId,
+    );
+    if (!ownershipValidation.valid || !ownershipValidation.nodeId) {
+      res.send({ success: false, message: ownershipValidation.message });
+      return;
+    }
+    if (
+      hasDuplicatedResourceName(resources, {
+        name: nameValidation.name,
+        type: item.type,
+        nodeId: ownershipValidation.nodeId,
+        excludeId: item.id,
+      })
+    ) {
+      res.send({
+        success: false,
+        message: '该末级节点下已存在同类型、同名称的资源',
+      });
+      return;
+    }
+
+    item.name = nameValidation.name;
+    item.nodeId = ownershipValidation.nodeId;
+    item.updatedAt = new Date().toISOString();
+    res.send({ success: true, message: '资源信息更新成功', data: item });
   },
   'DELETE /api/resources': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
     const { id } = req.query;
-    const context = getKnowledgeContext(req);
     const resources = getResourcesByContext(context);
     const next = resources.filter((item) => item.id !== id);
     resources.splice(0, resources.length, ...next);
-    res.send({ success: true, message: 'Resource deleted successfully' });
+    res.send({ success: true, message: '资源删除成功' });
   },
 
   // Question Type CRUD

@@ -86,21 +86,23 @@ export interface KnowledgeNode {
   children?: KnowledgeNode[];
 }
 
-// --- Resources (复习树附件资源) ---
+// --- Assets (资产中心正式资源) ---
 
-/** 附件型资源：课件、拓展包（直接上传文件） */
+/** 附件型资源：课件、拓展包（在资产中心逐个上传） */
 export type AttachmentResourceType = 'courseware' | 'extension';
-/** 组合型资源：学案、作业（由原子化知识块与试题组合形成，原子体系未接入前不可创建） */
+/** 组合型资源：学案、作业（仅由组合制作发布） */
 export type ComposedResourceType = 'studyGuide' | 'homework';
-
 export type ResourceType = AttachmentResourceType | ComposedResourceType;
 
-/** 附件型资源类型集合 */
+/** 附件载体由原始文件名扩展名自动识别，不能由调用方指定 */
+export type AttachmentCarrierType = 'ppt' | 'pdf' | 'audio' | 'video';
+export type ResourceCarrierType = AttachmentCarrierType | 'online';
+export type ResourceStatus = 'unlisted' | 'listed' | 'archived';
+
 export const ATTACHMENT_RESOURCE_TYPES: readonly AttachmentResourceType[] = [
   'courseware',
   'extension',
 ];
-/** 组合型资源类型集合（原子体系接入前仅作占位） */
 export const COMPOSED_RESOURCE_TYPES: readonly ComposedResourceType[] = [
   'studyGuide',
   'homework',
@@ -113,18 +115,106 @@ export const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
   homework: '作业',
 };
 
+export const RESOURCE_CARRIER_LABELS: Record<ResourceCarrierType, string> = {
+  ppt: 'PPT',
+  pdf: 'PDF',
+  audio: '音频',
+  video: '视频',
+  online: '在线组合内容',
+};
+
+export const RESOURCE_STATUS_LABELS: Record<ResourceStatus, string> = {
+  unlisted: '未上架',
+  listed: '已上架',
+  archived: '已归档',
+};
+
+export const ATTACHMENT_RESOURCE_ACCEPT: Record<
+  AttachmentResourceType,
+  string
+> = {
+  courseware: '.ppt,.pptx',
+  extension: '.pdf,.mp3,.mp4',
+};
+
+export const isAttachmentResourceType = (
+  type: unknown,
+): type is AttachmentResourceType =>
+  type === 'courseware' || type === 'extension';
+
 export const isComposedResourceType = (type: ResourceType): boolean =>
   COMPOSED_RESOURCE_TYPES.includes(type as ComposedResourceType);
 
+export const inferAttachmentCarrierType = (
+  originalFileName: string,
+): AttachmentCarrierType | null => {
+  const extension = originalFileName
+    .trim()
+    .toLowerCase()
+    .match(/\.[^.\\/]+$/)?.[0];
+  if (extension === '.ppt' || extension === '.pptx') return 'ppt';
+  if (extension === '.pdf') return 'pdf';
+  if (extension === '.mp3') return 'audio';
+  if (extension === '.mp4') return 'video';
+  return null;
+};
+
+export const isAttachmentFileCompatible = (
+  type: AttachmentResourceType,
+  originalFileName: string,
+): boolean => {
+  const carrierType = inferAttachmentCarrierType(originalFileName);
+  return type === 'courseware'
+    ? carrierType === 'ppt'
+    : carrierType === 'pdf' ||
+        carrierType === 'audio' ||
+        carrierType === 'video';
+};
+
+export const getDefaultResourceName = (originalFileName: string): string => {
+  const normalizedFileName = originalFileName.trim();
+  return normalizedFileName.replace(/\.[^.\\/]+$/, '').trim();
+};
+
+export interface ResourceVersion {
+  readonly id: string;
+  readonly resourceId: string;
+  readonly versionNumber: number;
+  readonly carrierType: ResourceCarrierType;
+  readonly originalFileName?: string;
+  readonly createdAt: string;
+}
+
+/** 资产中心的一行代表一份逻辑资源，资源类型与当前版本由服务端维护 */
 export interface ResourceItem {
+  readonly id: string;
+  name: string;
+  readonly type: ResourceType;
+  /** 学科由所属复习树节点继承，不提供独立修改入口 */
+  readonly subject: string;
+  /** 唯一所属复习树末级节点 */
+  nodeId: string;
+  status: ResourceStatus;
+  readonly currentVersionId: string;
+  readonly currentVersion: ResourceVersion;
+  updatedAt: string;
+}
+
+/** 强归属附件创建命令：一个兼容文件原子创建逻辑资源、V1 与节点归属 */
+export interface CreateAttachmentResourceInput {
+  name: string;
+  type: AttachmentResourceType;
+  originalFileName: string;
+  nodeId: string;
+  subject: string;
+}
+
+/** 类型、学科与版本均不可通过资料编辑接口修改 */
+export interface UpdateResourceMetadataInput {
   id: string;
   name: string;
-  type: ResourceType;
-  fileName?: string;
-  subject: string;
-  /** 所属复习树节点 */
   nodeId: string;
-  updatedAt?: string;
+  subject: string;
 }
 
 /** 树导入载荷中的节点（不含 key/id，由后端重建） */
@@ -285,51 +375,34 @@ export async function moveKnowledgeNode(data: {
   });
 }
 
-// --- Resource CRUD (复习树附件资源) ---
+// --- Asset Center (资产中心) ---
 
-export async function getResourceList(params?: {
-  subject?: string;
-  targetType?: TreeTargetType;
-}) {
+export async function getResourceList(params: { subject: string }) {
   return request<ApiResponse<ResourceItem[]>>('/api/resources', {
     method: 'GET',
     params,
   });
 }
 
-export async function addResource(data: {
-  name: string;
-  type: ResourceType;
-  fileName?: string;
-  nodeId: string;
-  subject: string;
-  targetType?: TreeTargetType;
-}) {
+export async function createAttachmentResource(
+  data: CreateAttachmentResourceInput,
+) {
   return request<ApiResponse<ResourceItem>>('/api/resources', {
     method: 'POST',
     data,
   });
 }
 
-export async function updateResource(data: {
-  id: string;
-  name?: string;
-  type?: ResourceType;
-  fileName?: string;
-  nodeId?: string;
-  subject?: string;
-  targetType?: TreeTargetType;
-}) {
+export async function updateResourceMetadata(
+  data: UpdateResourceMetadataInput,
+) {
   return request<ApiResponse<ResourceItem>>('/api/resources', {
     method: 'PUT',
     data,
   });
 }
 
-export async function deleteResource(
-  id: string,
-  params?: { subject?: string; targetType?: TreeTargetType },
-) {
+export async function deleteResource(id: string, params: { subject: string }) {
   return request<ApiResponse<void>>('/api/resources', {
     method: 'DELETE',
     params: { id, ...params },

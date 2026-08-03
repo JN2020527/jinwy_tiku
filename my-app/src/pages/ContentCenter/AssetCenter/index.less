@@ -1,0 +1,256 @@
+.asset-center-page {
+  .ant-pro-page-container-children-content {
+    margin-block-start: 16px;
+  }
+}
+
+.asset-center-card {
+  .ant-card-body {
+    padding: 20px;
+  }
+
+  .ant-table-cell {
+    vertical-align: middle;
+  }
+}
+
+.asset-center-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.asset-center-context-filter {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid #dbe3ef;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.asset-center-context-label {
+  color: #334155;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.asset-center-context-note {
+  padding-right: 6px;
+  color: #64748b;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.asset-center-subject-select {
+  width: 118px;
+
+  .ant-select-selector {
+    background: #fff !important;
+  }
+}
+
+.asset-center-search-filters {
+  display: flex;
+  flex: 1 1 360px;
+  align-items: center;
+  gap: 10px;
+}
+
+.asset-center-type-select {
+  width: 126px;
+}
+
+.asset-center-search {
+  width: min(320px, 100%);
+
+  .anticon {
+    color: #94a3b8;
+  }
+}
+
+.asset-center-resource-cell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.asset-center-file-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-size: 17px;
+}
+
+.asset-center-file-icon-ppt {
+  color: #c2410c;
+  background: #fff7ed;
+}
+
+.asset-center-file-icon-pdf {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.asset-center-file-icon-audio {
+  color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.asset-center-file-icon-video {
+  color: #0369a1;
+  background: #f0f9ff;
+}
+
+.asset-center-file-icon-online {
+  color: #0f766e;
+  background: #f0fdfa;
+}
+
+.asset-center-resource-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.asset-center-resource-name,
+.asset-center-original-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-center-resource-name {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.asset-center-original-file-name {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.asset-center-version-label {
+  color: #2563eb;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.asset-center-upload-guardrail {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 16px 0 18px;
+  padding: 13px 15px;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  color: #1d4ed8;
+  background: #eff6ff;
+
+  > .anticon {
+    margin-top: 2px;
+    font-size: 18px;
+  }
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  strong {
+    color: #1e3a8a;
+    font-size: 14px;
+  }
+
+  span {
+    color: #3b5f93;
+    font-size: 13px;
+    line-height: 20px;
+  }
+}
+
+.asset-center-resource-form {
+  .ant-form-item:last-child {
+    margin-bottom: 8px;
+  }
+
+  .ant-upload-wrapper .ant-upload-drag {
+    min-height: 142px;
+    border-color: #cbd5e1;
+    background: #fafcff;
+  }
+
+  .ant-upload-wrapper .ant-upload-drag:not(.ant-upload-disabled):hover {
+    border-color: #2563eb;
+  }
+
+  .ant-upload-wrapper .ant-upload-drag.ant-upload-disabled {
+    background: #f8fafc;
+  }
+
+  .ant-upload-wrapper .ant-upload-drag .ant-upload-drag-icon {
+    margin-bottom: 8px;
+  }
+
+  .ant-upload-wrapper .ant-upload-drag .ant-upload-drag-icon .anticon {
+    color: #2563eb;
+    font-size: 30px;
+  }
+
+  .ant-upload-wrapper .ant-upload-list {
+    text-align: left;
+  }
+}
+
+@media (max-width: 900px) {
+  .asset-center-context-filter,
+  .asset-center-search-filters {
+    width: 100%;
+  }
+
+  .asset-center-search {
+    flex: 1;
+    width: auto;
+  }
+
+  .asset-center-toolbar > .ant-btn {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .asset-center-card .ant-card-body {
+    padding: 14px;
+  }
+
+  .asset-center-context-filter {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .asset-center-context-note {
+    width: 100%;
+    padding: 0 0 3px;
+  }
+
+  .asset-center-search-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .asset-center-type-select,
+  .asset-center-search {
+    width: 100%;
+  }
+}

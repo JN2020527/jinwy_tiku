@@ -32,9 +32,14 @@ export default [
         component: './ContentCenter/ProductList',
       },
       {
+        path: '/content/asset-center',
+        name: '资产中心',
+        component: './ContentCenter/AssetCenter',
+      },
+      {
         path: '/content/resource-center',
-        name: '资源中心',
-        component: './ContentCenter/ResourceCenter',
+        redirect: '/content/asset-center',
+        hideInMenu: true,
       },
       {
         path: '/content/product-list/subject-manage',
