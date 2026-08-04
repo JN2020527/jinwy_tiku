@@ -13,6 +13,16 @@ import type {
 } from './resourceModel';
 
 export {
+  RESOURCE_HAS_REFERENCES_CODE,
+  RESOURCE_OPERATION_ACTION_LABELS,
+} from './resourceAuditModel';
+export type {
+  ResourceDeletionResult,
+  ResourceOperationAction,
+  ResourceOperationChange,
+  ResourceOperationRecord,
+} from './resourceAuditModel';
+export {
   assertValidFormalResourceVersionAggregate,
   ATTACHMENT_RESOURCE_TYPES,
   COMPOSED_RESOURCE_TYPES,
@@ -28,16 +38,6 @@ export {
   validateFormalResourceVersion,
   validateFormalResourceVersionAggregate,
 } from './resourceModel';
-export {
-  RESOURCE_HAS_REFERENCES_CODE,
-  RESOURCE_OPERATION_ACTION_LABELS,
-} from './resourceAuditModel';
-export type {
-  ResourceDeletionResult,
-  ResourceOperationAction,
-  ResourceOperationChange,
-  ResourceOperationRecord,
-} from './resourceAuditModel';
 export type {
   AttachmentCarrierType,
   AttachmentResourceType,
@@ -160,13 +160,6 @@ export interface ResourceTreeLeafNode {
   id: string;
   name: string;
   path: string[];
-  subject: string;
-  suggestedHours: number;
-  enabled: boolean;
-}
-
-export interface UpdateResourceTreeLeafSchedulingInput {
-  id: string;
   subject: string;
   suggestedHours: number;
   enabled: boolean;
@@ -406,19 +399,6 @@ export async function getResourceTreeLeafNodes(params: { subject: string }) {
     {
       method: 'GET',
       params,
-    },
-  );
-}
-
-/** 更新资源树末级节点的排期属性；建议课时必须为正数且以 0.5 为步长。 */
-export async function updateResourceTreeLeafScheduling(
-  data: UpdateResourceTreeLeafSchedulingInput,
-) {
-  return request<ApiResponse<ResourceTreeLeafNode>>(
-    '/api/tags/resource-tree/leaf-scheduling',
-    {
-      method: 'PUT',
-      data,
     },
   );
 }

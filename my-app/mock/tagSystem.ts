@@ -195,6 +195,8 @@ interface MockResourceItem {
   versionCount: number;
   pendingVersionCount: number;
   updatedAt: string;
+  /** 学案（组合资源）的课时数；绑定到复习树末级节点时自动同步为节点课时。 */
+  classHours?: number;
 }
 
 interface MockResourceListFilters {
@@ -967,6 +969,8 @@ const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
   if (context.targetType === 'review') {
     // 节点移动后，原父节点可能首次成为末级节点，需要补齐可排期默认值。
     ensureReviewLeafScheduling(knowledgeTreeStore[storeKey]);
+    // 复习树课时由绑定的学案自动带过来：初始化资产库并同步到节点。
+    getResourcesByContext(context);
   }
   return knowledgeTreeStore[storeKey];
 };
@@ -1001,21 +1005,6 @@ export const getResourceTreeLeafNodesSnapshot = (
       getKnowledgeTreeByContext({ subject, targetType: 'review' }),
     ),
   );
-
-const validateSuggestedHours = (value: unknown) => {
-  const suggestedHours = Number(value);
-  if (
-    !Number.isFinite(suggestedHours) ||
-    suggestedHours <= 0 ||
-    !Number.isInteger(suggestedHours * 2)
-  ) {
-    return {
-      valid: false as const,
-      message: '建议课时必须为正数，且以 0.5 课时为最小单位',
-    };
-  }
-  return { valid: true as const, suggestedHours };
-};
 
 // --- Mock Data for Assets (资产中心正式资源) ---
 
@@ -1491,6 +1480,8 @@ interface SeedResourceBase {
   subject: string;
   nodeId: string;
   status?: ResourceStatus;
+  /** 学案（组合资源）课时数；绑定复习树节点时自动同步为节点课时。 */
+  classHours?: number;
 }
 
 const createSeedResourceAggregate = (
@@ -1515,6 +1506,7 @@ const createSeedResourceAggregate = (
     versionCount: 1,
     pendingVersionCount: 0,
     updatedAt: currentVersion.createdAt,
+    classHours: data.classHours,
   });
 
 const createAttachmentSeedResource = (
@@ -1650,6 +1642,7 @@ const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
       subject,
       nodeId: scoped('rv-2-1'),
       status: 'archived',
+      classHours: 2,
     }),
     createComposedSeedResource({
       id: `res-${subject}-5`,
@@ -1704,6 +1697,21 @@ const SUBJECT_KEYS = [
   'politics',
 ] as const;
 
+/**
+ * 学案课时同步到复习树末级节点：节点课时 = 绑定的学案课时；
+ * 无学案时恢复默认 1（保持教学计划兼容）。
+ */
+const syncReviewNodeClassHours = (
+  subject: string,
+  nodeId: string,
+  classHours?: number,
+) => {
+  const tree = getKnowledgeTreeByContext({ subject, targetType: 'review' });
+  const node = findTreeNode(tree, nodeId);
+  if (!node) return;
+  node.suggestedHours = classHours != null ? classHours : 1;
+};
+
 const getResourceStoreKey = (context: KnowledgeContext) =>
   `review-${context.subject}`;
 
@@ -1727,6 +1735,16 @@ const getResourcesByContext = (context: KnowledgeContext) => {
     resourceStore[storeKey] = resources;
     assertResourceReferenceIntegrity(context.subject, resources);
     seedResourceOperations(context.subject, resources);
+    // 复习树节点课时由绑定的学案自动带过来，不在复习树页面手动设置。
+    resources.forEach((resource) => {
+      if (resource.type === 'studyGuide') {
+        syncReviewNodeClassHours(
+          context.subject,
+          resource.nodeId,
+          resource.classHours,
+        );
+      }
+    });
   }
   return resourceStore[storeKey];
 };
@@ -2674,58 +2692,8 @@ export default {
     res.send({
       success: true,
       message: 'Resource tree leaf nodes loaded successfully',
-      // 停用节点仍返回，供草稿识别；调用方仅可把 enabled 节点用于新选择。
+      // 课时由绑定的学案自动带过来；停用节点仍返回，供草稿识别。
       data: getResourceTreeLeafNodesSnapshot(subject),
-    });
-  },
-  'PUT /api/tags/resource-tree/leaf-scheduling': (
-    req: Request,
-    res: Response,
-  ) => {
-    const subject =
-      typeof req.body?.subject === 'string' ? req.body.subject.trim() : '';
-    const nodeId = typeof req.body?.id === 'string' ? req.body.id.trim() : '';
-    if (!subject || !nodeId) {
-      res.send({ success: false, message: '学科和节点不能为空' });
-      return;
-    }
-    if (typeof req.body?.enabled !== 'boolean') {
-      res.send({ success: false, message: '启用状态必须为布尔值' });
-      return;
-    }
-
-    const hoursValidation = validateSuggestedHours(req.body?.suggestedHours);
-    if (!hoursValidation.valid) {
-      res.send({ success: false, message: hoursValidation.message });
-      return;
-    }
-
-    const tree = getKnowledgeTreeByContext({
-      subject,
-      targetType: 'review',
-    });
-    const node = findTreeNode(tree, nodeId);
-    if (!node || node.subject !== subject) {
-      res.send({ success: false, message: '节点不存在或不属于当前学科' });
-      return;
-    }
-    if (node.children?.length) {
-      res.send({
-        success: false,
-        message: '只有资源树末级节点可以配置排期属性',
-      });
-      return;
-    }
-
-    node.suggestedHours = hoursValidation.suggestedHours;
-    node.enabled = req.body.enabled;
-    const responseNode = collectResourceTreeLeafNodes(tree).find(
-      (item) => item.id === nodeId,
-    );
-    res.send({
-      success: true,
-      message: '排期属性已更新',
-      data: responseNode,
     });
   },
   'POST /api/tags/knowledge-tree/import': (req: Request, res: Response) => {
@@ -4009,6 +3977,21 @@ export default {
       });
       return;
     }
+    if (
+      item.type === 'studyGuide' &&
+      resources.some(
+        (resource) =>
+          resource.type === 'studyGuide' &&
+          resource.nodeId === ownershipValidation.nodeId &&
+          resource.id !== item.id,
+      )
+    ) {
+      res.send({
+        success: false,
+        message: '一个复习树末级节点只绑定一份学案，目标节点已有学案',
+      });
+      return;
+    }
 
     if (item.nodeId === ownershipValidation.nodeId) {
       res.send({
@@ -4028,6 +4011,15 @@ export default {
     // 所有校验通过后一次替换 nodeId；不存在先清空再写入的中间状态。
     item.nodeId = ownershipValidation.nodeId;
     item.updatedAt = new Date().toISOString();
+    // 学案课时自动同步：新节点取学案课时，原节点恢复默认课时。
+    if (item.type === 'studyGuide') {
+      syncReviewNodeClassHours(context.subject, previousNodeId);
+      syncReviewNodeClassHours(
+        context.subject,
+        ownershipValidation.nodeId,
+        item.classHours,
+      );
+    }
     appendResourceOperation({
       resourceId: item.id,
       subject: context.subject,
@@ -4285,6 +4277,10 @@ export default {
       ],
     });
     resources.splice(itemIndex, 1);
+    // 学案删除后，原节点的课时恢复默认（复习树课时由学案绑定自动带）。
+    if (item.type === 'studyGuide') {
+      syncReviewNodeClassHours(context.subject, item.nodeId);
+    }
     res.send({
       success: true,
       message: '资源已彻底删除；删除记录已保留',

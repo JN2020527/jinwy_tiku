@@ -308,12 +308,11 @@
 }
 
 .tag-system-tree-panel.review-tree-panel {
-  --review-name-column: minmax(240px, 1fr);
-  --review-hours-column: 96px;
-  --review-availability-column: 128px;
+  --review-name-column: minmax(280px, 1fr);
+  --review-hours-column: 108px;
   --review-action-column: 112px;
   --review-table-columns: var(--review-name-column) var(--review-hours-column)
-    var(--review-availability-column) var(--review-action-column);
+    var(--review-action-column);
 
   .tag-tree-review-table-header {
     display: grid;
@@ -382,14 +381,6 @@
     white-space: nowrap;
   }
 
-  .tag-tree-review-availability-enabled {
-    color: #067647;
-  }
-
-  .tag-tree-review-availability-disabled {
-    color: #b42318;
-  }
-
   &.tag-system-tree-panel-arranging {
     .tag-tree-review-table-header {
       display: none;
@@ -410,8 +401,7 @@
 
   @media (max-width: 900px) {
     --review-name-column: minmax(160px, 1fr);
-    --review-hours-column: 78px;
-    --review-availability-column: 104px;
+    --review-hours-column: 84px;
     --review-action-column: 96px;
   }
 }
