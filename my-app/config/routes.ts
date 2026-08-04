@@ -33,17 +33,32 @@ export default [
       },
       {
         path: '/content/asset-center',
-        name: '资产中心',
-        component: './ContentCenter/AssetCenter',
+        redirect: '/preparation/asset-center',
+        hideInMenu: true,
       },
       {
         path: '/content/teaching-plan-templates',
-        name: '教学计划模板',
-        component: './ContentCenter/TeachingPlanTemplate',
+        redirect: '/preparation/teaching-plan-templates',
+        hideInMenu: true,
       },
       {
         path: '/content/resource-center',
-        redirect: '/content/asset-center',
+        redirect: '/preparation/asset-center',
+        hideInMenu: true,
+      },
+      {
+        path: '/content/preparation',
+        redirect: '/preparation/teaching-plan-templates',
+        hideInMenu: true,
+      },
+      {
+        path: '/content/preparation/teaching-plan-templates',
+        redirect: '/preparation/teaching-plan-templates',
+        hideInMenu: true,
+      },
+      {
+        path: '/content/preparation/asset-center',
+        redirect: '/preparation/asset-center',
         hideInMenu: true,
       },
       {
@@ -57,6 +72,45 @@ export default [
         name: '答案管理',
         component: './ContentCenter/AnswerManage',
         hideInMenu: true,
+      },
+    ],
+  },
+  {
+    path: '/combination-production/new',
+    name: '组合制作',
+    component: './CombinationProduction',
+    hideInMenu: true,
+  },
+  {
+    path: '/combination-production/revision/:resourceId',
+    name: '组合制作修订',
+    component: './CombinationProduction',
+    hideInMenu: true,
+  },
+  {
+    path: '/combination-production/revision',
+    name: '组合制作修订',
+    component: './CombinationProduction',
+    hideInMenu: true,
+  },
+  {
+    path: '/preparation',
+    name: '备课板块',
+    icon: 'book',
+    routes: [
+      {
+        path: '/preparation',
+        redirect: '/preparation/teaching-plan-templates',
+      },
+      {
+        path: '/preparation/teaching-plan-templates',
+        name: '教学计划模板',
+        component: './ContentCenter/TeachingPlanTemplate',
+      },
+      {
+        path: '/preparation/asset-center',
+        name: '资产中心',
+        component: './ContentCenter/AssetCenter',
       },
     ],
   },

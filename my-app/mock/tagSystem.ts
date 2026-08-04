@@ -1,4 +1,33 @@
 import { Request, Response } from 'express';
+import type {
+  ResourceOperationAction,
+  ResourceOperationChange,
+  ResourceOperationRecord,
+} from '../src/services/resourceAuditModel';
+import { RESOURCE_HAS_REFERENCES_CODE } from '../src/services/resourceAuditModel';
+import type {
+  AttachmentResourceType,
+  ComposedResourceType,
+  ResourceCarrierType,
+  ResourceStatus,
+  ResourceType,
+  ResourceVersionState,
+} from '../src/services/resourceModel';
+import {
+  assertValidFormalResourceVersionAggregate,
+  inferAttachmentCarrierType,
+  isAttachmentFileCompatible,
+  isAttachmentResourceType,
+  isComposedResourceType,
+  isResourceCarrierType,
+  isResourceType,
+  isResourceVersionCompatible,
+} from '../src/services/resourceModel';
+import type {
+  ResourceReference,
+  ResourceReferenceConsumerType,
+} from '../src/services/resourceReferenceModel';
+import { RESOURCE_REFERENCE_ERROR_CODES } from '../src/services/resourceReferenceModel';
 
 import { countTeachingPlanTaskReferences } from './teachingPlanReferenceRegistry';
 
@@ -129,11 +158,12 @@ interface MockResourceTreeLeafNode {
   enabled: boolean;
 }
 
-type AttachmentResourceType = 'courseware' | 'extension';
-type ResourceType = AttachmentResourceType | 'studyGuide' | 'homework';
-type ResourceCarrierType = 'ppt' | 'pdf' | 'audio' | 'video' | 'online';
-type ResourceStatus = 'unlisted' | 'listed' | 'archived';
 type ResourceLifecycleAction = 'list' | 'unlist' | 'archive' | 'restore';
+
+interface MockResourceCreator {
+  id: string;
+  name: string;
+}
 
 interface MockResourceVersion {
   id: string;
@@ -142,6 +172,9 @@ interface MockResourceVersion {
   carrierType: ResourceCarrierType;
   originalFileName?: string;
   createdAt: string;
+  createdBy: MockResourceCreator;
+  state: ResourceVersionState;
+  activatedAt?: string;
 }
 
 interface MockResourceItem {
@@ -155,8 +188,12 @@ interface MockResourceItem {
   canCreateReference: boolean;
   referenceCount: number;
   canDelete: boolean;
+  hardDeleteBlockedReason: string | null;
   currentVersionId: string;
   currentVersion: MockResourceVersion;
+  versions: MockResourceVersion[];
+  versionCount: number;
+  pendingVersionCount: number;
   updatedAt: string;
 }
 
@@ -983,6 +1020,15 @@ const validateSuggestedHours = (value: unknown) => {
 // --- Mock Data for Assets (资产中心正式资源) ---
 
 const RESOURCE_NAME_MAX_LENGTH = 40;
+const RESOURCE_NAME_CONFLICT_CODE = 'RESOURCE_NAME_CONFLICT';
+const CURRENT_MOCK_RESOURCE_CREATOR: MockResourceCreator = {
+  id: 'operator-current',
+  name: '当前运营员',
+};
+const SEED_MOCK_RESOURCE_CREATOR: MockResourceCreator = {
+  id: 'operator-lin',
+  name: '林老师',
+};
 const RESOURCE_STATUS_LABELS: Record<ResourceStatus, string> = {
   unlisted: '未上架',
   listed: '已上架',
@@ -1006,20 +1052,333 @@ const RESOURCE_LIFECYCLE_TRANSITIONS: Record<
   archived: { restore: 'unlisted' },
 };
 const resourceStore: Record<string, MockResourceItem[]> = {};
+const resourceReferenceStore: Record<string, ResourceReference[]> = {};
+const resourceOperationStore: Record<string, ResourceOperationRecord[]> = {};
 let resourceSequence = 0;
+let resourceReferenceSequence = 0;
+let resourceOperationSequence = 0;
 
-const isResourceType = (value: unknown): value is ResourceType =>
-  value === 'courseware' ||
-  value === 'extension' ||
-  value === 'studyGuide' ||
-  value === 'homework';
+const freezeResourceReference = (
+  reference: ResourceReference,
+): ResourceReference =>
+  Object.freeze({
+    ...reference,
+    consumer: Object.freeze({ ...reference.consumer }),
+    createdBy: Object.freeze({ ...reference.createdBy }),
+  });
 
-const isResourceCarrierType = (value: unknown): value is ResourceCarrierType =>
-  value === 'ppt' ||
-  value === 'pdf' ||
-  value === 'audio' ||
-  value === 'video' ||
-  value === 'online';
+const cloneResourceReference = (
+  reference: ResourceReference,
+): ResourceReference => ({
+  ...reference,
+  consumer: { ...reference.consumer },
+  createdBy: { ...reference.createdBy },
+});
+
+const seedResourceReferencesForSubject = (
+  subject: string,
+): ResourceReference[] => {
+  const createSeedReference = (
+    id: string,
+    resourceNumber: number,
+    versionNumber: number,
+    consumerType: ResourceReferenceConsumerType,
+    consumerId: string,
+    consumerName: string,
+    createdAt: string,
+  ) =>
+    freezeResourceReference({
+      id: `ref-${subject}-${id}`,
+      subject,
+      resourceId: `res-${subject}-${resourceNumber}`,
+      versionId: `res-${subject}-${resourceNumber}-v${versionNumber}`,
+      consumer: {
+        type: consumerType,
+        id: `${consumerId}-${subject}`,
+        name: consumerName,
+      },
+      createdAt,
+      createdBy: { ...SEED_MOCK_RESOURCE_CREATOR },
+    });
+
+  return [
+    createSeedReference(
+      'plan-unit-1',
+      1,
+      1,
+      'teachingPlan',
+      'plan-unit-1',
+      '七年级上册单元教学计划',
+      '2026-07-28T01:20:00.000Z',
+    ),
+    createSeedReference(
+      'task-lesson-1',
+      1,
+      1,
+      'teachingTask',
+      'task-lesson-1',
+      '第 1 课课前教学任务',
+      '2026-07-28T02:10:00.000Z',
+    ),
+    createSeedReference(
+      'task-lesson-2',
+      1,
+      1,
+      'teachingTask',
+      'task-lesson-2',
+      '第 2 课课堂教学任务',
+      '2026-07-29T03:40:00.000Z',
+    ),
+    createSeedReference(
+      'plan-archived',
+      4,
+      1,
+      'teachingPlan',
+      'plan-archive-retained',
+      '古代政治制度专题教学计划',
+      '2026-07-29T05:00:00.000Z',
+    ),
+    createSeedReference(
+      'plan-sprint',
+      5,
+      1,
+      'teachingPlan',
+      'plan-sprint',
+      '三轮冲刺教学计划',
+      '2026-07-29T06:00:00.000Z',
+    ),
+    createSeedReference(
+      'task-sprint',
+      5,
+      2,
+      'teachingTask',
+      'task-sprint',
+      '三轮冲刺课堂任务',
+      '2026-08-01T12:30:00.000Z',
+    ),
+  ];
+};
+
+const getResourceReferencesBySubject = (subject: string) => {
+  if (!resourceReferenceStore[subject]) {
+    resourceReferenceStore[subject] = seedResourceReferencesForSubject(subject);
+  }
+  return resourceReferenceStore[subject];
+};
+
+const getResourceReferenceCount = (subject: string, resourceId: string) =>
+  getResourceReferencesBySubject(subject).filter(
+    (reference) => reference.resourceId === resourceId,
+  ).length;
+
+const assertResourceReferenceIntegrity = (
+  subject: string,
+  resources: MockResourceItem[],
+) => {
+  getResourceReferencesBySubject(subject).forEach((reference) => {
+    const resource = resources.find(
+      (candidate) => candidate.id === reference.resourceId,
+    );
+    const version = resource?.versions.find(
+      (candidate) => candidate.id === reference.versionId,
+    );
+    if (
+      reference.subject !== subject ||
+      !resource ||
+      !version ||
+      !version.activatedAt ||
+      version.resourceId !== reference.resourceId
+    ) {
+      throw new Error(`Invalid fixed resource reference ${reference.id}`);
+    }
+  });
+};
+
+const getHardDeleteBlockedReason = (referenceCount: number) =>
+  referenceCount > 0
+    ? `该资源已有 ${referenceCount} 个业务引用，引用固定到具体版本；不能彻底删除，请改为归档`
+    : null;
+
+const freezeResourceOperationRecord = (
+  record: ResourceOperationRecord,
+): ResourceOperationRecord =>
+  Object.freeze({
+    ...record,
+    operator: Object.freeze({ ...record.operator }),
+    changes: Object.freeze(
+      record.changes.map((change) => Object.freeze({ ...change })),
+    ),
+  });
+
+const cloneResourceOperationRecord = (
+  record: ResourceOperationRecord,
+): ResourceOperationRecord => ({
+  ...record,
+  operator: { ...record.operator },
+  changes: record.changes.map((change) => ({ ...change })),
+});
+
+const appendResourceOperation = (data: {
+  resourceId: string;
+  subject: string;
+  action: ResourceOperationAction;
+  summary: string;
+  changes?: ResourceOperationChange[];
+  operator?: MockResourceCreator;
+  occurredAt?: string;
+}) => {
+  resourceOperationSequence += 1;
+  const record = freezeResourceOperationRecord({
+    id: `${data.resourceId}-op-${String(resourceOperationSequence).padStart(
+      6,
+      '0',
+    )}`,
+    resourceId: data.resourceId,
+    subject: data.subject,
+    action: data.action,
+    operator: { ...(data.operator || CURRENT_MOCK_RESOURCE_CREATOR) },
+    occurredAt: data.occurredAt || new Date().toISOString(),
+    summary: data.summary,
+    changes: data.changes || [],
+  });
+  const records = (resourceOperationStore[data.subject] ||= []);
+  records.push(record);
+  return record;
+};
+
+const getResourceOperationRecords = (subject: string, resourceId: string) =>
+  (resourceOperationStore[subject] || [])
+    .filter((record) => record.resourceId === resourceId)
+    .slice()
+    .sort(
+      (left, right) =>
+        right.occurredAt.localeCompare(left.occurredAt) ||
+        right.id.localeCompare(left.id),
+    )
+    .map(cloneResourceOperationRecord);
+
+const seedResourceOperations = (
+  subject: string,
+  resources: MockResourceItem[],
+) => {
+  if (resourceOperationStore[subject]) return;
+  resourceOperationStore[subject] = [];
+
+  resources.forEach((resource) => {
+    const initialVersion = resource.versions.find(
+      (version) => version.versionNumber === 1,
+    )!;
+    const isAttachment = isAttachmentResourceType(resource.type);
+    appendResourceOperation({
+      resourceId: resource.id,
+      subject,
+      action: isAttachment ? 'upload' : 'publish',
+      operator: initialVersion.createdBy,
+      occurredAt: initialVersion.createdAt,
+      summary: isAttachment
+        ? `上传“${resource.name}”并生成当前版本 V1`
+        : `发布“${resource.name}”并生成当前版本 V1`,
+      changes: [
+        { label: '当前版本', after: 'V1' },
+        {
+          label: '初始归属',
+          after: getReviewNodePathSnapshot(
+            { subject, targetType: 'review' },
+            resource.nodeId,
+          ),
+        },
+        { label: '资源状态', after: '未上架' },
+      ],
+    });
+
+    resource.versions
+      .filter((version) => version.versionNumber > 1)
+      .sort((left, right) => left.versionNumber - right.versionNumber)
+      .forEach((version) => {
+        appendResourceOperation({
+          resourceId: resource.id,
+          subject,
+          action: isAttachment ? 'uploadVersion' : 'publishVersion',
+          operator: version.createdBy,
+          occurredAt: version.createdAt,
+          summary: isAttachment
+            ? `上传新文件并生成待生效版本 V${version.versionNumber}`
+            : `发布修订并生成版本 V${version.versionNumber}`,
+          changes: [{ label: '新增版本', after: `V${version.versionNumber}` }],
+        });
+        if (version.activatedAt) {
+          appendResourceOperation({
+            resourceId: resource.id,
+            subject,
+            action: 'activateVersion',
+            operator: version.createdBy,
+            occurredAt: version.activatedAt,
+            summary: `V${version.versionNumber} 设为当前生效版本`,
+            changes: [
+              {
+                label: '当前版本',
+                before: `V${Math.max(1, version.versionNumber - 1)}`,
+                after: `V${version.versionNumber}`,
+              },
+            ],
+          });
+        }
+      });
+
+    if (resource.status === 'listed') {
+      appendResourceOperation({
+        resourceId: resource.id,
+        subject,
+        action: 'list',
+        occurredAt: '2026-07-27T08:00:00.000Z',
+        summary: '资源上架，平台资源库开始使用当前生效版本',
+        changes: [{ label: '资源状态', before: '未上架', after: '已上架' }],
+      });
+    } else if (resource.status === 'archived') {
+      const initialArchiveAt = '2026-07-30T08:00:00.000Z';
+      appendResourceOperation({
+        resourceId: resource.id,
+        subject,
+        action: 'archive',
+        occurredAt: initialArchiveAt,
+        summary: '资源归档，停止平台展示和新增业务引用',
+        changes: [{ label: '资源状态', before: '未上架', after: '已归档' }],
+      });
+
+      const versionsUploadedAfterArchive = resource.versions
+        .filter(
+          (version) =>
+            version.versionNumber > 1 && version.createdAt > initialArchiveAt,
+        )
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+      if (versionsUploadedAfterArchive.length) {
+        const firstUploadedVersion = versionsUploadedAfterArchive[0]!;
+        const latestUploadedVersion = versionsUploadedAfterArchive.at(-1)!;
+        appendResourceOperation({
+          resourceId: resource.id,
+          subject,
+          action: 'restore',
+          operator: firstUploadedVersion.createdBy,
+          occurredAt: new Date(
+            Date.parse(firstUploadedVersion.createdAt) + 1,
+          ).toISOString(),
+          summary: `上传 V${firstUploadedVersion.versionNumber} 时自动恢复为未上架`,
+          changes: [{ label: '资源状态', before: '已归档', after: '未上架' }],
+        });
+        appendResourceOperation({
+          resourceId: resource.id,
+          subject,
+          action: 'archive',
+          occurredAt: new Date(
+            Date.parse(latestUploadedVersion.createdAt) + 60 * 60 * 1000,
+          ).toISOString(),
+          summary: '资源再次归档，停止平台展示和新增业务引用',
+          changes: [{ label: '资源状态', before: '未上架', after: '已归档' }],
+        });
+      }
+    }
+  });
+};
 
 const isResourceStatus = (value: unknown): value is ResourceStatus =>
   value === 'unlisted' || value === 'listed' || value === 'archived';
@@ -1032,59 +1391,113 @@ const isResourceLifecycleAction = (
   value === 'archive' ||
   value === 'restore';
 
-const isAttachmentResourceType = (
-  value: unknown,
-): value is AttachmentResourceType =>
-  value === 'courseware' || value === 'extension';
-
-const inferAttachmentCarrierType = (
-  originalFileName: string,
-): Exclude<ResourceCarrierType, 'online'> | null => {
-  const extension = originalFileName
-    .trim()
-    .toLowerCase()
-    .match(/\.[^.\\/]+$/)?.[0];
-  if (extension === '.ppt' || extension === '.pptx') return 'ppt';
-  if (extension === '.pdf') return 'pdf';
-  if (extension === '.mp3') return 'audio';
-  if (extension === '.mp4') return 'video';
-  return null;
-};
-
-const isAttachmentFileCompatible = (
-  type: AttachmentResourceType,
-  carrierType: Exclude<ResourceCarrierType, 'online'>,
-) =>
-  type === 'courseware'
-    ? carrierType === 'ppt'
-    : carrierType === 'pdf' ||
-      carrierType === 'audio' ||
-      carrierType === 'video';
-
-const synchronizeResourceLifecycleSemantics = (
+const synchronizeResourceSemantics = (
   resource: MockResourceItem,
 ): MockResourceItem => {
+  const currentVersion = resource.versions.find(
+    (version) => version.id === resource.currentVersionId,
+  );
+  if (!currentVersion) {
+    throw new Error(`Resource ${resource.id} has no current version`);
+  }
+
+  resource.versions.forEach((version) => {
+    version.state =
+      version.id === resource.currentVersionId
+        ? 'current'
+        : version.activatedAt
+        ? 'historical'
+        : 'pending';
+  });
+  resource.currentVersion = currentVersion;
+  resource.versionCount = resource.versions.length;
+  resource.pendingVersionCount = resource.versions.filter(
+    (version) => version.state === 'pending',
+  ).length;
+
   const isListed = resource.status === 'listed';
+  const referenceCount = getResourceReferenceCount(
+    resource.subject,
+    resource.id,
+  );
   resource.isVisible = isListed;
   resource.canCreateReference = isListed;
-  resource.canDelete = resource.referenceCount === 0;
+  resource.referenceCount = referenceCount;
+  resource.canDelete = referenceCount === 0;
+  resource.hardDeleteBlockedReason = getHardDeleteBlockedReason(referenceCount);
+  assertValidFormalResourceVersionAggregate(resource);
   return resource;
 };
 
-const createSeedResource = (data: {
+const cloneResourceVersion = (
+  version: MockResourceVersion,
+): MockResourceVersion => ({
+  ...version,
+  createdBy: { ...version.createdBy },
+});
+
+const toResourceSummary = (resource: MockResourceItem) => {
+  const item = synchronizeResourceSemantics(resource);
+  return {
+    id: item.id,
+    name: item.name,
+    type: item.type,
+    subject: item.subject,
+    nodeId: item.nodeId,
+    status: item.status,
+    isVisible: item.isVisible,
+    canCreateReference: item.canCreateReference,
+    referenceCount: item.referenceCount,
+    canDelete: item.canDelete,
+    hardDeleteBlockedReason: item.hardDeleteBlockedReason,
+    currentVersionId: item.currentVersionId,
+    currentVersion: cloneResourceVersion(item.currentVersion),
+    versionCount: item.versionCount,
+    pendingVersionCount: item.pendingVersionCount,
+    updatedAt: item.updatedAt,
+  };
+};
+
+const toResourceDetail = (resource: MockResourceItem) => {
+  const summary = toResourceSummary(resource);
+  return {
+    ...summary,
+    versions: [...resource.versions]
+      .sort((left, right) => right.versionNumber - left.versionNumber)
+      .map(cloneResourceVersion),
+    operationRecords: getResourceOperationRecords(
+      resource.subject,
+      resource.id,
+    ),
+  };
+};
+
+const toReferenceResourceIdentity = (resource: MockResourceItem) => {
+  const item = synchronizeResourceSemantics(resource);
+  return {
+    id: item.id,
+    name: item.name,
+    type: item.type,
+    subject: item.subject,
+    nodeId: item.nodeId,
+    status: item.status,
+    currentVersionId: item.currentVersionId,
+  };
+};
+
+interface SeedResourceBase {
   id: string;
   name: string;
-  type: ResourceType;
   subject: string;
   nodeId: string;
-  carrierType: ResourceCarrierType;
-  originalFileName?: string;
   status?: ResourceStatus;
-  referenceCount?: number;
-}): MockResourceItem => {
-  const createdAt = '2026-07-26T08:00:00.000Z';
-  const currentVersionId = `${data.id}-v1`;
-  return synchronizeResourceLifecycleSemantics({
+}
+
+const createSeedResourceAggregate = (
+  data: SeedResourceBase & { type: ResourceType },
+  currentVersion: MockResourceVersion,
+): MockResourceItem =>
+  synchronizeResourceSemantics({
     id: data.id,
     name: data.name,
     type: data.type,
@@ -1093,66 +1506,203 @@ const createSeedResource = (data: {
     status: data.status || 'unlisted',
     isVisible: false,
     canCreateReference: false,
-    referenceCount: data.referenceCount || 0,
+    referenceCount: 0,
     canDelete: false,
-    currentVersionId,
-    currentVersion: {
-      id: currentVersionId,
-      resourceId: data.id,
-      versionNumber: 1,
-      carrierType: data.carrierType,
-      originalFileName: data.originalFileName,
-      createdAt,
-    },
-    updatedAt: createdAt,
+    hardDeleteBlockedReason: null,
+    currentVersionId: currentVersion.id,
+    currentVersion,
+    versions: [currentVersion],
+    versionCount: 1,
+    pendingVersionCount: 0,
+    updatedAt: currentVersion.createdAt,
   });
+
+const createAttachmentSeedResource = (
+  data: SeedResourceBase & {
+    type: AttachmentResourceType;
+    originalFileName: string;
+  },
+): MockResourceItem => {
+  const originalFileName = data.originalFileName.trim();
+  const carrierType = inferAttachmentCarrierType(originalFileName);
+  if (
+    !carrierType ||
+    !isAttachmentFileCompatible(data.type, originalFileName)
+  ) {
+    throw new Error(`Invalid attachment seed ${data.id}`);
+  }
+
+  const createdAt = '2026-07-26T08:00:00.000Z';
+  return createSeedResourceAggregate(data, {
+    id: `${data.id}-v1`,
+    resourceId: data.id,
+    versionNumber: 1,
+    carrierType,
+    originalFileName,
+    createdAt,
+    createdBy: { ...SEED_MOCK_RESOURCE_CREATOR },
+    state: 'current',
+    activatedAt: createdAt,
+  });
+};
+
+const createComposedSeedResource = (
+  data: SeedResourceBase & { type: ComposedResourceType },
+): MockResourceItem => {
+  const createdAt = '2026-07-26T08:00:00.000Z';
+  return createSeedResourceAggregate(data, {
+    id: `${data.id}-v1`,
+    resourceId: data.id,
+    versionNumber: 1,
+    carrierType: 'online',
+    createdAt,
+    createdBy: { ...SEED_MOCK_RESOURCE_CREATOR },
+    state: 'current',
+    activatedAt: createdAt,
+  });
+};
+
+const appendAttachmentSeedVersion = (
+  resource: MockResourceItem,
+  versionNumber: number,
+  originalFileName: string,
+  createdAt: string,
+) => {
+  if (
+    !isAttachmentResourceType(resource.type) ||
+    !isAttachmentFileCompatible(resource.type, originalFileName)
+  ) {
+    throw new Error(`Invalid attachment version seed ${resource.id}`);
+  }
+  const carrierType = inferAttachmentCarrierType(originalFileName);
+  if (!carrierType) throw new Error(`Unknown seed carrier ${resource.id}`);
+
+  resource.versions.push({
+    id: `${resource.id}-v${versionNumber}`,
+    resourceId: resource.id,
+    versionNumber,
+    carrierType,
+    originalFileName,
+    createdAt,
+    createdBy: { ...CURRENT_MOCK_RESOURCE_CREATOR },
+    state: 'pending',
+  });
+  resource.updatedAt = createdAt;
+  synchronizeResourceSemantics(resource);
+};
+
+const appendComposedSeedVersion = (
+  resource: MockResourceItem,
+  versionNumber: number,
+  createdAt: string,
+  activatedAt?: string,
+) => {
+  if (!isComposedResourceType(resource.type)) {
+    throw new Error(`Invalid online version seed ${resource.id}`);
+  }
+  resource.versions.push({
+    id: `${resource.id}-v${versionNumber}`,
+    resourceId: resource.id,
+    versionNumber,
+    carrierType: 'online',
+    createdAt,
+    createdBy: { ...CURRENT_MOCK_RESOURCE_CREATOR },
+    state: activatedAt ? 'historical' : 'pending',
+    activatedAt,
+  });
+  resource.updatedAt = activatedAt || createdAt;
+  synchronizeResourceSemantics(resource);
 };
 
 const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
   const scoped = (nodeKey: string) => `${nodeKey}-${subject}`;
-  return [
-    createSeedResource({
+  const resources = [
+    createAttachmentSeedResource({
       id: `res-${subject}-1`,
       name: '史前时期精品复习课件',
       type: 'courseware',
       originalFileName: '史前时期复习课件.pptx',
-      carrierType: 'ppt',
       subject,
       nodeId: scoped('rv-1-1-1'),
       status: 'listed',
-      referenceCount: 3,
     }),
-    createSeedResource({
+    createAttachmentSeedResource({
       id: `res-${subject}-2`,
       name: '夏商周青铜文明拓展包',
       type: 'extension',
       originalFileName: '夏商周拓展素材.pdf',
-      carrierType: 'pdf',
       subject,
       nodeId: scoped('rv-1-1-2'),
     }),
-    createSeedResource({
+    createAttachmentSeedResource({
       id: `res-${subject}-3`,
       name: '春秋战国单元复习课件',
       type: 'courseware',
       originalFileName: '春秋战国复习课件.pptx',
-      carrierType: 'ppt',
       subject,
       nodeId: scoped('rv-1-1-3'),
       status: 'listed',
     }),
-    createSeedResource({
+    createComposedSeedResource({
       id: `res-${subject}-4`,
       name: '专题·古代政治制度复习学案',
       type: 'studyGuide',
-      carrierType: 'online',
       subject,
       nodeId: scoped('rv-2-1'),
       status: 'archived',
-      referenceCount: 1,
+    }),
+    createComposedSeedResource({
+      id: `res-${subject}-5`,
+      name: '三轮冲刺综合作业',
+      type: 'homework',
+      subject,
+      nodeId: scoped('rv-3-1'),
+      status: 'listed',
     }),
   ];
+
+  appendAttachmentSeedVersion(
+    resources[0]!,
+    2,
+    '史前时期复习课件-课堂修订.pptx',
+    '2026-08-01T09:20:00.000Z',
+  );
+  appendAttachmentSeedVersion(
+    resources[1]!,
+    2,
+    '夏商周青铜器讲解.mp3',
+    '2026-08-01T10:15:00.000Z',
+  );
+  appendAttachmentSeedVersion(
+    resources[1]!,
+    3,
+    '夏商周青铜文明短片.mp4',
+    '2026-08-02T03:30:00.000Z',
+  );
+  appendComposedSeedVersion(resources[3]!, 2, '2026-08-01T11:10:00.000Z');
+  appendComposedSeedVersion(
+    resources[4]!,
+    2,
+    '2026-08-01T12:00:00.000Z',
+    '2026-08-01T12:15:00.000Z',
+  );
+  resources[4]!.currentVersionId = `${resources[4]!.id}-v2`;
+  synchronizeResourceSemantics(resources[4]!);
+  appendComposedSeedVersion(resources[4]!, 3, '2026-08-02T05:20:00.000Z');
+  return resources;
 };
+
+const SUBJECT_KEYS = [
+  'math',
+  'chinese',
+  'english',
+  'physics',
+  'chemistry',
+  'biology',
+  'history',
+  'geography',
+  'politics',
+] as const;
 
 const getResourceStoreKey = (context: KnowledgeContext) =>
   `review-${context.subject}`;
@@ -1161,14 +1711,22 @@ const getRequiredAssetResourceContext = (
   req: Request,
 ): KnowledgeContext | null => {
   const subject = req.body?.subject ?? req.query.subject;
-  if (typeof subject !== 'string' || !subject.trim()) return null;
-  return { subject: subject.trim(), targetType: 'review' };
+  const normalizedSubject = typeof subject === 'string' ? subject.trim() : '';
+  if (
+    !SUBJECT_KEYS.includes(normalizedSubject as (typeof SUBJECT_KEYS)[number])
+  ) {
+    return null;
+  }
+  return { subject: normalizedSubject, targetType: 'review' };
 };
 
 const getResourcesByContext = (context: KnowledgeContext) => {
   const storeKey = getResourceStoreKey(context);
   if (!resourceStore[storeKey]) {
-    resourceStore[storeKey] = seedResourcesForSubject(context.subject);
+    const resources = seedResourcesForSubject(context.subject);
+    resourceStore[storeKey] = resources;
+    assertResourceReferenceIntegrity(context.subject, resources);
+    seedResourceOperations(context.subject, resources);
   }
   return resourceStore[storeKey];
 };
@@ -1333,6 +1891,26 @@ const validateResourceName = (value: unknown) => {
     };
   }
   return { valid: true, name };
+};
+
+const getReviewNodePathSnapshot = (
+  context: KnowledgeContext,
+  nodeId: string,
+) => {
+  const findPath = (
+    nodes: MockKnowledgeNode[],
+    parents: string[] = [],
+  ): string | null => {
+    for (const node of nodes) {
+      const path = [...parents, node.title];
+      if (node.key === nodeId) return path.join(' / ');
+      const childPath = node.children ? findPath(node.children, path) : null;
+      if (childPath) return childPath;
+    }
+    return null;
+  };
+
+  return findPath(getKnowledgeTreeByContext(context)) || `节点 ${nodeId}`;
 };
 
 const validateResourceOwnership = (
@@ -1698,18 +2276,6 @@ const moveTreeNode = <T extends { key: string; children?: T[] }>(
   );
   return { success: true, message: `${label} moved successfully` };
 };
-
-const SUBJECT_KEYS = [
-  'math',
-  'chinese',
-  'english',
-  'physics',
-  'chemistry',
-  'biology',
-  'history',
-  'geography',
-  'politics',
-] as const;
 
 const ATTRIBUTE_TARGET_ORDER: Record<AttributeTarget, number> = {
   paper: 0,
@@ -2680,6 +3246,261 @@ export default {
     });
   },
 
+  // Resource references（教学计划/任务固定版本引用契约探针）
+  'GET /api/resource-references': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const resourceId =
+      typeof req.query.resourceId === 'string'
+        ? req.query.resourceId.trim()
+        : '';
+    const consumerType =
+      typeof req.query.consumerType === 'string'
+        ? req.query.consumerType.trim()
+        : '';
+    const consumerId =
+      typeof req.query.consumerId === 'string'
+        ? req.query.consumerId.trim()
+        : '';
+    if (
+      consumerType &&
+      consumerType !== 'teachingPlan' &&
+      consumerType !== 'teachingTask'
+    ) {
+      res.send({ success: false, message: '业务引用消费者类型无效' });
+      return;
+    }
+
+    const references = getResourceReferencesBySubject(context.subject).filter(
+      (reference) =>
+        (!resourceId || reference.resourceId === resourceId) &&
+        (!consumerType || reference.consumer.type === consumerType) &&
+        (!consumerId || reference.consumer.id === consumerId),
+    );
+    res.send({
+      success: true,
+      data: references.map(cloneResourceReference),
+    });
+  },
+  'POST /api/resource-references': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const body = req.body || {};
+    const acceptedFields = new Set([
+      'subject',
+      'resourceId',
+      'versionId',
+      'consumer',
+    ]);
+    if (Object.keys(body).some((field) => !acceptedFields.has(field))) {
+      res.send({
+        success: false,
+        message: '业务引用只接受消费者、逻辑资源与具体版本身份',
+      });
+      return;
+    }
+    const resourceId =
+      typeof body.resourceId === 'string' ? body.resourceId.trim() : '';
+    const versionId =
+      typeof body.versionId === 'string' ? body.versionId.trim() : '';
+    const consumer = body.consumer;
+    const consumerFieldsValid =
+      consumer &&
+      typeof consumer === 'object' &&
+      !Array.isArray(consumer) &&
+      Object.keys(consumer).every((field) =>
+        ['type', 'id', 'name'].includes(field),
+      );
+    const consumerType = consumerFieldsValid ? consumer.type : undefined;
+    const consumerId =
+      consumerFieldsValid && typeof consumer.id === 'string'
+        ? consumer.id.trim()
+        : '';
+    const consumerName =
+      consumerFieldsValid && typeof consumer.name === 'string'
+        ? consumer.name.trim()
+        : '';
+    if (
+      !resourceId ||
+      !versionId ||
+      (consumerType !== 'teachingPlan' && consumerType !== 'teachingTask') ||
+      !consumerId ||
+      !consumerName
+    ) {
+      res.send({
+        success: false,
+        message: '请提供有效的消费者、逻辑资源与具体版本身份',
+      });
+      return;
+    }
+
+    const resource = getResourcesByContext(context).find(
+      (item) => item.id === resourceId && item.subject === context.subject,
+    );
+    if (!resource) {
+      res.send({ success: false, message: '资源不存在' });
+      return;
+    }
+    synchronizeResourceSemantics(resource);
+    if (!resource.canCreateReference) {
+      res.send({
+        success: false,
+        code:
+          resource.status === 'archived'
+            ? RESOURCE_REFERENCE_ERROR_CODES.archived
+            : RESOURCE_REFERENCE_ERROR_CODES.notListed,
+        message:
+          resource.status === 'archived'
+            ? '已归档资源不能新增业务引用；已有固定版本引用仍可访问'
+            : '只有已上架资源可以新增业务引用',
+      });
+      return;
+    }
+    const version = resource.versions.find(
+      (candidate) =>
+        candidate.id === versionId && candidate.resourceId === resource.id,
+    );
+    if (!version) {
+      res.send({ success: false, message: '所选具体版本不属于该资源' });
+      return;
+    }
+    if (!version.activatedAt) {
+      res.send({
+        success: false,
+        message: '待生效版本尚未进入平台浏览语义，不能创建业务引用',
+      });
+      return;
+    }
+
+    const references = getResourceReferencesBySubject(context.subject);
+    const duplicatedReference = references.find(
+      (reference) =>
+        reference.resourceId === resource.id &&
+        reference.consumer.type === consumerType &&
+        reference.consumer.id === consumerId,
+    );
+    if (duplicatedReference) {
+      res.send({
+        success: false,
+        code: RESOURCE_REFERENCE_ERROR_CODES.duplicated,
+        message: '该业务对象已引用此逻辑资源，不能重复创建',
+        data: cloneResourceReference(duplicatedReference),
+      });
+      return;
+    }
+
+    resourceReferenceSequence += 1;
+    const createdAt = new Date().toISOString();
+    const reference = freezeResourceReference({
+      id: `ref-${context.subject}-${Date.now()}-${resourceReferenceSequence}`,
+      subject: context.subject,
+      resourceId: resource.id,
+      versionId: version.id,
+      consumer: {
+        type: consumerType,
+        id: consumerId,
+        name: consumerName,
+      },
+      createdAt,
+      createdBy: { ...CURRENT_MOCK_RESOURCE_CREATOR },
+    });
+    references.push(reference);
+    synchronizeResourceSemantics(resource);
+    res.send({
+      success: true,
+      message: `业务引用已固定到 V${version.versionNumber}`,
+      data: cloneResourceReference(reference),
+    });
+  },
+  'GET /api/resource-references/resolve': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const id = typeof req.query.id === 'string' ? req.query.id.trim() : '';
+    if (!id) {
+      res.send({ success: false, message: '请选择要解析的业务引用' });
+      return;
+    }
+    const reference = getResourceReferencesBySubject(context.subject).find(
+      (candidate) => candidate.id === id,
+    );
+    if (!reference) {
+      res.send({ success: false, message: '业务引用不存在' });
+      return;
+    }
+    const resource = getResourcesByContext(context).find(
+      (item) => item.id === reference.resourceId,
+    );
+    const version = resource?.versions.find(
+      (candidate) => candidate.id === reference.versionId,
+    );
+    if (!resource || !version) {
+      res.send({
+        success: false,
+        message: '固定版本引用数据损坏，无法解析',
+      });
+      return;
+    }
+
+    // 不检查资源当前状态或 currentVersionId：归档与版本切换不能破坏历史引用。
+    res.send({
+      success: true,
+      data: {
+        reference: cloneResourceReference(reference),
+        resource: toReferenceResourceIdentity(resource),
+        version: cloneResourceVersion(version),
+      },
+    });
+  },
+  'GET /api/platform-resources/resolve': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const resourceId =
+      typeof req.query.resourceId === 'string'
+        ? req.query.resourceId.trim()
+        : '';
+    if (!resourceId) {
+      res.send({ success: false, message: '请选择平台资源' });
+      return;
+    }
+    const resource = getResourcesByContext(context).find(
+      (item) => item.id === resourceId,
+    );
+    if (!resource) {
+      res.send({ success: false, message: '资源不存在' });
+      return;
+    }
+    synchronizeResourceSemantics(resource);
+    if (!resource.isVisible) {
+      res.send({
+        success: false,
+        code: RESOURCE_REFERENCE_ERROR_CODES.notVisible,
+        message: '平台资源库只能浏览已上架资源',
+      });
+      return;
+    }
+
+    res.send({
+      success: true,
+      data: {
+        resource: toReferenceResourceIdentity(resource),
+        versionId: resource.currentVersionId,
+        version: cloneResourceVersion(resource.currentVersion),
+      },
+    });
+  },
+
   // Asset Center（资产中心正式资源）
   'GET /api/resources': (req: Request, res: Response) => {
     const context = getRequiredAssetResourceContext(req);
@@ -2692,15 +3513,56 @@ export default {
       res.send({ success: false, message: filterValidation.message });
       return;
     }
+    const resources = filterResources(
+      getResourcesByContext(context).map(synchronizeResourceSemantics),
+      filterValidation.filters,
+    );
     res.send({
       success: true,
-      data: filterResources(
-        getResourcesByContext(context).map(
-          synchronizeResourceLifecycleSemantics,
-        ),
-        filterValidation.filters,
-      ),
+      data: resources.map(toResourceSummary),
     });
+  },
+  'GET /api/resources/detail': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const id = typeof req.query.id === 'string' ? req.query.id.trim() : '';
+    if (!id) {
+      res.send({ success: false, message: '请选择要查看的资源' });
+      return;
+    }
+
+    const item = getResourcesByContext(context).find(
+      (resource) => resource.id === id && resource.subject === context.subject,
+    );
+    if (!item) {
+      res.send({ success: false, message: '资源不存在' });
+      return;
+    }
+    res.send({ success: true, data: toResourceDetail(item) });
+  },
+  'GET /api/resources/operations': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const id = typeof req.query.id === 'string' ? req.query.id.trim() : '';
+    if (!id) {
+      res.send({ success: false, message: '请选择要查询操作记录的资源' });
+      return;
+    }
+
+    // 初始化种子聚合及其操作账本；删除后的资源无需仍存在于聚合中。
+    getResourcesByContext(context);
+    const records = getResourceOperationRecords(context.subject, id);
+    if (!records.length) {
+      res.send({ success: false, message: '资源操作记录不存在' });
+      return;
+    }
+    res.send({ success: true, data: records });
   },
   'POST /api/resources': (req: Request, res: Response) => {
     const context = getRequiredAssetResourceContext(req);
@@ -2716,12 +3578,32 @@ export default {
       body.canCreateReference !== undefined ||
       body.referenceCount !== undefined ||
       body.canDelete !== undefined ||
+      body.hardDeleteBlockedReason !== undefined ||
+      body.operationRecords !== undefined ||
       body.currentVersion !== undefined ||
-      body.currentVersionId !== undefined
+      body.currentVersionId !== undefined ||
+      body.versions !== undefined ||
+      body.versionCount !== undefined ||
+      body.pendingVersionCount !== undefined
     ) {
       res.send({
         success: false,
-        message: '新资源固定创建为未上架、零引用的 V1，不能指定生命周期字段',
+        message:
+          '新资源固定创建为未上架、零引用的 V1，不能指定生命周期或版本字段',
+      });
+      return;
+    }
+    const acceptedFields = new Set([
+      'name',
+      'type',
+      'originalFileName',
+      'nodeId',
+      'subject',
+    ]);
+    if (Object.keys(body).some((field) => !acceptedFields.has(field))) {
+      res.send({
+        success: false,
+        message: '附件资源载体只能由原始文件名推导，不能指定额外内容或载体字段',
       });
       return;
     }
@@ -2754,7 +3636,10 @@ export default {
     }
     const normalizedOriginalFileName = originalFileName.trim();
     const carrierType = inferAttachmentCarrierType(normalizedOriginalFileName);
-    if (!carrierType || !isAttachmentFileCompatible(type, carrierType)) {
+    if (
+      !carrierType ||
+      !isAttachmentFileCompatible(type, normalizedOriginalFileName)
+    ) {
       res.send({
         success: false,
         message:
@@ -2766,16 +3651,21 @@ export default {
     }
 
     const resources = getResourcesByContext(context);
-    if (
-      hasDuplicatedResourceName(resources, {
-        name: nameValidation.name,
-        type,
-        nodeId: ownershipValidation.nodeId,
-      })
-    ) {
+    const duplicatedResource = resources.find(
+      (resource) =>
+        resource.nodeId === ownershipValidation.nodeId &&
+        resource.type === type &&
+        resource.name.trim() === nameValidation.name,
+    );
+    if (duplicatedResource) {
       res.send({
         success: false,
-        message: '该末级节点下已存在同类型、同名称的资源',
+        code: RESOURCE_NAME_CONFLICT_CODE,
+        message:
+          duplicatedResource.status === 'archived'
+            ? '该末级节点下已有同类型、同名称的已归档资源，请上传为新版本；成功后将原子恢复为未上架'
+            : '该末级节点下已存在同类型、同名称资源，请在已有资源中上传新版本',
+        data: toResourceSummary(duplicatedResource),
       });
       return;
     }
@@ -2786,6 +3676,17 @@ export default {
     }-${Date.now()}-${resourceSequence}`;
     const versionId = `${resourceId}-v1`;
     const createdAt = new Date().toISOString();
+    const currentVersion: MockResourceVersion = {
+      id: versionId,
+      resourceId,
+      versionNumber: 1,
+      carrierType,
+      originalFileName: normalizedOriginalFileName,
+      createdAt,
+      createdBy: { ...CURRENT_MOCK_RESOURCE_CREATOR },
+      state: 'current',
+      activatedAt: createdAt,
+    };
     const item: MockResourceItem = {
       id: resourceId,
       name: nameValidation.name,
@@ -2797,24 +3698,267 @@ export default {
       canCreateReference: false,
       referenceCount: 0,
       canDelete: true,
+      hardDeleteBlockedReason: null,
       currentVersionId: versionId,
-      currentVersion: {
-        id: versionId,
-        resourceId,
-        versionNumber: 1,
-        carrierType,
-        originalFileName: normalizedOriginalFileName,
-        createdAt,
-      },
+      currentVersion,
+      versions: [currentVersion],
+      versionCount: 1,
+      pendingVersionCount: 0,
       updatedAt: createdAt,
     };
 
     // 单次写入完整聚合，Mock 中不存在未归属或无初始版本的中间记录。
     resources.push(item);
+    appendResourceOperation({
+      resourceId,
+      subject: context.subject,
+      action: 'upload',
+      occurredAt: createdAt,
+      summary: `上传“${item.name}”并生成当前版本 V1`,
+      changes: [
+        { label: '当前版本', after: 'V1' },
+        {
+          label: '初始归属',
+          after: getReviewNodePathSnapshot(context, item.nodeId),
+        },
+        { label: '资源状态', after: '未上架' },
+      ],
+    });
     res.send({
       success: true,
       message: '附件资源上传成功',
-      data: item,
+      data: toResourceSummary(item),
+    });
+  },
+  'POST /api/resources/versions': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const body = req.body || {};
+    const acceptedFields = new Set([
+      'resourceId',
+      'subject',
+      'originalFileName',
+    ]);
+    if (Object.keys(body).some((field) => !acceptedFields.has(field))) {
+      res.send({
+        success: false,
+        message:
+          '新增版本仅接受资源身份和新文件，不能修改资源类型、归属、状态或当前版本',
+      });
+      return;
+    }
+
+    const resourceId =
+      typeof body.resourceId === 'string' ? body.resourceId.trim() : '';
+    if (!resourceId) {
+      res.send({ success: false, message: '请选择要新增版本的资源' });
+      return;
+    }
+    const resources = getResourcesByContext(context);
+    const itemIndex = resources.findIndex(
+      (resource) =>
+        resource.id === resourceId && resource.subject === context.subject,
+    );
+    if (itemIndex < 0) {
+      res.send({ success: false, message: '资源不存在' });
+      return;
+    }
+    const item = resources[itemIndex]!;
+    if (!isAttachmentResourceType(item.type)) {
+      res.send({
+        success: false,
+        message: '组合型资源不能通过附件上传新增版本',
+      });
+      return;
+    }
+
+    const originalFileName =
+      typeof body.originalFileName === 'string'
+        ? body.originalFileName.trim()
+        : '';
+    if (!originalFileName) {
+      res.send({ success: false, message: '请选择一个新版本文件' });
+      return;
+    }
+    const carrierType = inferAttachmentCarrierType(originalFileName);
+    if (
+      !carrierType ||
+      !isAttachmentFileCompatible(item.type, originalFileName)
+    ) {
+      res.send({
+        success: false,
+        message:
+          item.type === 'courseware'
+            ? '课件新版本仅支持 .ppt 或 .pptx 文件'
+            : '拓展包新版本仅支持 .pdf、.mp3 或 .mp4 文件',
+      });
+      return;
+    }
+
+    const versionNumber =
+      Math.max(...item.versions.map((version) => version.versionNumber)) + 1;
+    const createdAt = new Date().toISOString();
+    const version: MockResourceVersion = {
+      id: `${item.id}-v${versionNumber}`,
+      resourceId: item.id,
+      versionNumber,
+      carrierType,
+      originalFileName,
+      createdAt,
+      createdBy: { ...CURRENT_MOCK_RESOURCE_CREATOR },
+      state: 'pending',
+    };
+    const unchangedCurrentVersionId = item.currentVersionId;
+    const restoresArchivedResource = item.status === 'archived';
+    const nextItem = synchronizeResourceSemantics({
+      ...item,
+      status: restoresArchivedResource ? 'unlisted' : item.status,
+      versions: [...item.versions.map(cloneResourceVersion), version],
+      updatedAt: createdAt,
+    });
+
+    if (nextItem.currentVersionId !== unchangedCurrentVersionId) {
+      throw new Error('Creating a version changed the current version');
+    }
+
+    // 所有校验和聚合派生完成后再替换目标资源：新增版本与归档恢复同次生效，
+    // 且不会遍历或改写同一学科下其他资源的生命周期。
+    resources[itemIndex] = nextItem;
+    appendResourceOperation({
+      resourceId: item.id,
+      subject: context.subject,
+      action: 'uploadVersion',
+      occurredAt: createdAt,
+      summary: `上传“${originalFileName}”并生成待生效版本 V${versionNumber}`,
+      changes: [{ label: '新增版本', after: `V${versionNumber}` }],
+    });
+    if (restoresArchivedResource) {
+      appendResourceOperation({
+        resourceId: item.id,
+        subject: context.subject,
+        action: 'restore',
+        occurredAt: createdAt,
+        summary: '上传新版本时原子恢复资源；已有固定版本引用保持不变',
+        changes: [{ label: '资源状态', before: '已归档', after: '未上架' }],
+      });
+    }
+    res.send({
+      success: true,
+      message: restoresArchivedResource
+        ? `V${versionNumber} 已创建为待生效版本，资源已恢复为未上架，当前版本保持不变`
+        : `V${versionNumber} 已创建为待生效版本，当前版本保持不变`,
+      data: toResourceDetail(nextItem),
+    });
+  },
+  'PUT /api/resources/versions/activate': (req: Request, res: Response) => {
+    const context = getRequiredAssetResourceContext(req);
+    if (!context) {
+      res.send({ success: false, message: '请选择学科上下文' });
+      return;
+    }
+    const body = req.body || {};
+    const acceptedFields = new Set(['resourceId', 'versionId', 'subject']);
+    if (Object.keys(body).some((field) => !acceptedFields.has(field))) {
+      res.send({
+        success: false,
+        message:
+          '版本生效仅接受资源与版本身份，不能修改资源资料、归属或生命周期',
+      });
+      return;
+    }
+
+    const resourceId =
+      typeof body.resourceId === 'string' ? body.resourceId.trim() : '';
+    const versionId =
+      typeof body.versionId === 'string' ? body.versionId.trim() : '';
+    if (!resourceId || !versionId) {
+      res.send({ success: false, message: '请选择要生效的资源版本' });
+      return;
+    }
+    const resources = getResourcesByContext(context);
+    const itemIndex = resources.findIndex(
+      (resource) =>
+        resource.id === resourceId && resource.subject === context.subject,
+    );
+    if (itemIndex < 0) {
+      res.send({ success: false, message: '资源不存在' });
+      return;
+    }
+    const item = synchronizeResourceSemantics(resources[itemIndex]!);
+    const version = item.versions.find(
+      (candidate) =>
+        candidate.id === versionId && candidate.resourceId === item.id,
+    );
+    if (!version) {
+      res.send({ success: false, message: '资源版本不存在' });
+      return;
+    }
+    if (!isResourceVersionCompatible(item.type, version)) {
+      res.send({
+        success: false,
+        message: '资源版本载体与资源类型不匹配，不能生效',
+      });
+      return;
+    }
+    if (item.currentVersionId === version.id) {
+      res.send({
+        success: false,
+        message: `V${version.versionNumber} 已是当前版本`,
+      });
+      return;
+    }
+
+    const versionCount = item.versions.length;
+    const status = item.status;
+    const previousCurrentVersion = item.currentVersion;
+    const isRollback =
+      version.state === 'historical' &&
+      version.versionNumber < previousCurrentVersion.versionNumber;
+    const activatedAt = new Date().toISOString();
+    const nextVersions = item.versions.map(cloneResourceVersion);
+    const nextVersion = nextVersions.find(
+      (candidate) => candidate.id === version.id,
+    )!;
+    nextVersion.activatedAt = activatedAt;
+    const nextItem = synchronizeResourceSemantics({
+      ...item,
+      currentVersionId: nextVersion.id,
+      versions: nextVersions,
+      updatedAt: activatedAt,
+    });
+    if (
+      nextItem.versions.length !== versionCount ||
+      nextItem.status !== status
+    ) {
+      throw new Error('Activating a version changed stable resource data');
+    }
+
+    // 附件与在线组合正式版本共用同一切换语义：不复制、不删除版本，
+    // 当前版本转历史，待生效或历史版本成为新的 current。
+    resources[itemIndex] = nextItem;
+    appendResourceOperation({
+      resourceId: item.id,
+      subject: context.subject,
+      action: isRollback ? 'rollbackVersion' : 'activateVersion',
+      occurredAt: activatedAt,
+      summary: isRollback
+        ? `当前版本由 V${previousCurrentVersion.versionNumber} 回退到 V${version.versionNumber}`
+        : `V${version.versionNumber} 设为当前生效版本`,
+      changes: [
+        {
+          label: '当前版本',
+          before: `V${previousCurrentVersion.versionNumber}`,
+          after: `V${version.versionNumber}`,
+        },
+      ],
+    });
+    res.send({
+      success: true,
+      message: `V${version.versionNumber} 已设为当前生效版本`,
+      data: toResourceDetail(nextItem),
     });
   },
   'PUT /api/resources/ownership': (req: Request, res: Response) => {
@@ -2825,18 +3969,8 @@ export default {
     }
     const body = req.body || {};
     const { id, targetNodeId } = body;
-    if (
-      body.nodeId !== undefined ||
-      body.name !== undefined ||
-      body.type !== undefined ||
-      body.status !== undefined ||
-      body.isVisible !== undefined ||
-      body.canCreateReference !== undefined ||
-      body.referenceCount !== undefined ||
-      body.canDelete !== undefined ||
-      body.currentVersion !== undefined ||
-      body.currentVersionId !== undefined
-    ) {
+    const acceptedFields = new Set(['id', 'subject', 'targetNodeId']);
+    if (Object.keys(body).some((field) => !acceptedFields.has(field))) {
       res.send({
         success: false,
         message: '归属调整仅接受资源身份和目标末级节点',
@@ -2876,10 +4010,39 @@ export default {
       return;
     }
 
+    if (item.nodeId === ownershipValidation.nodeId) {
+      res.send({
+        success: true,
+        message: '资源已归属该末级节点，无需调整',
+        data: toResourceSummary(item),
+      });
+      return;
+    }
+
+    const previousNodeId = item.nodeId;
+    const previousNodePath = getReviewNodePathSnapshot(context, previousNodeId);
+    const targetNodePath = getReviewNodePathSnapshot(
+      context,
+      ownershipValidation.nodeId,
+    );
     // 所有校验通过后一次替换 nodeId；不存在先清空再写入的中间状态。
     item.nodeId = ownershipValidation.nodeId;
     item.updatedAt = new Date().toISOString();
-    res.send({ success: true, message: '资源归属调整成功', data: item });
+    appendResourceOperation({
+      resourceId: item.id,
+      subject: context.subject,
+      action: 'adjustOwnership',
+      occurredAt: item.updatedAt,
+      summary: `资源归属由“${previousNodePath}”调整为“${targetNodePath}”`,
+      changes: [
+        { label: '归属节点', before: previousNodePath, after: targetNodePath },
+      ],
+    });
+    res.send({
+      success: true,
+      message: '资源归属调整成功',
+      data: toResourceSummary(item),
+    });
   },
   'PUT /api/resources/lifecycle': (req: Request, res: Response) => {
     const context = getRequiredAssetResourceContext(req);
@@ -2920,13 +4083,35 @@ export default {
       return;
     }
 
+    const previousStatus = item.status;
     item.status = nextStatus;
     item.updatedAt = new Date().toISOString();
-    synchronizeResourceLifecycleSemantics(item);
+    synchronizeResourceSemantics(item);
+    appendResourceOperation({
+      resourceId: item.id,
+      subject: context.subject,
+      action,
+      occurredAt: item.updatedAt,
+      summary:
+        action === 'archive'
+          ? '资源归档，停止平台展示与新增引用；已有固定版本引用继续可访问'
+          : action === 'restore'
+          ? '资源恢复为未上架，需重新上架后才可展示和新增引用'
+          : action === 'list'
+          ? '资源上架，平台资源库开始使用当前生效版本'
+          : '资源下架，停止平台展示与新增引用',
+      changes: [
+        {
+          label: '资源状态',
+          before: RESOURCE_STATUS_LABELS[previousStatus],
+          after: RESOURCE_STATUS_LABELS[nextStatus],
+        },
+      ],
+    });
     res.send({
       success: true,
       message: `资源${RESOURCE_LIFECYCLE_ACTION_LABELS[action]}成功`,
-      data: item,
+      data: toResourceSummary(item),
     });
   },
   'PUT /api/resources': (req: Request, res: Response) => {
@@ -2958,7 +4143,11 @@ export default {
       body.originalFileName !== undefined ||
       body.fileName !== undefined ||
       body.currentVersion !== undefined ||
-      body.currentVersionId !== undefined
+      body.currentVersionId !== undefined ||
+      body.versions !== undefined ||
+      body.versionCount !== undefined ||
+      body.pendingVersionCount !== undefined ||
+      body.versionId !== undefined
     ) {
       res.send({ success: false, message: '当前版本不能通过资料编辑修改' });
       return;
@@ -2968,11 +4157,22 @@ export default {
       body.isVisible !== undefined ||
       body.canCreateReference !== undefined ||
       body.referenceCount !== undefined ||
-      body.canDelete !== undefined
+      body.canDelete !== undefined ||
+      body.hardDeleteBlockedReason !== undefined ||
+      body.operationRecords !== undefined
     ) {
       res.send({
         success: false,
         message: '资源状态、可见性与引用信息不能通过资料编辑修改',
+      });
+      return;
+    }
+    const acceptedFields = new Set(['id', 'name', 'subject']);
+    if (Object.keys(body).some((field) => !acceptedFields.has(field))) {
+      res.send({
+        success: false,
+        message:
+          '资源资料编辑仅接受资源身份与名称，正式内容必须通过新增版本与生效流程变更',
       });
       return;
     }
@@ -3005,9 +4205,26 @@ export default {
       return;
     }
 
+    const previousName = item.name;
     item.name = nameValidation.name;
     item.updatedAt = new Date().toISOString();
-    res.send({ success: true, message: '资源信息更新成功', data: item });
+    if (previousName !== item.name) {
+      appendResourceOperation({
+        resourceId: item.id,
+        subject: context.subject,
+        action: 'rename',
+        occurredAt: item.updatedAt,
+        summary: `资源名称由“${previousName}”修改为“${item.name}”`,
+        changes: [
+          { label: '资源名称', before: previousName, after: item.name },
+        ],
+      });
+    }
+    res.send({
+      success: true,
+      message: '资源信息更新成功',
+      data: toResourceSummary(item),
+    });
   },
   'DELETE /api/resources': (req: Request, res: Response) => {
     const context = getRequiredAssetResourceContext(req);
@@ -3030,17 +4247,53 @@ export default {
       return;
     }
 
-    const item = resources[itemIndex]!;
-    if (item.referenceCount > 0) {
+    const item = synchronizeResourceSemantics(resources[itemIndex]!);
+    if (!item.canDelete) {
       res.send({
         success: false,
-        message: `该资源已有 ${item.referenceCount} 个业务引用，不能彻底删除，请改为归档`,
+        code: RESOURCE_HAS_REFERENCES_CODE,
+        message:
+          item.hardDeleteBlockedReason ||
+          `该资源已有 ${item.referenceCount} 个业务引用，不能彻底删除`,
+        data: {
+          resourceId: item.id,
+          referenceCount: item.referenceCount,
+          reason: item.hardDeleteBlockedReason,
+        },
       });
       return;
     }
 
+    const deletedAt = new Date().toISOString();
+    const deletionRecord = appendResourceOperation({
+      resourceId: item.id,
+      subject: context.subject,
+      action: 'delete',
+      occurredAt: deletedAt,
+      summary: `“${item.name}”无业务引用，已彻底删除资源身份及全部正式版本`,
+      changes: [
+        { label: '资源名称', before: item.name },
+        {
+          label: '当前版本',
+          before: `V${item.currentVersion.versionNumber}`,
+        },
+        {
+          label: '删除版本数',
+          before: String(item.versions.length),
+          after: '0',
+        },
+      ],
+    });
     resources.splice(itemIndex, 1);
-    res.send({ success: true, message: '资源已彻底删除' });
+    res.send({
+      success: true,
+      message: '资源已彻底删除；删除记录已保留',
+      data: {
+        resourceId: item.id,
+        deletedAt,
+        operationRecordId: deletionRecord.id,
+      },
+    });
   },
 
   // Question Type CRUD

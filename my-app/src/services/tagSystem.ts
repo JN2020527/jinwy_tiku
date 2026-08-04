@@ -1,4 +1,65 @@
 import { request } from '@umijs/max';
+import type {
+  ResourceDeletionResult,
+  ResourceOperationRecord,
+} from './resourceAuditModel';
+import type {
+  AttachmentResourceType,
+  ResourceCarrierType,
+  ResourceStatus,
+  ResourceType,
+  ResourceVersionForType,
+  ResourceVersionState,
+} from './resourceModel';
+
+export {
+  assertValidFormalResourceVersionAggregate,
+  ATTACHMENT_RESOURCE_TYPES,
+  COMPOSED_RESOURCE_TYPES,
+  inferAttachmentCarrierType,
+  isAttachmentFileCompatible,
+  isAttachmentResourceType,
+  isComposedResourceType,
+  isResourceCarrierCompatible,
+  isResourceCarrierType,
+  isResourceType,
+  isResourceVersionCompatible,
+  RESOURCE_CARRIERS_BY_TYPE,
+  validateFormalResourceVersion,
+  validateFormalResourceVersionAggregate,
+} from './resourceModel';
+export {
+  RESOURCE_HAS_REFERENCES_CODE,
+  RESOURCE_OPERATION_ACTION_LABELS,
+} from './resourceAuditModel';
+export type {
+  ResourceDeletionResult,
+  ResourceOperationAction,
+  ResourceOperationChange,
+  ResourceOperationRecord,
+} from './resourceAuditModel';
+export type {
+  AttachmentCarrierType,
+  AttachmentResourceType,
+  AttachmentResourceVersion,
+  ComposedCarrierType,
+  ComposedResourceType,
+  CoursewareCarrierType,
+  CoursewareResourceVersion,
+  ExtensionCarrierType,
+  ExtensionResourceVersion,
+  OnlineResourceVersion,
+  ResourceCarrierByType,
+  ResourceCarrierForType,
+  ResourceCarrierType,
+  ResourceCreator,
+  ResourceInvariantValidationResult,
+  ResourceStatus,
+  ResourceType,
+  ResourceVersion,
+  ResourceVersionForType,
+  ResourceVersionState,
+} from './resourceModel';
 
 // --- API Types ---
 
@@ -6,6 +67,7 @@ export interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
+  code?: string;
 }
 
 export type AttributeStatus = 'enabled' | 'disabled';
@@ -112,26 +174,8 @@ export interface UpdateResourceTreeLeafSchedulingInput {
 
 // --- Assets (资产中心正式资源) ---
 
-/** 附件型资源：课件、拓展包（在资产中心逐个上传） */
-export type AttachmentResourceType = 'courseware' | 'extension';
-/** 组合型资源：学案、作业（仅由组合制作发布） */
-export type ComposedResourceType = 'studyGuide' | 'homework';
-export type ResourceType = AttachmentResourceType | ComposedResourceType;
-
-/** 附件载体由原始文件名扩展名自动识别，不能由调用方指定 */
-export type AttachmentCarrierType = 'ppt' | 'pdf' | 'audio' | 'video';
-export type ResourceCarrierType = AttachmentCarrierType | 'online';
-export type ResourceStatus = 'unlisted' | 'listed' | 'archived';
+/** 资源类型、载体与正式版本结构由 resourceModel.ts 统一约束。 */
 export type ResourceLifecycleAction = 'list' | 'unlist' | 'archive' | 'restore';
-
-export const ATTACHMENT_RESOURCE_TYPES: readonly AttachmentResourceType[] = [
-  'courseware',
-  'extension',
-];
-export const COMPOSED_RESOURCE_TYPES: readonly ComposedResourceType[] = [
-  'studyGuide',
-  'homework',
-];
 
 export const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
   courseware: '课件',
@@ -153,6 +197,17 @@ export const RESOURCE_STATUS_LABELS: Record<ResourceStatus, string> = {
   listed: '已上架',
   archived: '已归档',
 };
+
+export const RESOURCE_VERSION_STATE_LABELS: Record<
+  ResourceVersionState,
+  string
+> = {
+  current: '当前生效',
+  pending: '待生效',
+  historical: '历史版本',
+};
+
+export const RESOURCE_NAME_CONFLICT_CODE = 'RESOURCE_NAME_CONFLICT';
 
 export const RESOURCE_LIFECYCLE_ACTION_LABELS: Record<
   ResourceLifecycleAction,
@@ -182,59 +237,15 @@ export const ATTACHMENT_RESOURCE_ACCEPT: Record<
   extension: '.pdf,.mp3,.mp4',
 };
 
-export const isAttachmentResourceType = (
-  type: unknown,
-): type is AttachmentResourceType =>
-  type === 'courseware' || type === 'extension';
-
-export const isComposedResourceType = (type: ResourceType): boolean =>
-  COMPOSED_RESOURCE_TYPES.includes(type as ComposedResourceType);
-
-export const inferAttachmentCarrierType = (
-  originalFileName: string,
-): AttachmentCarrierType | null => {
-  const extension = originalFileName
-    .trim()
-    .toLowerCase()
-    .match(/\.[^.\\/]+$/)?.[0];
-  if (extension === '.ppt' || extension === '.pptx') return 'ppt';
-  if (extension === '.pdf') return 'pdf';
-  if (extension === '.mp3') return 'audio';
-  if (extension === '.mp4') return 'video';
-  return null;
-};
-
-export const isAttachmentFileCompatible = (
-  type: AttachmentResourceType,
-  originalFileName: string,
-): boolean => {
-  const carrierType = inferAttachmentCarrierType(originalFileName);
-  return type === 'courseware'
-    ? carrierType === 'ppt'
-    : carrierType === 'pdf' ||
-        carrierType === 'audio' ||
-        carrierType === 'video';
-};
-
 export const getDefaultResourceName = (originalFileName: string): string => {
   const normalizedFileName = originalFileName.trim();
   return normalizedFileName.replace(/\.[^.\\/]+$/, '').trim();
 };
 
-export interface ResourceVersion {
-  readonly id: string;
-  readonly resourceId: string;
-  readonly versionNumber: number;
-  readonly carrierType: ResourceCarrierType;
-  readonly originalFileName?: string;
-  readonly createdAt: string;
-}
-
-/** 资产中心的一行代表一份逻辑资源，节点路径由当前复习树动态投影 */
-export interface ResourceItem {
+interface ResourceItemFields<T extends ResourceType> {
   readonly id: string;
   readonly name: string;
-  readonly type: ResourceType;
+  readonly type: T;
   /** 学科由所属复习树节点继承，不提供独立修改入口 */
   readonly subject: string;
   /** 唯一所属复习树末级节点；响应不保存节点路径文本快照 */
@@ -245,12 +256,30 @@ export interface ResourceItem {
   readonly canCreateReference: boolean;
   /** 已有业务对象对该逻辑资源具体版本的引用总数。 */
   readonly referenceCount: number;
-  /** 服务端按引用数计算；删除接口仍会再次校验，不能由调用方覆盖。 */
+  /** 服务端按引用存储实时计算；删除接口仍会再次校验，不能由调用方覆盖。 */
   readonly canDelete: boolean;
+  /** 有固定版本引用时给出可直接展示的删除阻止原因。 */
+  readonly hardDeleteBlockedReason: string | null;
   readonly currentVersionId: string;
-  readonly currentVersion: ResourceVersion;
+  readonly currentVersion: ResourceVersionForType<T>;
+  readonly versionCount: number;
+  readonly pendingVersionCount: number;
   readonly updatedAt: string;
 }
+
+/** 资产中心的一行代表一份逻辑资源，类型与当前版本载体保持静态关联。 */
+export type ResourceItem = {
+  [T in ResourceType]: ResourceItemFields<T>;
+}[ResourceType];
+
+/** 详情返回完整版本历史，且每个版本都必须符合该资源类型的载体约束。 */
+export type ResourceDetail = {
+  [T in ResourceType]: ResourceItemFields<T> & {
+    readonly versions: readonly ResourceVersionForType<T>[];
+    /** 独立只追加账本按发生时间倒序返回；客户端没有修改或删除契约。 */
+    readonly operationRecords: readonly ResourceOperationRecord[];
+  };
+}[ResourceType];
 
 /** 单学科资产目录查询；所有可选条件按 AND 组合 */
 export interface ResourceListParams {
@@ -269,6 +298,20 @@ export interface CreateAttachmentResourceInput {
   type: AttachmentResourceType;
   originalFileName: string;
   nodeId: string;
+  subject: string;
+}
+
+/** 新文件原子追加为待生效版本；已归档资源同步恢复为未上架。 */
+export interface CreateAttachmentResourceVersionInput {
+  resourceId: string;
+  subject: string;
+  originalFileName: string;
+}
+
+/** 任意非当前版本均可直接切换为当前版本，不复制或删除版本记录。 */
+export interface ActivateResourceVersionInput {
+  resourceId: string;
+  versionId: string;
   subject: string;
 }
 
@@ -507,6 +550,48 @@ export async function createAttachmentResource(
   });
 }
 
+export async function getResourceDetail(params: {
+  id: string;
+  subject: string;
+}) {
+  return request<ApiResponse<ResourceDetail>>('/api/resources/detail', {
+    method: 'GET',
+    params,
+  });
+}
+
+/** 独立查询只追加操作账本；资源彻底删除后仍可用于删除记录探针。 */
+export async function getResourceOperationRecords(params: {
+  id: string;
+  subject: string;
+}) {
+  return request<ApiResponse<ResourceOperationRecord[]>>(
+    '/api/resources/operations',
+    { method: 'GET', params },
+  );
+}
+
+export async function createAttachmentResourceVersion(
+  data: CreateAttachmentResourceVersionInput,
+) {
+  return request<ApiResponse<ResourceDetail>>('/api/resources/versions', {
+    method: 'POST',
+    data,
+  });
+}
+
+export async function activateResourceVersion(
+  data: ActivateResourceVersionInput,
+) {
+  return request<ApiResponse<ResourceDetail>>(
+    '/api/resources/versions/activate',
+    {
+      method: 'PUT',
+      data,
+    },
+  );
+}
+
 export async function updateResourceMetadata(
   data: UpdateResourceMetadataInput,
 ) {
@@ -535,7 +620,7 @@ export async function transitionResourceLifecycle(
 }
 
 export async function deleteResource(id: string, params: { subject: string }) {
-  return request<ApiResponse<void>>('/api/resources', {
+  return request<ApiResponse<ResourceDeletionResult>>('/api/resources', {
     method: 'DELETE',
     params: { id, ...params },
   });

@@ -1,5 +1,6 @@
 import type {
   AttachmentResourceType,
+  ComposedResourceType,
   KnowledgeNode,
   ResourceCarrierType,
   ResourceItem,
@@ -19,9 +20,11 @@ import {
   getResourceList,
   isAttachmentFileCompatible,
   isAttachmentResourceType,
+  isComposedResourceType,
   RESOURCE_CARRIER_LABELS,
   RESOURCE_LIFECYCLE_ACTION_LABELS,
   RESOURCE_LIFECYCLE_TRANSITIONS,
+  RESOURCE_NAME_CONFLICT_CODE,
   RESOURCE_STATUS_LABELS,
   RESOURCE_TYPE_LABELS,
   transitionResourceLifecycle,
@@ -36,6 +39,8 @@ import {
   FilePdfOutlined,
   FilePptOutlined,
   FileTextOutlined,
+  FormOutlined,
+  HistoryOutlined,
   InboxOutlined,
   RollbackOutlined,
   SafetyCertificateOutlined,
@@ -45,8 +50,10 @@ import {
   VideoCameraOutlined,
 } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
-import { useSearchParams } from '@umijs/max';
+import { history, useSearchParams } from '@umijs/max';
+import type { TreeDataNode } from 'antd';
 import {
+  Alert,
   Button,
   Card,
   Form,
@@ -55,9 +62,11 @@ import {
   Modal,
   Select,
   Space,
+  Spin,
   Table,
   Tag,
   Tooltip,
+  Tree,
   TreeSelect,
   Upload,
 } from 'antd';
@@ -71,6 +80,8 @@ import React, {
   useState,
 } from 'react';
 import { SUBJECT_OPTIONS } from '../TagManage/components/treeFilterConstants';
+import type { ResourceDetailRequest } from './components/ResourceDetailDrawer';
+import ResourceDetailDrawer from './components/ResourceDetailDrawer';
 import './index.less';
 
 interface ResourceFormValues {
@@ -204,6 +215,19 @@ const buildReviewTreeMetadata = (
   };
 };
 
+const toReviewTreeData = (nodes: ReviewTreeSelectNode[]): TreeDataNode[] =>
+  nodes.map((node) => ({
+    title: node.title,
+    key: node.key,
+    children: node.children ? toReviewTreeData(node.children) : undefined,
+  }));
+
+const collectTreeKeys = (nodes: TreeDataNode[]): React.Key[] =>
+  nodes.flatMap((node) => [
+    node.key,
+    ...(node.children ? collectTreeKeys(node.children) : []),
+  ]);
+
 const getCarrierIcon = (carrierType: ResourceCarrierType) => {
   if (carrierType === 'ppt') return <FilePptOutlined />;
   if (carrierType === 'pdf') return <FilePdfOutlined />;
@@ -263,6 +287,7 @@ const AssetCenterPage: React.FC = () => {
   const [nodeFilter, setNodeFilter] = useState<string | undefined>(
     initialFiltersRef.current.nodeId,
   );
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);
@@ -277,6 +302,8 @@ const AssetCenterPage: React.FC = () => {
   const [ownershipSubmitting, setOwnershipSubmitting] = useState(false);
   const [lifecycleOperation, setLifecycleOperation] =
     useState<LifecycleOperation | null>(null);
+  const [detailRequest, setDetailRequest] =
+    useState<ResourceDetailRequest | null>(null);
   const [catalogRefreshToken, setCatalogRefreshToken] = useState(0);
   const [form] = Form.useForm<ResourceFormValues>();
   const [ownershipForm] = Form.useForm<OwnershipFormValues>();
@@ -287,13 +314,24 @@ const AssetCenterPage: React.FC = () => {
   const ownershipOperationGenerationRef = useRef(0);
   const lifecycleOperationGenerationRef = useRef(0);
   const lifecycleOperationTokenRef = useRef<number | null>(null);
+  const detailRequestSequenceRef = useRef(0);
 
   const selectedFormType = Form.useWatch('type', form);
   const selectedFormNodeId = Form.useWatch('nodeId', form);
+  const selectedFormName = Form.useWatch('name', form);
 
   const reviewTreeMetadata = useMemo(
     () => buildReviewTreeMetadata(reviewTree),
     [reviewTree],
+  );
+  const reviewTreeData = useMemo(
+    () => toReviewTreeData(reviewTreeMetadata.filterTreeSelectData),
+    [reviewTreeMetadata],
+  );
+
+  const isSubjectActive = useCallback(
+    (subject: string) => activeSubjectRef.current === subject,
+    [],
   );
 
   const fetchResources = useCallback(async () => {
@@ -380,6 +418,10 @@ const AssetCenterPage: React.FC = () => {
     void fetchReviewTree();
   }, [catalogRefreshToken, fetchReviewTree]);
 
+  useEffect(() => {
+    setExpandedKeys(collectTreeKeys(reviewTreeData));
+  }, [reviewTreeData]);
+
   const hasActiveFilters = Boolean(
     keyword.trim() ||
       typeFilter !== 'all' ||
@@ -423,6 +465,7 @@ const AssetCenterPage: React.FC = () => {
     setOwnershipSubmitting(false);
     ownershipForm.resetFields();
     setLifecycleOperation(null);
+    setDetailRequest(null);
   };
 
   const closeForm = () => {
@@ -454,6 +497,27 @@ const AssetCenterPage: React.FC = () => {
     setFormOpen(true);
   };
 
+  const openCombinationProduction = (type: ComposedResourceType) => {
+    const params = new URLSearchParams({
+      type,
+      subject: selectedSubject,
+    });
+    history.push(`/combination-production/new?${params.toString()}`);
+  };
+
+  const openCombinationRevision = (resource: ResourceItem) => {
+    if (!isComposedResourceType(resource.type)) return;
+    const params = new URLSearchParams({
+      subject: resource.subject,
+      type: resource.type,
+    });
+    history.push(
+      `/combination-production/revision/${encodeURIComponent(
+        resource.id,
+      )}?${params.toString()}`,
+    );
+  };
+
   const closeOwnershipModal = () => {
     ownershipOperationGenerationRef.current += 1;
     setOwnershipOpen(false);
@@ -470,24 +534,61 @@ const AssetCenterPage: React.FC = () => {
     setOwnershipOpen(true);
   };
 
-  const isDuplicatedResourceName = (
+  const findDuplicatedResourceName = (
     name: string,
     type?: ResourceType,
     nodeId?: string,
   ) => {
     const scopedNodeId = nodeId || editingResource?.nodeId;
-    return Boolean(
-      type &&
-        scopedNodeId &&
-        resources.some(
-          (resource) =>
-            resource.id !== editingResource?.id &&
-            resource.type === type &&
-            resource.nodeId === scopedNodeId &&
-            resource.name.trim() === name.trim(),
-        ),
+    if (!type || !scopedNodeId || !name.trim()) return undefined;
+    return resources.find(
+      (resource) =>
+        resource.id !== editingResource?.id &&
+        resource.type === type &&
+        resource.nodeId === scopedNodeId &&
+        resource.name.trim() === name.trim(),
     );
   };
+
+  const isDuplicatedResourceName = (
+    name: string,
+    type?: ResourceType,
+    nodeId?: string,
+  ) => Boolean(findDuplicatedResourceName(name, type, nodeId));
+
+  const openResourceDetail = (
+    resource: ResourceItem,
+    initialFileList?: UploadFile[],
+  ) => {
+    detailRequestSequenceRef.current += 1;
+    setDetailRequest({
+      key: detailRequestSequenceRef.current,
+      resource,
+      initialFileList: initialFileList?.slice(-1),
+    });
+  };
+
+  const enterExistingResourceVersionFlow = (
+    resource: ResourceItem,
+    initialFileList?: UploadFile[],
+  ) => {
+    closeForm();
+    openResourceDetail(resource, initialFileList);
+    message.info(
+      resource.status === 'archived'
+        ? '已定位到同名的已归档资源；上传兼容新版本时将原子恢复为未上架'
+        : '已定位到同名逻辑资源，请将文件上传为新版本',
+    );
+  };
+
+  const duplicatedCreateResource =
+    !editingResource && selectedFormName
+      ? findDuplicatedResourceName(
+          selectedFormName,
+          selectedFormType,
+          selectedFormNodeId,
+        )
+      : undefined;
 
   const handleTypeChange = (type: AttachmentResourceType) => {
     const selectedFile = form.getFieldValue('fileList')?.[0];
@@ -531,6 +632,18 @@ const AssetCenterPage: React.FC = () => {
       return;
     }
     if (!isCurrentOperation()) return;
+
+    if (!operationResource) {
+      const duplicatedResource = findDuplicatedResourceName(
+        values.name,
+        values.type,
+        values.nodeId,
+      );
+      if (duplicatedResource) {
+        enterExistingResourceVersionFlow(duplicatedResource, values.fileList);
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -577,6 +690,27 @@ const AssetCenterPage: React.FC = () => {
           return;
         }
         if (!response.success) {
+          if (response.code === RESOURCE_NAME_CONFLICT_CODE && response.data) {
+            const duplicatedResource = response.data;
+            const selectedFiles = values.fileList?.slice(-1);
+            Modal.confirm({
+              title: '同名内容归入已有资源',
+              content:
+                duplicatedResource.status === 'archived'
+                  ? '该末级节点下已有同类型、同名称的已归档资源。请把本次文件上传为新版本；服务端将在同一次变更中恢复为未上架，不会创建重复资源。'
+                  : '该末级节点下已有同类型、同名称资源。为保持一个逻辑资源及完整版本历史，请把本次文件上传为新版本。',
+              okText: '进入新增版本',
+              cancelText: '返回修改名称',
+              onOk: () => {
+                if (activeSubjectRef.current !== operationSubject) return;
+                enterExistingResourceVersionFlow(
+                  duplicatedResource,
+                  selectedFiles,
+                );
+              },
+            });
+            return;
+          }
           message.error(response.message || '附件资源上传失败');
           return;
         }
@@ -706,7 +840,8 @@ const AssetCenterPage: React.FC = () => {
   const handleDelete = (resource: ResourceItem) => {
     if (!resource.canDelete) {
       message.warning(
-        `该资源已有 ${resource.referenceCount} 个业务引用，只能归档，不能彻底删除`,
+        resource.hardDeleteBlockedReason ||
+          `该资源已有 ${resource.referenceCount} 个业务引用，只能归档，不能彻底删除`,
       );
       return;
     }
@@ -804,8 +939,11 @@ const AssetCenterPage: React.FC = () => {
       key: 'currentVersion',
       width: 96,
       render: (_, resource) => (
-        <span className="asset-center-version-label">
-          V{resource.currentVersion.versionNumber}
+        <span className="asset-center-version-summary">
+          <strong>V{resource.currentVersion.versionNumber}</strong>
+          {resource.pendingVersionCount > 0 && (
+            <small>{resource.pendingVersionCount} 个待生效</small>
+          )}
         </span>
       ),
     },
@@ -830,11 +968,14 @@ const AssetCenterPage: React.FC = () => {
       title: '业务引用',
       dataIndex: 'referenceCount',
       key: 'referenceCount',
-      width: 112,
+      width: 150,
       render: (referenceCount: number, resource) => (
-        <div className="asset-center-reference-cell">
+        <div
+          className="asset-center-reference-cell"
+          title={resource.hardDeleteBlockedReason || '当前无固定版本引用'}
+        >
           <strong>{referenceCount}</strong>
-          <span>{resource.canDelete ? '可彻底删除' : '需保留'}</span>
+          <span>{resource.canDelete ? '可彻底删除' : '固定版本 · 需保留'}</span>
         </div>
       ),
     },
@@ -849,7 +990,7 @@ const AssetCenterPage: React.FC = () => {
       title: '操作',
       key: 'action',
       fixed: 'right',
-      width: 460,
+      width: 640,
       render: (_, resource) => {
         const lifecycleActions = Object.keys(
           RESOURCE_LIFECYCLE_TRANSITIONS[resource.status],
@@ -860,10 +1001,20 @@ const AssetCenterPage: React.FC = () => {
           ? '请等待当前生命周期操作完成'
           : resource.canDelete
           ? '仅无业务引用的资源可以彻底删除'
-          : `已有 ${resource.referenceCount} 个业务引用，不能彻底删除，请使用归档`;
+          : resource.hardDeleteBlockedReason ||
+            `已有 ${resource.referenceCount} 个业务引用，不能彻底删除，请使用归档`;
 
         return (
           <Space size={0} wrap>
+            <Button
+              type="link"
+              size="small"
+              icon={<HistoryOutlined />}
+              disabled={lifecycleBusy}
+              onClick={() => openResourceDetail(resource)}
+            >
+              详情 / 版本
+            </Button>
             {lifecycleActions.map((action) => (
               <Button
                 key={action}
@@ -880,6 +1031,17 @@ const AssetCenterPage: React.FC = () => {
                 {RESOURCE_LIFECYCLE_ACTION_LABELS[action]}
               </Button>
             ))}
+            {isComposedResourceType(resource.type) && (
+              <Button
+                type="link"
+                size="small"
+                icon={<FormOutlined />}
+                disabled={lifecycleBusy}
+                onClick={() => openCombinationRevision(resource)}
+              >
+                发起修订
+              </Button>
+            )}
             <Button
               type="link"
               size="small"
@@ -946,83 +1108,143 @@ const AssetCenterPage: React.FC = () => {
               当前仅展示一个学科，资源学科继承自所属节点
             </span>
           </div>
-          <Button
-            type="primary"
-            icon={<UploadOutlined />}
-            onClick={openCreateModal}
-          >
-            上传附件资源
-          </Button>
-        </div>
-
-        <div className="asset-center-filter-panel">
-          <div className="asset-center-filter-heading">
-            <strong>目录筛选</strong>
-            <span>条件可组合；选择父节点时包含其全部后代资源</span>
-          </div>
-          <div className="asset-center-filter-controls">
-            <Input
-              allowClear
-              placeholder="搜索资源名称或原始文件名…"
-              prefix={<SearchOutlined />}
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              aria-label="按名称筛选资产"
-              className="asset-center-search"
-            />
-            <Select
-              value={typeFilter}
-              onChange={setTypeFilter}
-              options={RESOURCE_TYPE_OPTIONS}
-              aria-label="筛选资源类型"
-              className="asset-center-filter-select"
-            />
-            <Select
-              value={carrierFilter}
-              onChange={setCarrierFilter}
-              options={RESOURCE_CARRIER_OPTIONS}
-              aria-label="筛选载体类型"
-              className="asset-center-filter-select"
-            />
-            <Select
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={RESOURCE_STATUS_OPTIONS}
-              aria-label="筛选资源状态"
-              className="asset-center-filter-select"
-            />
-            <TreeSelect
-              allowClear
-              value={nodeFilter}
-              onChange={setNodeFilter}
-              placeholder="全部复习树节点"
-              treeData={reviewTreeMetadata.filterTreeSelectData}
-              treeDefaultExpandAll
-              showSearch
-              treeNodeFilterProp="title"
-              aria-label="筛选复习树节点"
-              className="asset-center-node-filter"
-              notFoundContent="当前学科暂无复习树节点"
-            />
-            <Button onClick={resetFilters} disabled={!hasActiveFilters}>
-              重置
+          <div className="asset-center-toolbar-actions">
+            <div
+              className="asset-center-composed-entry"
+              aria-label="组合制作快捷入口"
+            >
+              <span className="asset-center-composed-entry-label">
+                <strong>组合制作</strong>
+                <small>前往独立模块</small>
+              </span>
+              <Button
+                icon={<FormOutlined />}
+                onClick={() => openCombinationProduction('studyGuide')}
+              >
+                新建学案
+              </Button>
+              <Button
+                icon={<FormOutlined />}
+                onClick={() => openCombinationProduction('homework')}
+              >
+                新建作业
+              </Button>
+            </div>
+            <Button
+              type="primary"
+              icon={<UploadOutlined />}
+              onClick={openCreateModal}
+            >
+              上传附件资源
             </Button>
           </div>
         </div>
 
-        <Table<ResourceItem>
-          rowKey="id"
-          loading={loading || treeLoading}
-          columns={columns}
-          dataSource={resources}
-          scroll={{ x: 1900 }}
-          locale={{ emptyText: '当前筛选条件下暂无资源' }}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: false,
-            showTotal: (total) => `共 ${total} 份资源`,
-          }}
-        />
+        <div className="asset-center-layout">
+          <aside
+            className="asset-center-tree-panel"
+            aria-label="复习树节点筛选"
+          >
+            <div className="asset-center-tree-heading">
+              <div>
+                <strong>复习树节点</strong>
+                <span>点击节点，筛选该节点及后代资源</span>
+              </div>
+              <Button
+                size="small"
+                onClick={() => setNodeFilter(undefined)}
+                disabled={!nodeFilter}
+              >
+                全部节点
+              </Button>
+            </div>
+            {nodeFilter && (
+              <div className="asset-center-tree-active">
+                <span>当前筛选范围</span>
+                <strong
+                  title={
+                    reviewTreeMetadata.nodePathMap.get(nodeFilter) || nodeFilter
+                  }
+                >
+                  {reviewTreeMetadata.nodePathMap.get(nodeFilter) || nodeFilter}
+                </strong>
+              </div>
+            )}
+            <div className="asset-center-tree-body">
+              <Spin spinning={treeLoading}>
+                <Tree
+                  treeData={reviewTreeData}
+                  selectedKeys={nodeFilter ? [nodeFilter] : []}
+                  expandedKeys={expandedKeys}
+                  onExpand={(keys) => setExpandedKeys(keys)}
+                  onSelect={(keys) =>
+                    setNodeFilter(keys[0] ? String(keys[0]) : undefined)
+                  }
+                  showLine
+                  blockNode
+                />
+              </Spin>
+            </div>
+          </aside>
+
+          <section className="asset-center-content">
+            <div className="asset-center-filter-panel">
+              <div className="asset-center-filter-heading">
+                <strong>目录筛选</strong>
+                <span>条件可组合；节点范围由左侧复习树决定</span>
+              </div>
+              <div className="asset-center-filter-controls">
+                <Input
+                  allowClear
+                  placeholder="搜索资源名称或原始文件名…"
+                  prefix={<SearchOutlined />}
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  aria-label="按名称筛选资产"
+                  className="asset-center-search"
+                />
+                <Select
+                  value={typeFilter}
+                  onChange={setTypeFilter}
+                  options={RESOURCE_TYPE_OPTIONS}
+                  aria-label="筛选资源类型"
+                  className="asset-center-filter-select"
+                />
+                <Select
+                  value={carrierFilter}
+                  onChange={setCarrierFilter}
+                  options={RESOURCE_CARRIER_OPTIONS}
+                  aria-label="筛选载体类型"
+                  className="asset-center-filter-select"
+                />
+                <Select
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={RESOURCE_STATUS_OPTIONS}
+                  aria-label="筛选资源状态"
+                  className="asset-center-filter-select"
+                />
+                <Button onClick={resetFilters} disabled={!hasActiveFilters}>
+                  重置
+                </Button>
+              </div>
+            </div>
+
+            <Table<ResourceItem>
+              rowKey="id"
+              loading={loading || treeLoading}
+              columns={columns}
+              dataSource={resources}
+              scroll={{ x: 2090 }}
+              locale={{ emptyText: '当前筛选条件下暂无资源' }}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: false,
+                showTotal: (total) => `共 ${total} 份资源`,
+              }}
+            />
+          </section>
+        </div>
       </Card>
 
       <Modal
@@ -1030,7 +1252,13 @@ const AssetCenterPage: React.FC = () => {
         open={formOpen}
         onOk={handleSubmit}
         onCancel={closeForm}
-        okText={editingResource ? '保存' : '创建资源并生成 V1'}
+        okText={
+          editingResource
+            ? '保存'
+            : duplicatedCreateResource
+            ? '上传为新版本'
+            : '创建资源并生成 V1'
+        }
         cancelText="取消"
         confirmLoading={submitting}
         width={640}
@@ -1178,6 +1406,7 @@ const AssetCenterPage: React.FC = () => {
               {
                 validator: (_, name?: string) => {
                   if (
+                    editingResource &&
                     name?.trim() &&
                     isDuplicatedResourceName(
                       name,
@@ -1201,6 +1430,34 @@ const AssetCenterPage: React.FC = () => {
           >
             <Input placeholder="请输入资源名称" maxLength={40} showCount />
           </Form.Item>
+
+          {!editingResource && duplicatedCreateResource && (
+            <Alert
+              type="warning"
+              showIcon
+              className="asset-center-same-name-guide"
+              message="已存在同名逻辑资源"
+              description={
+                duplicatedCreateResource.status === 'archived'
+                  ? `“${duplicatedCreateResource.name}”已有 ${duplicatedCreateResource.versionCount} 个版本且当前已归档。上传兼容新版本时，服务端会原子恢复为未上架，不会创建重复资源。`
+                  : `“${duplicatedCreateResource.name}”已有 ${duplicatedCreateResource.versionCount} 个版本。请保留资源身份、类型与归属，把本次文件作为新版本上传。`
+              }
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() =>
+                    enterExistingResourceVersionFlow(
+                      duplicatedCreateResource,
+                      form.getFieldValue('fileList'),
+                    )
+                  }
+                >
+                  上传为新版本
+                </Button>
+              }
+            />
+          )}
         </Form>
       </Modal>
 
@@ -1274,6 +1531,23 @@ const AssetCenterPage: React.FC = () => {
           </>
         )}
       </Modal>
+
+      <ResourceDetailDrawer
+        request={detailRequest}
+        nodePath={
+          detailRequest
+            ? reviewTreeMetadata.nodePathMap.get(detailRequest.resource.nodeId)
+            : undefined
+        }
+        onClose={() => setDetailRequest(null)}
+        onStartRevision={openCombinationRevision}
+        isSubjectActive={isSubjectActive}
+        onResourceChanged={(resource) => {
+          if (activeSubjectRef.current === resource.subject) {
+            setCatalogRefreshToken((current) => current + 1);
+          }
+        }}
+      />
     </PageContainer>
   );
 };
