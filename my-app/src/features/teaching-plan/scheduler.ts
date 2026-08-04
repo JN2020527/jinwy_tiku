@@ -46,7 +46,7 @@ export const scheduleTeachingPlan = ({
   let unscheduledHours = 0;
 
   const seenResourceNodeIds = new Set<string>();
-  const groups = new Map<number, TeachingPlanTask[]>();
+  const schedulableTasks: TeachingPlanTask[] = [];
   for (const task of sortTasks(tasks)) {
     if (seenResourceNodeIds.has(task.resourceNodeId)) {
       conflicts.push({
@@ -85,53 +85,51 @@ export const scheduleTeachingPlan = ({
       unscheduledHours += task.hours;
       continue;
     }
-    const group = groups.get(task.anchorWeek) ?? [];
-    group.push(task);
-    groups.set(task.anchorWeek, group);
+    schedulableTasks.push(task);
   }
 
-  for (const [anchorWeek, group] of [...groups.entries()].sort(
-    ([left], [right]) => left - right,
-  )) {
-    let cursorWeek = anchorWeek;
-    let groupWeekRemaining = weeklyHours;
+  let cursorWeek = 1;
+  let weekRemaining = weeklyHours;
+  for (const task of schedulableTasks) {
+    if (cursorWeek < task.anchorWeek) {
+      cursorWeek = task.anchorWeek;
+      weekRemaining = weeklyHours;
+    }
 
-    for (const task of sortTasks(group)) {
-      let taskRemaining = task.hours;
-      let part = 1;
-      while (taskRemaining > 0 && cursorWeek <= totalWeeks) {
-        if (groupWeekRemaining === 0) {
-          cursorWeek += 1;
-          groupWeekRemaining = weeklyHours;
-          if (cursorWeek > totalWeeks) break;
-        }
-        const hours = Math.min(taskRemaining, groupWeekRemaining);
-        weeks[cursorWeek - 1].segments.push({
-          taskId: task.id,
-          resourceNodeId: task.resourceNodeId,
-          resourceNodeName: task.resourceNodeName,
-          hours,
-          anchorWeek: task.anchorWeek,
-          continuation: part > 1 || cursorWeek > task.anchorWeek,
-          part,
-        });
-        taskRemaining -= hours;
-        groupWeekRemaining -= hours;
-        if (taskRemaining > 0) {
-          cursorWeek += 1;
-          groupWeekRemaining = weeklyHours;
-          part += 1;
-        }
+    let taskRemaining = task.hours;
+    let part = 1;
+    while (taskRemaining > 0 && cursorWeek <= totalWeeks) {
+      if (weekRemaining === 0) {
+        cursorWeek += 1;
+        weekRemaining = weeklyHours;
+        if (cursorWeek > totalWeeks) break;
       }
+      const hours = Math.min(taskRemaining, weekRemaining);
+      weeks[cursorWeek - 1].segments.push({
+        taskId: task.id,
+        resourceNodeId: task.resourceNodeId,
+        resourceNodeName: task.resourceNodeName,
+        hours,
+        anchorWeek: task.anchorWeek,
+        continuation: part > 1,
+        part,
+      });
+      taskRemaining -= hours;
+      weekRemaining -= hours;
       if (taskRemaining > 0) {
-        unscheduledHours += taskRemaining;
-        conflicts.push({
-          type: 'outside-plan',
-          taskId: task.id,
-          week: totalWeeks,
-          message: `任务「${task.resourceNodeName}」有 ${taskRemaining} 课时超出计划范围`,
-        });
+        cursorWeek += 1;
+        weekRemaining = weeklyHours;
+        part += 1;
       }
+    }
+    if (taskRemaining > 0) {
+      unscheduledHours += taskRemaining;
+      conflicts.push({
+        type: 'outside-plan',
+        taskId: task.id,
+        week: totalWeeks,
+        message: `任务「${task.resourceNodeName}」有 ${taskRemaining} 课时超出计划范围`,
+      });
     }
   }
 

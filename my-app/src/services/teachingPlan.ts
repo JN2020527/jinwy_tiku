@@ -92,7 +92,7 @@ export async function removeTeachingPlanTask(
 ) {
   return request<ApiResponse<TeachingPlanTemplate>>(
     `${TEMPLATE_ENDPOINT}/${data.templateId}/tasks/${data.taskId}`,
-    { method: 'DELETE' },
+    { method: 'DELETE', data: { operator: data.operator } },
   );
 }
 
@@ -139,10 +139,13 @@ export async function copyTeachingPlanTemplate(
   );
 }
 
-export async function deleteOrArchiveTeachingPlanTemplate(id: string) {
+export async function deleteOrArchiveTeachingPlanTemplate(
+  id: string,
+  operator = '当前管理员',
+) {
   return request<ApiResponse<DeleteOrArchiveTeachingPlanTemplateResult>>(
     `${TEMPLATE_ENDPOINT}/${id}`,
-    { method: 'DELETE' },
+    { method: 'DELETE', data: { operator } },
   );
 }
 

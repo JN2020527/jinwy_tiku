@@ -23,7 +23,7 @@ export interface TeachingPlanTask {
   /** 节点下的课件、学案等内容始终按当前资源动态读取。 */
   resourceReferenceMode: 'dynamic';
   hours: number;
-  /** 人工选择任务时所在的周；自动排期不得改写该锚点。 */
+  /** 人工选择任务时所在的周；它是最早开始周，自动排期不得改写。 */
   anchorWeek: number;
   order: number;
 }
@@ -95,6 +95,7 @@ export interface TeachingPlanTemplate {
   activatedSnapshot?: ActivatedTeachingPlanSnapshot;
   createdAt: string;
   updatedAt: string;
+  updatedBy: string;
   activatedAt?: string;
   activatedBy?: string;
 }
@@ -110,6 +111,7 @@ export interface CreateTeachingPlanTemplateInput {
   subject: string;
   totalWeeks: number;
   weeklyHours: number;
+  operator?: string;
 }
 
 export interface UpdateTeachingPlanTemplateInput {
@@ -118,6 +120,7 @@ export interface UpdateTeachingPlanTemplateInput {
   subject?: string;
   totalWeeks?: number;
   weeklyHours?: number;
+  operator?: string;
 }
 
 export interface AddTeachingPlanTaskInput {
@@ -125,6 +128,7 @@ export interface AddTeachingPlanTaskInput {
   resourceNode: SchedulableResourceNode;
   anchorWeek: number;
   index?: number;
+  operator?: string;
 }
 
 export interface MoveTeachingPlanTaskInput {
@@ -132,17 +136,20 @@ export interface MoveTeachingPlanTaskInput {
   taskId: string;
   toWeek: number;
   toIndex?: number;
+  operator?: string;
 }
 
 export interface ReorderTeachingPlanTasksInput {
   templateId: string;
   week: number;
   taskIds: string[];
+  operator?: string;
 }
 
 export interface RemoveTeachingPlanTaskInput {
   templateId: string;
   taskId: string;
+  operator?: string;
 }
 
 export interface OperateTeachingPlanTemplateInput {
@@ -152,11 +159,13 @@ export interface OperateTeachingPlanTemplateInput {
 
 export interface CreateDraftVersionInput {
   id: string;
+  operator?: string;
 }
 
 export interface CopyTeachingPlanTemplateInput {
   id: string;
   name: string;
+  operator?: string;
 }
 
 export interface TeachingPlanTemplateListParams {

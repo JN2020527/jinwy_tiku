@@ -3,31 +3,27 @@ import type {
   SchedulableResourceNode,
   TeachingPlanTask,
   TeachingPlanTemplate,
-  TeachingPlanWeek,
 } from '@/services/teachingPlan';
 import { teachingPlanService } from '@/services/teachingPlan';
 import {
-  ArrowDownOutlined,
   ArrowLeftOutlined,
-  ArrowRightOutlined,
-  ArrowUpOutlined,
-  CalendarOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
   CopyOutlined,
   DeleteOutlined,
+  DownOutlined,
   EditOutlined,
-  ExclamationCircleOutlined,
-  FileAddOutlined,
-  MoreOutlined,
+  EllipsisOutlined,
+  HolderOutlined,
+  InfoCircleOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   RetweetOutlined,
   SaveOutlined,
-  SwapOutlined,
+  SearchOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
-import { PageContainer } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
+import { PageContainer, ProTable } from '@ant-design/pro-components';
 import type { MenuProps } from 'antd';
 import {
   Alert,
@@ -35,24 +31,32 @@ import {
   Card,
   Dropdown,
   Empty,
+  Flex,
   Form,
   Input,
   InputNumber,
   message,
   Modal,
-  Progress,
   Select,
   Space,
   Spin,
-  Table,
   Tag,
   Tooltip,
+  Typography,
 } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import './index.less';
 
 type TemplateStatus = TeachingPlanTemplate['status'];
+type TemplateListStatus = TemplateStatus | 'active-with-draft';
+
+interface TemplateFamilyRow {
+  familyId: string;
+  current: TeachingPlanTemplate;
+  active?: TeachingPlanTemplate;
+  draft?: TeachingPlanTemplate;
+  status: TemplateListStatus;
+}
 
 interface TemplateFormValues {
   name: string;
@@ -65,12 +69,28 @@ interface CopyFormValues {
   name: string;
 }
 
-interface MoveFormValues {
-  week: number;
+interface PendingConfirmation {
+  title: React.ReactNode;
+  content: React.ReactNode;
+  okText: string;
+  danger?: boolean;
+  operation: () => Promise<unknown>;
 }
 
-interface ResourceFormValues {
-  resourceNodeId: string;
+type TeachingPlanDragPayload =
+  | { kind: 'resource'; resourceNodeId: string }
+  | { kind: 'task'; taskId: string; fromWeek: number };
+
+interface TeachingPlanDropTarget {
+  week: number;
+  index: number;
+}
+
+interface ResourceTreeBranch {
+  key: string;
+  label: string;
+  children: ResourceTreeBranch[];
+  resources: SchedulableResourceNode[];
 }
 
 const SUBJECT_OPTIONS = [
@@ -85,11 +105,58 @@ const SUBJECT_OPTIONS = [
   { label: '道德与法治', value: 'politics' },
 ];
 
+const TEACHING_PLAN_DRAG_MIME = 'application/x-teaching-plan-task';
+
 const STATUS_META: Record<TemplateStatus, { label: string; color: string }> = {
   draft: { label: '草稿', color: 'default' },
   active: { label: '已启动', color: 'green' },
   stopped: { label: '已停用', color: 'orange' },
   archived: { label: '已归档', color: 'default' },
+};
+
+const LIST_STATUS_META: Record<
+  TemplateListStatus,
+  { label: string; color: string }
+> = {
+  ...STATUS_META,
+  'active-with-draft': {
+    label: '已启动 · 有未发布修改',
+    color: 'blue',
+  },
+};
+
+const groupTemplateFamilies = (
+  templates: TeachingPlanTemplate[],
+): TemplateFamilyRow[] => {
+  const families = new Map<string, TeachingPlanTemplate[]>();
+  templates.forEach((template) => {
+    const versions = families.get(template.familyId) ?? [];
+    versions.push(template);
+    families.set(template.familyId, versions);
+  });
+
+  return [...families.entries()].map(([familyId, versions]) => {
+    const sortedVersions = [...versions].sort(
+      (left, right) => right.version - left.version,
+    );
+    const draft = sortedVersions.find(
+      (template) => template.status === 'draft',
+    );
+    const active = sortedVersions.find(
+      (template) => template.status === 'active',
+    );
+    const stopped = sortedVersions.find(
+      (template) => template.status === 'stopped',
+    );
+    const current = draft ?? active ?? stopped ?? sortedVersions[0];
+    return {
+      familyId,
+      current,
+      active,
+      draft,
+      status: active && draft ? 'active-with-draft' : current.status,
+    };
+  });
 };
 
 const getSubjectLabel = (subject: string) =>
@@ -112,10 +179,15 @@ const getStartBlockers = (template: TeachingPlanTemplate) => {
   if (template.tasks.some((task) => !task.resourceNodeEnabled)) {
     blockers.push('存在已停用的资源节点');
   }
-  if (template.schedule.hasConflicts) blockers.push('存在周容量冲突');
+  const otherConflict = template.schedule.conflicts.find(
+    (conflict) => conflict.type !== 'outside-plan',
+  );
+  if (otherConflict) blockers.push(otherConflict.message);
   if (template.schedule.unscheduledHours > 0) {
     blockers.push(
-      `仍有 ${formatHours(template.schedule.unscheduledHours)} 课时未排入计划`,
+      `任务总课时超出计划范围，仍有 ${formatHours(
+        template.schedule.unscheduledHours,
+      )} 课时未排入`,
     );
   }
   return blockers;
@@ -126,23 +198,156 @@ const getWeekAnchoredTasks = (template: TeachingPlanTemplate, week: number) =>
     .filter((task) => task.anchorWeek === week)
     .sort((left, right) => left.order - right.order);
 
-const getTaskWeekHours = (
-  template: TeachingPlanTemplate,
-  taskId: string,
-  week: number,
-) =>
-  template.schedule.weeks
-    .find((item) => item.week === week)
-    ?.segments.filter((segment) => segment.taskId === taskId)
-    .reduce((sum, segment) => sum + segment.hours, 0) || 0;
+const buildResourceTree = (
+  resources: SchedulableResourceNode[],
+): ResourceTreeBranch[] => {
+  const root: ResourceTreeBranch = {
+    key: 'root',
+    label: 'root',
+    children: [],
+    resources: [],
+  };
 
-const getTaskEndWeek = (template: TeachingPlanTemplate, taskId: string) => {
-  const weeks = template.schedule.weeks
-    .filter((week) =>
-      week.segments.some((segment) => segment.taskId === taskId),
-    )
-    .map((week) => week.week);
-  return weeks.length ? Math.max(...weeks) : undefined;
+  resources.forEach((resource) => {
+    const parentPath =
+      resource.path[resource.path.length - 1] === resource.name
+        ? resource.path.slice(0, -1)
+        : resource.path;
+    let current = root;
+    parentPath.forEach((label, index) => {
+      const key = parentPath.slice(0, index + 1).join('/');
+      let branch = current.children.find((item) => item.key === key);
+      if (!branch) {
+        branch = { key, label, children: [], resources: [] };
+        current.children.push(branch);
+      }
+      current = branch;
+    });
+    current.resources.push(resource);
+  });
+
+  return root.children;
+};
+
+interface ResourceTreePanelProps {
+  resources: SchedulableResourceNode[];
+  usedNodeIds: Set<string>;
+  editable: boolean;
+  loading: boolean;
+  onAdd: (resource: SchedulableResourceNode) => void;
+  onDragStart: (
+    event: React.DragEvent<HTMLDivElement>,
+    resource: SchedulableResourceNode,
+  ) => void;
+  onDragEnd: () => void;
+}
+
+const ResourceTreePanel: React.FC<ResourceTreePanelProps> = ({
+  resources,
+  usedNodeIds,
+  editable,
+  loading,
+  onAdd,
+  onDragStart,
+  onDragEnd,
+}) => {
+  const [keyword, setKeyword] = useState('');
+  const visibleResources = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    if (!normalizedKeyword) return resources;
+    return resources.filter((resource) =>
+      `${resource.name} ${resource.path.join(' ')}`
+        .toLowerCase()
+        .includes(normalizedKeyword),
+    );
+  }, [keyword, resources]);
+  const resourceTree = useMemo(
+    () => buildResourceTree(visibleResources),
+    [visibleResources],
+  );
+
+  const renderResource = (resource: SchedulableResourceNode) => {
+    const used = usedNodeIds.has(resource.id);
+    const available = editable && resource.enabled && !used;
+    return (
+      <div
+        className={`teaching-plan-resource-leaf${
+          available ? ' is-draggable' : ' is-used'
+        }`}
+        key={resource.id}
+        draggable={available}
+        onDragStart={(event) => available && onDragStart(event, resource)}
+        onDragEnd={onDragEnd}
+      >
+        <span className="teaching-plan-resource-drag-handle" aria-hidden>
+          <HolderOutlined />
+        </span>
+        <div className="teaching-plan-resource-leaf-copy">
+          <strong>
+            <span className="teaching-plan-resource-name">
+              {resource.name}
+            </span>
+            <span className="teaching-plan-resource-hours">
+              {formatHours(resource.suggestedHours)} 课时
+            </span>
+          </strong>
+        </div>
+        <Button
+          size="small"
+          disabled={!available}
+          onClick={() => onAdd(resource)}
+        >
+          {used ? '已使用' : '选择'}
+        </Button>
+      </div>
+    );
+  };
+
+  const renderBranch = (branch: ResourceTreeBranch, depth = 0) => (
+    <details
+      className={`teaching-plan-resource-branch depth-${Math.min(depth, 3)}`}
+      key={branch.key}
+      open
+    >
+      <summary>
+        <DownOutlined className="teaching-plan-resource-chevron" />
+        <span>{branch.label}</span>
+      </summary>
+      <div className="teaching-plan-resource-branch-content">
+        {branch.children.map((child) => renderBranch(child, depth + 1))}
+        {branch.resources.map(renderResource)}
+      </div>
+    </details>
+  );
+
+  return (
+    <aside className="teaching-plan-resource-panel">
+      <div className="teaching-plan-resource-panel-header">
+        <strong>可选复习任务</strong>
+        <Tag color="blue">资源树</Tag>
+      </div>
+      <Input
+        allowClear
+        className="teaching-plan-resource-search"
+        prefix={<SearchOutlined />}
+        placeholder="搜索资源名称或路径"
+        value={keyword}
+        onChange={(event) => setKeyword(event.target.value)}
+      />
+      <Spin spinning={loading}>
+        <div className="teaching-plan-resource-tree">
+          {resourceTree.length ? (
+            resourceTree.map((branch) => renderBranch(branch))
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="没有匹配的可选任务"
+            />
+          )}
+        </div>
+      </Spin>
+    </aside>
+  );
 };
 
 const TeachingPlanTemplatePage: React.FC = () => {
@@ -155,20 +360,27 @@ const TeachingPlanTemplatePage: React.FC = () => {
   const [operationLoading, setOperationLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [resourceOpen, setResourceOpen] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] =
+    useState<PendingConfirmation | null>(null);
   const [copySource, setCopySource] = useState<TeachingPlanTemplate | null>(
     null,
   );
-  const [moveTask, setMoveTask] = useState<TeachingPlanTask | null>(null);
   const [resourceNodes, setResourceNodes] = useState<SchedulableResourceNode[]>(
     [],
   );
   const [resourceLoading, setResourceLoading] = useState(false);
+  const [dragPayload, setDragPayload] =
+    useState<TeachingPlanDragPayload | null>(null);
+  const [dropTarget, setDropTarget] = useState<TeachingPlanDropTarget | null>(
+    null,
+  );
   const [createForm] = Form.useForm<TemplateFormValues>();
   const [settingsForm] = Form.useForm<TemplateFormValues>();
   const [copyForm] = Form.useForm<CopyFormValues>();
-  const [moveForm] = Form.useForm<MoveFormValues>();
-  const [resourceForm] = Form.useForm<ResourceFormValues>();
+  const templateFamilies = useMemo(
+    () => groupTemplateFamilies(templates),
+    [templates],
+  );
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -241,7 +453,11 @@ const TeachingPlanTemplatePage: React.FC = () => {
   const createTemplate = async () => {
     const values = await createForm.validateFields();
     const createdTemplate = await runOperation(
-      () => teachingPlanService.create(values),
+      () =>
+        teachingPlanService.create({
+          ...values,
+          operator: '当前管理员',
+        }),
       '教学计划模板草稿已创建',
     );
     if (!createdTemplate) return;
@@ -260,6 +476,7 @@ const TeachingPlanTemplatePage: React.FC = () => {
           name: values.name,
           totalWeeks: values.totalWeeks,
           weeklyHours: values.weeklyHours,
+          operator: '当前管理员',
         }),
       '模板设置已保存，排期已重新计算',
       { refreshDetailId: activeTemplate.id },
@@ -276,20 +493,18 @@ const TeachingPlanTemplatePage: React.FC = () => {
           name: activeTemplate.name,
           totalWeeks: activeTemplate.totalWeeks,
           weeklyHours: activeTemplate.weeklyHours,
+          operator: '当前管理员',
         }),
       '草稿已保存',
       { refreshDetailId: activeTemplate.id },
     );
   };
 
-  const openResourcePicker = async () => {
-    if (!activeTemplate) return;
-    setResourceOpen(true);
+  const fetchResourceNodes = useCallback(async (subject: string) => {
     setResourceLoading(true);
-    resourceForm.resetFields();
     try {
       const response = await teachingPlanService.getSchedulableResourceNodes({
-        subject: activeTemplate.subject,
+        subject,
       });
       setResourceNodes(requireApiData(response));
     } catch (error) {
@@ -299,66 +514,153 @@ const TeachingPlanTemplatePage: React.FC = () => {
     } finally {
       setResourceLoading(false);
     }
-  };
+  }, []);
 
-  const addTask = async () => {
+  useEffect(() => {
+    if (!activeTemplate) {
+      setResourceNodes([]);
+      return;
+    }
+    fetchResourceNodes(activeTemplate.subject);
+  }, [activeTemplate?.id, activeTemplate?.subject, fetchResourceNodes]);
+
+  const addResourceToWeek = async (
+    resourceNode: SchedulableResourceNode,
+    week: number,
+    index?: number,
+  ) => {
     if (!activeTemplate) return;
-    const values = await resourceForm.validateFields();
-    const resourceNode = resourceNodes.find(
-      (node) => node.id === values.resourceNodeId,
-    );
-    if (!resourceNode) return;
     const added = await runOperation(
       () =>
         teachingPlanService.add({
           templateId: activeTemplate.id,
           resourceNode,
-          anchorWeek: selectedWeek,
+          anchorWeek: week,
+          index,
+          operator: '当前管理员',
         }),
-      `已加入第 ${selectedWeek} 周`,
+      `已加入第 ${week} 周`,
       { refreshDetailId: activeTemplate.id },
     );
-    if (added) setResourceOpen(false);
+    if (added) setSelectedWeek(week);
+    return added;
   };
 
-  const moveSelectedTask = async () => {
-    if (!activeTemplate || !moveTask) return;
-    const values = await moveForm.validateFields();
-    const moved = await runOperation(
-      () =>
-        teachingPlanService.move({
-          templateId: activeTemplate.id,
-          taskId: moveTask.id,
-          toWeek: values.week,
-        }),
-      `任务已移动到第 ${values.week} 周`,
-      { refreshDetailId: activeTemplate.id },
+  const startResourceDrag = (
+    event: React.DragEvent<HTMLDivElement>,
+    resourceNode: SchedulableResourceNode,
+  ) => {
+    const payload: TeachingPlanDragPayload = {
+      kind: 'resource',
+      resourceNodeId: resourceNode.id,
+    };
+    setDragPayload(payload);
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData(
+      TEACHING_PLAN_DRAG_MIME,
+      JSON.stringify(payload),
     );
-    if (moved) {
-      setSelectedWeek(values.week);
-      setMoveTask(null);
-    }
   };
 
-  const reorderTask = async (task: TeachingPlanTask, direction: -1 | 1) => {
-    if (!activeTemplate) return;
-    const tasks = getWeekAnchoredTasks(activeTemplate, selectedWeek);
-    const currentIndex = tasks.findIndex((item) => item.id === task.id);
-    const targetIndex = currentIndex + direction;
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= tasks.length) {
+  const startTaskDrag = (
+    event: React.DragEvent<HTMLDivElement>,
+    task: TeachingPlanTask,
+  ) => {
+    const payload: TeachingPlanDragPayload = {
+      kind: 'task',
+      taskId: task.id,
+      fromWeek: task.anchorWeek,
+    };
+    setDragPayload(payload);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(
+      TEACHING_PLAN_DRAG_MIME,
+      JSON.stringify(payload),
+    );
+  };
+
+  const finishDragging = () => {
+    setDragPayload(null);
+    setDropTarget(null);
+  };
+
+  const dropIntoWeek = async (
+    event: React.DragEvent<HTMLElement>,
+    week: number,
+    index: number,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!activeTemplate || activeTemplate.status !== 'draft') {
+      finishDragging();
       return;
     }
-    const nextTasks = [...tasks];
-    [nextTasks[currentIndex], nextTasks[targetIndex]] = [
-      nextTasks[targetIndex],
-      nextTasks[currentIndex],
-    ];
+
+    let payload = dragPayload;
+    if (!payload) {
+      try {
+        payload = JSON.parse(
+          event.dataTransfer.getData(TEACHING_PLAN_DRAG_MIME),
+        ) as TeachingPlanDragPayload;
+      } catch {
+        payload = null;
+      }
+    }
+    finishDragging();
+    if (!payload) return;
+
+    if (payload.kind === 'resource') {
+      const resourceNode = resourceNodes.find(
+        (node) => node.id === payload.resourceNodeId,
+      );
+      if (resourceNode) await addResourceToWeek(resourceNode, week, index);
+      return;
+    }
+
+    const task = activeTemplate.tasks.find(
+      (item) => item.id === payload.taskId,
+    );
+    if (!task) return;
+    if (payload.fromWeek !== week) {
+      await runOperation(
+        () =>
+          teachingPlanService.move({
+            templateId: activeTemplate.id,
+            taskId: task.id,
+            toWeek: week,
+            toIndex: index,
+            operator: '当前管理员',
+          }),
+        `任务已移动到第 ${week} 周`,
+        { refreshDetailId: activeTemplate.id },
+      );
+      setSelectedWeek(week);
+      return;
+    }
+
+    const weekTasks = getWeekAnchoredTasks(activeTemplate, week);
+    const currentIndex = weekTasks.findIndex((item) => item.id === task.id);
+    if (currentIndex < 0) return;
+    const reorderedTasks = weekTasks.filter((item) => item.id !== task.id);
+    const normalizedIndex = Math.max(
+      0,
+      Math.min(currentIndex < index ? index - 1 : index, reorderedTasks.length),
+    );
+    reorderedTasks.splice(normalizedIndex, 0, task);
+    if (
+      reorderedTasks.every(
+        (item, itemIndex) => item.id === weekTasks[itemIndex].id,
+      )
+    ) {
+      return;
+    }
     await runOperation(
       () =>
         teachingPlanService.reorder({
           templateId: activeTemplate.id,
-          week: selectedWeek,
-          taskIds: nextTasks.map((item) => item.id),
+          week,
+          taskIds: reorderedTasks.map((item) => item.id),
+          operator: '当前管理员',
         }),
       '任务顺序已调整，排期已重新计算',
       { refreshDetailId: activeTemplate.id },
@@ -367,18 +669,18 @@ const TeachingPlanTemplatePage: React.FC = () => {
 
   const removeTask = (task: TeachingPlanTask) => {
     if (!activeTemplate) return;
-    Modal.confirm({
+    setPendingConfirmation({
       title: '移除这个教学任务？',
       content: `“${task.resourceNodeName}”及其跨周续排片段将一并移除，后续排期会重新计算。`,
       okText: '移除任务',
-      okButtonProps: { danger: true },
-      cancelText: '取消',
-      onOk: () =>
+      danger: true,
+      operation: () =>
         runOperation(
           () =>
             teachingPlanService.remove({
               templateId: activeTemplate.id,
               taskId: task.id,
+              operator: '当前管理员',
             }),
           '教学任务已移除',
           { refreshDetailId: activeTemplate.id },
@@ -388,27 +690,27 @@ const TeachingPlanTemplatePage: React.FC = () => {
 
   const activateTemplate = (template: TeachingPlanTemplate) => {
     const blockers = getStartBlockers(template);
+    const replacesActiveTemplate = templates.some(
+      (item) => item.familyId === template.familyId && item.status === 'active',
+    );
     if (blockers.length) {
-      Modal.warning({
-        title: '当前模板不能启动',
-        content: blockers.join('；'),
-      });
+      message.warning(blockers.join('；'));
       return;
     }
-    Modal.confirm({
-      title: '启动当前模板版本？',
-      content:
-        '启动后将冻结节点名称、任务课时与周排期。如需修改，需要新建草稿版本。',
-      okText: '确认启动',
-      cancelText: '取消',
-      onOk: () =>
+    setPendingConfirmation({
+      title: replacesActiveTemplate ? '发布模板更新？' : '启动当前模板？',
+      content: replacesActiveTemplate
+        ? '系统会先校验整份排期。校验通过后修改立即生效；校验失败时，当前已启动内容保持不变。'
+        : '系统会先校验整份排期。启动后模板内容将生效，后续修改需要再次发布。',
+      okText: replacesActiveTemplate ? '发布更新' : '确认启动',
+      operation: () =>
         runOperation(
           () =>
             teachingPlanService.activate({
               id: template.id,
               operator: '当前管理员',
             }),
-          '模板版本已启动',
+          replacesActiveTemplate ? '模板更新已发布' : '模板已启动',
           {
             refreshDetailId:
               activeTemplate?.id === template.id ? template.id : undefined,
@@ -418,19 +720,18 @@ const TeachingPlanTemplatePage: React.FC = () => {
   };
 
   const stopTemplate = (template: TeachingPlanTemplate) => {
-    Modal.confirm({
-      title: '停用当前模板版本？',
-      content: '停用后不再作为当前启动版本，历史配置仍然保留。',
+    setPendingConfirmation({
+      title: '停用当前模板？',
+      content: '停用后模板不再生效，已有配置仍然保留。',
       okText: '确认停用',
-      cancelText: '取消',
-      onOk: () =>
+      operation: () =>
         runOperation(
           () =>
             teachingPlanService.stop({
               id: template.id,
               operator: '当前管理员',
             }),
-          '模板版本已停用',
+          '模板已停用',
           {
             refreshDetailId:
               activeTemplate?.id === template.id ? template.id : undefined,
@@ -442,26 +743,22 @@ const TeachingPlanTemplatePage: React.FC = () => {
   const restartTemplate = (template: TeachingPlanTemplate) => {
     const blockers = getStartBlockers(template);
     if (blockers.length) {
-      Modal.warning({
-        title: '当前版本不能重新启动',
-        content: blockers.join('；'),
-      });
+      message.warning(blockers.join('；'));
       return;
     }
-    Modal.confirm({
-      title: '重新启动当前模板版本？',
+    setPendingConfirmation({
+      title: '重新启动当前模板？',
       content:
-        '系统将重新执行完整启动校验；若同一模板已有启动版本，需要先停用该版本。',
+        '系统将重新执行完整启动校验；校验通过后模板重新生效，校验失败时当前生效内容保持不变。',
       okText: '重新启动',
-      cancelText: '取消',
-      onOk: () =>
+      operation: () =>
         runOperation(
           () =>
             teachingPlanService.restart({
               id: template.id,
               operator: '当前管理员',
             }),
-          '模板版本已重新启动',
+          '模板已重新启动',
           {
             refreshDetailId:
               activeTemplate?.id === template.id ? template.id : undefined,
@@ -470,38 +767,43 @@ const TeachingPlanTemplatePage: React.FC = () => {
     });
   };
 
-  const createDraftVersion = (template: TeachingPlanTemplate) => {
-    Modal.confirm({
-      title: '基于当前版本新建草稿？',
-      content: '新草稿会复制模板设置、教学任务和排序；当前版本保持不变。',
-      okText: '新建草稿版本',
-      cancelText: '取消',
-      onOk: async () => {
-        setOperationLoading(true);
-        try {
-          const response = await teachingPlanService.createDraftVersion({
-            id: template.id,
-          });
-          const draftTemplate = requireApiData(response);
-          message.success('草稿版本已创建');
-          await fetchTemplates();
-          await openTemplate(draftTemplate);
-        } catch (error) {
-          message.error(
-            error instanceof Error ? error.message : '草稿版本创建失败',
-          );
-        } finally {
-          setOperationLoading(false);
-        }
-      },
-    });
+  const editTemplate = async (template: TeachingPlanTemplate) => {
+    if (template.status === 'draft' || template.status === 'archived') {
+      await openTemplate(template);
+      return;
+    }
+
+    setOperationLoading(true);
+    try {
+      const response = await teachingPlanService.createDraftVersion({
+        id: template.id,
+        operator: '当前管理员',
+      });
+      const draftTemplate = requireApiData(response);
+      await fetchTemplates();
+      await openTemplate(draftTemplate);
+      message.success(
+        template.status === 'active'
+          ? '已进入编辑，当前已启动内容继续生效'
+          : '已进入编辑',
+      );
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '进入编辑失败');
+    } finally {
+      setOperationLoading(false);
+    }
   };
 
   const copyTemplate = async () => {
     if (!copySource) return;
     const values = await copyForm.validateFields();
     const copied = await runOperation(
-      () => teachingPlanService.copy({ id: copySource.id, name: values.name }),
+      () =>
+        teachingPlanService.copy({
+          id: copySource.id,
+          name: values.name,
+          operator: '当前管理员',
+        }),
       '模板已复制为独立草稿',
     );
     if (copied) {
@@ -512,18 +814,29 @@ const TeachingPlanTemplatePage: React.FC = () => {
 
   const deleteOrArchive = (template: TeachingPlanTemplate) => {
     const isDelete = !template.everActivated;
-    Modal.confirm({
-      title: isDelete ? '删除这个草稿？' : '归档这个模板版本？',
+    const isDiscardDraft =
+      template.status === 'draft' && template.everActivated;
+    setPendingConfirmation({
+      title: isDelete
+        ? '删除这个草稿？'
+        : isDiscardDraft
+        ? '放弃未发布修改？'
+        : '归档这个模板？',
       content: isDelete
         ? '删除后无法恢复；仅从未启动过的草稿允许删除。'
-        : '有启动历史的版本不会物理删除，归档后仍可只读查看。',
-      okText: isDelete ? '确认删除' : '确认归档',
-      okButtonProps: { danger: isDelete },
-      cancelText: '取消',
-      onOk: () =>
+        : isDiscardDraft
+        ? '未发布修改将被放弃，当前已启动内容不受影响。'
+        : '归档后模板仍可只读查看。',
+      okText: isDelete ? '确认删除' : isDiscardDraft ? '放弃修改' : '确认归档',
+      danger: isDelete || isDiscardDraft,
+      operation: () =>
         runOperation(
           () => teachingPlanService.deleteOrArchive(template.id),
-          isDelete ? '草稿已删除' : '模板版本已归档',
+          isDelete
+            ? '草稿已删除'
+            : isDiscardDraft
+            ? '未发布修改已放弃'
+            : '模板已归档',
           {
             returnToList: activeTemplate?.id === template.id,
             refreshDetailId: undefined,
@@ -532,245 +845,309 @@ const TeachingPlanTemplatePage: React.FC = () => {
     });
   };
 
-  const getMoreMenu = (template: TeachingPlanTemplate): MenuProps => ({
-    items: [
-      ...(template.status !== 'draft' && template.status !== 'archived'
-        ? [
-            {
-              key: 'draft-version',
-              label: '新建草稿版本',
-              icon: <FileAddOutlined />,
-              onClick: () => createDraftVersion(template),
-            },
-          ]
-        : []),
-      {
-        key: 'copy',
-        label: '复制为新模板',
-        icon: <CopyOutlined />,
-        onClick: () => {
-          setCopySource(template);
-          copyForm.setFieldsValue({ name: `${template.name}（副本）` });
+  const getMoreMenu = (row: TemplateFamilyRow): MenuProps => {
+    const template = row.current;
+    const isDiscardDraft = Boolean(row.draft?.everActivated);
+    return {
+      items: [
+        {
+          key: 'copy',
+          label: '复制为新模板',
+          icon: <CopyOutlined />,
+          onClick: () => {
+            setCopySource(template);
+            copyForm.setFieldsValue({ name: `${template.name}（副本）` });
+          },
         },
-      },
-      { type: 'divider' },
-      {
-        key: 'delete-or-archive',
-        label: template.everActivated ? '归档版本' : '删除草稿',
-        icon: <DeleteOutlined />,
-        danger: !template.everActivated,
-        disabled:
-          template.status === 'active' || template.status === 'archived',
-        onClick: () => deleteOrArchive(template),
-      },
-    ],
-  });
+        { type: 'divider' },
+        {
+          key: 'delete-or-archive',
+          label: isDiscardDraft
+            ? '放弃未发布修改'
+            : template.everActivated
+            ? '归档模板'
+            : '删除草稿',
+          icon: <DeleteOutlined />,
+          danger: !template.everActivated || isDiscardDraft,
+          disabled:
+            template.status === 'active' || template.status === 'archived',
+          onClick: () => deleteOrArchive(template),
+        },
+      ],
+    };
+  };
 
-  const columns: ColumnsType<TeachingPlanTemplate> = [
+  const confirmationModal = (
+    <Modal
+      title={pendingConfirmation?.title}
+      open={Boolean(pendingConfirmation)}
+      okText={pendingConfirmation?.okText}
+      okButtonProps={{ danger: pendingConfirmation?.danger }}
+      cancelText="取消"
+      confirmLoading={operationLoading}
+      onCancel={() => setPendingConfirmation(null)}
+      onOk={() => {
+        if (!pendingConfirmation) return;
+        const operation = pendingConfirmation.operation;
+        setPendingConfirmation(null);
+        void operation();
+      }}
+      transitionName=""
+      maskTransitionName=""
+      destroyOnHidden
+    >
+      {pendingConfirmation?.content}
+    </Modal>
+  );
+
+  const columns: ProColumns<TemplateFamilyRow>[] = [
     {
-      title: '模板',
+      title: '模板名称',
       key: 'name',
-      dataIndex: 'name',
-      width: 290,
-      render: (_, template) => (
-        <div className="teaching-plan-name-cell">
-          <Button
-            type="link"
-            className="teaching-plan-name-button"
-            onClick={() => openTemplate(template)}
-          >
-            {template.name}
-          </Button>
-          <span className="teaching-plan-name-meta">
-            {getSubjectLabel(template.subject)} · 更新于{' '}
-            {formatDateTime(template.updatedAt)}
-          </span>
-        </div>
+      width: 220,
+      search: false,
+      render: (_, row) => (
+        <Typography.Link strong onClick={() => openTemplate(row.current)}>
+          {row.current.name}
+        </Typography.Link>
       ),
+    },
+    {
+      title: '学科',
+      key: 'subject',
+      width: 80,
+      search: false,
+      render: (_, row) => getSubjectLabel(row.current.subject),
     },
     {
       title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (status: TemplateStatus) => (
-        <Tag color={STATUS_META[status].color}>{STATUS_META[status].label}</Tag>
-      ),
-    },
-    {
-      title: '版本',
-      key: 'version',
-      width: 130,
-      render: (_, template) => (
-        <div className="teaching-plan-version-cell">
-          <strong>V{template.version}</strong>
-          <span className="teaching-plan-version-meta">
-            {template.status === 'active' ? '当前启动版本' : template.familyId}
-          </span>
-        </div>
+      key: 'status',
+      width: 180,
+      search: false,
+      render: (_, row) => (
+        <Tag color={LIST_STATUS_META[row.status].color}>
+          {LIST_STATUS_META[row.status].label}
+        </Tag>
       ),
     },
     {
       title: '教学容量',
       key: 'capacity',
       width: 150,
-      render: (_, template) => (
-        <div className="teaching-plan-capacity-cell">
-          <strong>{template.totalWeeks}</strong>
-          <span>周 × {formatHours(template.weeklyHours)} 课时</span>
-        </div>
+      search: false,
+      render: (_, row) => (
+        <span>
+          {row.current.totalWeeks} 周 × {formatHours(row.current.weeklyHours)}{' '}
+          课时
+        </span>
       ),
     },
     {
-      title: '任务 / 排期',
-      key: 'schedule',
-      width: 160,
-      render: (_, template) => (
-        <Space size={5} wrap>
-          <span>{template.tasks.length} 个任务</span>
-          {template.schedule.hasConflicts ? (
-            <Tag color="red">有冲突</Tag>
-          ) : (
-            <Tag color="blue">
-              已排 {formatHours(template.schedule.scheduledHours)} 课时
-            </Tag>
-          )}
+      title: '任务数',
+      key: 'taskCount',
+      width: 90,
+      search: false,
+      render: (_, row) => `${row.current.tasks.length} 个`,
+    },
+    {
+      title: '排期进度',
+      key: 'scheduleProgress',
+      width: 170,
+      search: false,
+      render: (_, row) => (
+        <Space size={5}>
+          <span>
+            {formatHours(row.current.schedule.scheduledHours)} /{' '}
+            {formatHours(row.current.totalWeeks * row.current.weeklyHours)} 课时
+          </span>
+          {row.current.schedule.hasConflicts && <Tag color="red">有冲突</Tag>}
         </Space>
       ),
     },
     {
-      title: '启动信息',
-      key: 'activatedAt',
-      width: 180,
-      render: (_, template) =>
-        template.activatedAt ? (
-          <div className="teaching-plan-version-cell">
-            <strong>{template.activatedBy || '—'}</strong>
-            <span className="teaching-plan-version-meta">
-              {formatDateTime(template.activatedAt)}
-            </span>
-          </div>
-        ) : (
-          '—'
-        ),
+      title: '更新人',
+      key: 'updatedBy',
+      width: 120,
+      search: false,
+      render: (_, row) => row.current.updatedBy || '—',
+    },
+    {
+      title: '更新时间',
+      key: 'updatedAt',
+      width: 160,
+      search: false,
+      render: (_, row) => formatDateTime(row.current.updatedAt),
     },
     {
       title: '操作',
       key: 'actions',
+      valueType: 'option',
+      align: 'right',
       fixed: 'right',
-      width: 260,
-      render: (_, template) => (
-        <Space size={4} wrap>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => openTemplate(template)}
-          >
-            {template.status === 'draft' ? '编辑' : '查看'}
-          </Button>
-          {template.status === 'draft' && (
-            <Button
-              type="link"
-              size="small"
-              disabled={getStartBlockers(template).length > 0}
-              onClick={() => activateTemplate(template)}
+      width: 180,
+      search: false,
+      render: (_, row) => {
+        const template = row.current;
+        const actions: React.ReactNode[] = [];
+
+        if (row.draft) {
+          actions.push(
+            <Typography.Link
+              key="edit"
+              onClick={() => openTemplate(row.draft!)}
             >
-              启动
-            </Button>
-          )}
-          {template.status === 'active' && (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => stopTemplate(template)}
+              {row.active ? '继续编辑' : '编辑'}
+            </Typography.Link>,
+            <Typography.Link
+              key="start"
+              disabled={getStartBlockers(row.draft).length > 0}
+              onClick={() => activateTemplate(row.draft!)}
             >
+              {row.active ? '发布更新' : '启动'}
+            </Typography.Link>,
+          );
+        } else if (template.status === 'active') {
+          actions.push(
+            <Typography.Link key="edit" onClick={() => editTemplate(template)}>
+              编辑
+            </Typography.Link>,
+            <Typography.Link key="stop" onClick={() => stopTemplate(template)}>
               停用
-            </Button>
-          )}
-          {template.status === 'stopped' && (
-            <Button
-              type="link"
-              size="small"
+            </Typography.Link>,
+          );
+        } else if (template.status === 'stopped') {
+          actions.push(
+            <Typography.Link key="edit" onClick={() => editTemplate(template)}>
+              编辑
+            </Typography.Link>,
+            <Typography.Link
+              key="restart"
               disabled={getStartBlockers(template).length > 0}
               onClick={() => restartTemplate(template)}
             >
               重新启动
-            </Button>
-          )}
-          <Dropdown menu={getMoreMenu(template)} trigger={['click']}>
-            <Button type="text" size="small" aria-label="更多模板操作">
-              <MoreOutlined />
-            </Button>
-          </Dropdown>
-        </Space>
-      ),
+            </Typography.Link>,
+          );
+        } else {
+          actions.push(
+            <Typography.Link key="view" onClick={() => openTemplate(template)}>
+              查看
+            </Typography.Link>,
+          );
+        }
+
+        actions.push(
+          <Dropdown key="more" menu={getMoreMenu(row)} trigger={['click']}>
+            <Button
+              className="teaching-plan-table-more"
+              type="text"
+              size="small"
+              icon={<EllipsisOutlined />}
+              aria-label="更多模板操作"
+            />
+          </Dropdown>,
+        );
+
+        return (
+          <Flex
+            align="center"
+            justify="flex-end"
+            gap={8}
+            style={{ width: '100%' }}
+          >
+            {actions}
+          </Flex>
+        );
+      },
     },
   ];
 
-  const activeWeek: TeachingPlanWeek | undefined =
-    activeTemplate?.schedule.weeks.find((week) => week.week === selectedWeek);
-  const activeWeekTasks = activeTemplate
-    ? getWeekAnchoredTasks(activeTemplate, selectedWeek)
-    : [];
-  const continuationSegments =
-    activeWeek?.segments.filter((segment) => segment.continuation) || [];
   const isEditable = activeTemplate?.status === 'draft';
   const usedNodeIds = useMemo(
     () =>
       new Set(activeTemplate?.tasks.map((task) => task.resourceNodeId) || []),
     [activeTemplate],
   );
-  const selectableResourceNodes = resourceNodes.filter(
-    (node) => node.enabled && !usedNodeIds.has(node.id),
-  );
-
   if (activeTemplate) {
+    const taskById = new Map(
+      activeTemplate.tasks.map((task) => [task.id, task]),
+    );
+    const taskStartWeekById = new Map<string, number>();
+    activeTemplate.schedule.weeks.forEach((week) => {
+      week.segments.forEach((segment) => {
+        if (segment.part === 1)
+          taskStartWeekById.set(segment.taskId, week.week);
+      });
+    });
     const startBlockers = getStartBlockers(activeTemplate);
-    const weeklyPercent = activeWeek
-      ? Math.min(
-          100,
-          Math.round((activeWeek.usedHours / activeWeek.capacity) * 100),
-        )
-      : 0;
-
+    const isPublishingUpdate =
+      activeTemplate.status === 'draft' &&
+      templates.some(
+        (template) =>
+          template.familyId === activeTemplate.familyId &&
+          template.status === 'active',
+      );
+    const detailStatus: TemplateListStatus = isPublishingUpdate
+      ? 'active-with-draft'
+      : activeTemplate.status;
     return (
-      <PageContainer className="teaching-plan-page">
+      <PageContainer
+        className="teaching-plan-page teaching-plan-editor-page"
+        title="教学计划模板编辑"
+        breadcrumbRender={false}
+      >
         <Spin spinning={detailLoading || operationLoading}>
           <div className="teaching-plan-editor-shell">
-            <Card className="teaching-plan-editor-header">
-              <div className="teaching-plan-editor-topline">
+            <Card
+              className="teaching-plan-editor-header"
+              variant="borderless"
+              title={
                 <div className="teaching-plan-editor-identity">
-                  <Button
-                    className="teaching-plan-back-button"
-                    icon={<ArrowLeftOutlined />}
-                    aria-label="返回模板列表"
-                    onClick={() => setActiveTemplate(null)}
-                  />
-                  <div>
-                    <div className="teaching-plan-editor-title-row">
-                      <h1 className="teaching-plan-editor-title">
-                        {activeTemplate.name}
-                      </h1>
-                      <Tag color={STATUS_META[activeTemplate.status].color}>
-                        {STATUS_META[activeTemplate.status].label}
-                      </Tag>
-                      <Tag>V{activeTemplate.version}</Tag>
-                    </div>
-                    <div className="teaching-plan-editor-meta">
-                      <span>{getSubjectLabel(activeTemplate.subject)}</span>
-                      <span>·</span>
-                      <span>模板编号 {activeTemplate.familyId}</span>
-                      <span>·</span>
-                      <span>
-                        更新于 {formatDateTime(activeTemplate.updatedAt)}
-                      </span>
-                    </div>
+                  <Space size={8} align="center" wrap>
+                    <Button
+                      className="teaching-plan-back-button"
+                      type="text"
+                      size="small"
+                      icon={<ArrowLeftOutlined />}
+                      onClick={() => setActiveTemplate(null)}
+                    >
+                      返回
+                    </Button>
+                    <Typography.Text
+                      strong
+                      className="teaching-plan-editor-title"
+                    >
+                      {activeTemplate.name}
+                    </Typography.Text>
+                    <Tag color={LIST_STATUS_META[detailStatus].color}>
+                      {LIST_STATUS_META[detailStatus].label}
+                    </Tag>
+                  </Space>
+                  <div className="teaching-plan-editor-meta">
+                    <span>
+                      学科：
+                      <strong>{getSubjectLabel(activeTemplate.subject)}</strong>
+                    </span>
+                    <i aria-hidden />
+                    <span>
+                      <strong>{activeTemplate.totalWeeks}</strong> 周 × 每周{' '}
+                      <strong>{formatHours(activeTemplate.weeklyHours)}</strong>{' '}
+                      课时
+                    </span>
+                    <i aria-hidden />
+                    <span className="teaching-plan-autosaved-status">
+                      已自动保存
+                    </span>
                   </div>
                 </div>
+              }
+              extra={
                 <div className="teaching-plan-editor-actions">
                   {isEditable && (
                     <>
                       <Button
-                        icon={<EditOutlined />}
+                        size="small"
+                        icon={<SettingOutlined />}
                         onClick={() => {
                           settingsForm.setFieldsValue({
                             name: activeTemplate.name,
@@ -783,9 +1160,6 @@ const TeachingPlanTemplatePage: React.FC = () => {
                       >
                         模板设置
                       </Button>
-                      <Button icon={<SaveOutlined />} onClick={saveDraft}>
-                        保存草稿
-                      </Button>
                       <Tooltip
                         title={
                           startBlockers.length
@@ -796,35 +1170,48 @@ const TeachingPlanTemplatePage: React.FC = () => {
                         <span>
                           <Button
                             type="primary"
+                            size="small"
                             icon={<PlayCircleOutlined />}
                             disabled={startBlockers.length > 0}
                             onClick={() => activateTemplate(activeTemplate)}
                           >
-                            启动模板
+                            {isPublishingUpdate ? '发布更新' : '启动模板'}
                           </Button>
                         </span>
                       </Tooltip>
                     </>
                   )}
                   {activeTemplate.status === 'active' && (
-                    <Button
-                      danger
-                      icon={<PauseCircleOutlined />}
-                      onClick={() => stopTemplate(activeTemplate)}
-                    >
-                      停用版本
-                    </Button>
+                    <>
+                      <Button
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => editTemplate(activeTemplate)}
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        danger
+                        size="small"
+                        icon={<PauseCircleOutlined />}
+                        onClick={() => stopTemplate(activeTemplate)}
+                      >
+                        停用模板
+                      </Button>
+                    </>
                   )}
                   {activeTemplate.status === 'stopped' && (
                     <>
                       <Button
-                        icon={<FileAddOutlined />}
-                        onClick={() => createDraftVersion(activeTemplate)}
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => editTemplate(activeTemplate)}
                       >
-                        新建草稿版本
+                        编辑
                       </Button>
                       <Button
                         type="primary"
+                        size="small"
                         icon={<RetweetOutlined />}
                         disabled={startBlockers.length > 0}
                         onClick={() => restartTemplate(activeTemplate)}
@@ -833,55 +1220,20 @@ const TeachingPlanTemplatePage: React.FC = () => {
                       </Button>
                     </>
                   )}
-                  {activeTemplate.status === 'active' && (
-                    <Button
-                      icon={<FileAddOutlined />}
-                      onClick={() => createDraftVersion(activeTemplate)}
-                    >
-                      新建草稿版本
-                    </Button>
-                  )}
                 </div>
-              </div>
-
-              <div className="teaching-plan-summary-strip">
-                <div className="teaching-plan-summary-item">
-                  <span>计划周期</span>
-                  <strong>{activeTemplate.totalWeeks} 周</strong>
-                </div>
-                <div className="teaching-plan-summary-item">
-                  <span>每周平均课时</span>
-                  <strong>
-                    {formatHours(activeTemplate.weeklyHours)} 课时
-                  </strong>
-                </div>
-                <div className="teaching-plan-summary-item">
-                  <span>任务与已排课时</span>
-                  <strong>
-                    {activeTemplate.tasks.length} 个 /{' '}
-                    {formatHours(activeTemplate.schedule.scheduledHours)} 课时
-                  </strong>
-                </div>
-                <div
-                  className={`teaching-plan-summary-item${
-                    activeTemplate.schedule.hasConflicts ? ' is-danger' : ''
-                  }`}
-                >
-                  <span>未分配 / 未排入</span>
-                  <strong>
-                    {formatHours(activeTemplate.schedule.unallocatedHours)} /{' '}
-                    {formatHours(activeTemplate.schedule.unscheduledHours)} 课时
-                  </strong>
-                </div>
-              </div>
-            </Card>
+              }
+            />
 
             {startBlockers.length > 0 && isEditable && (
               <Alert
                 className="teaching-plan-validation-alert"
                 type="warning"
                 showIcon
-                message="草稿已保存，但暂不能启动"
+                message={
+                  isPublishingUpdate
+                    ? '修改已保存，但暂不能发布'
+                    : '草稿已保存，但暂不能启动'
+                }
                 description={startBlockers.join('；')}
               />
             )}
@@ -890,288 +1242,284 @@ const TeachingPlanTemplatePage: React.FC = () => {
               <Alert
                 type="info"
                 showIcon
-                message="当前版本为只读状态"
-                description="已启动或有启动历史的版本不能直接编辑。如需调整，请基于当前版本新建草稿。"
+                message="当前模板为只读状态"
+                description="点击“编辑”即可修改；发布更新前，当前已启动内容会继续生效。"
               />
             )}
 
-            <div className="teaching-plan-workspace">
-              <Card className="teaching-plan-week-nav">
-                <div className="teaching-plan-week-nav-header">
-                  <h2 className="teaching-plan-week-nav-title">教学周</h2>
-                  <div className="teaching-plan-week-nav-note">
-                    按周选择任务，系统自动续排
-                  </div>
+            <div className="teaching-plan-board-layout">
+              <ResourceTreePanel
+                resources={resourceNodes}
+                usedNodeIds={usedNodeIds}
+                editable={Boolean(isEditable)}
+                loading={resourceLoading}
+                onAdd={(resource) => addResourceToWeek(resource, selectedWeek)}
+                onDragStart={startResourceDrag}
+                onDragEnd={finishDragging}
+              />
+
+              <section
+                className="teaching-plan-weeks-board"
+                aria-label="教学周排期"
+              >
+                <div className="teaching-plan-board-guide">
+                  <InfoCircleOutlined />
+                  <span>
+                    拖拽任务到任意周卡可安排进度；跨周内容优先续排，后续任务按顺序自动顺延。
+                  </span>
                 </div>
-                <div className="teaching-plan-week-list">
+                <div className="teaching-plan-weeks-grid" role="listbox">
                   {activeTemplate.schedule.weeks.map((week) => {
-                    const anchoredCount = getWeekAnchoredTasks(
+                    const anchoredWeekTasks = getWeekAnchoredTasks(
                       activeTemplate,
                       week.week,
-                    ).length;
+                    );
+                    const weekTasks = anchoredWeekTasks.filter(
+                      (task) =>
+                        (taskStartWeekById.get(task.id) ?? task.anchorWeek) ===
+                        week.week,
+                    );
+                    const weekContinuations = week.segments.filter(
+                      (segment) => segment.continuation,
+                    );
+                    const weekDeferredSegments = week.segments.filter(
+                      (segment) =>
+                        segment.part === 1 && segment.anchorWeek < week.week,
+                    );
+                    const isDropWeek = dropTarget?.week === week.week;
+                    const showEndDropIndicator =
+                      isDropWeek && dropTarget.index === weekTasks.length;
+
                     return (
-                      <button
-                        type="button"
+                      <article
+                        className={`teaching-plan-week-card${
+                          selectedWeek === week.week ? ' is-selected' : ''
+                        }${isDropWeek ? ' is-drop-target' : ''}${
+                          week.hasConflict ? ' has-conflict' : ''
+                        }`}
                         key={week.week}
-                        className={`teaching-plan-week-button${
-                          selectedWeek === week.week ? ' is-active' : ''
-                        }${week.hasConflict ? ' has-conflict' : ''}`}
-                        aria-current={
-                          selectedWeek === week.week ? 'step' : undefined
-                        }
+                        role="option"
+                        aria-label={`第 ${week.week} 周，已排 ${formatHours(
+                          week.usedHours,
+                        )} 课时`}
+                        aria-selected={selectedWeek === week.week}
                         onClick={() => setSelectedWeek(week.week)}
+                        onDragOver={(event) => {
+                          if (!isEditable) return;
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect =
+                            dragPayload?.kind === 'resource' ? 'copy' : 'move';
+                          setDropTarget({
+                            week: week.week,
+                            index: weekTasks.length,
+                          });
+                        }}
+                        onDragLeave={(event) => {
+                          const nextTarget = event.relatedTarget as Node | null;
+                          if (
+                            !nextTarget ||
+                            !event.currentTarget.contains(nextTarget)
+                          ) {
+                            setDropTarget((current) =>
+                              current?.week === week.week ? null : current,
+                            );
+                          }
+                        }}
+                        onDrop={(event) =>
+                          dropIntoWeek(event, week.week, weekTasks.length)
+                        }
                       >
-                        <span className="teaching-plan-week-number">
-                          {String(week.week).padStart(2, '0')}
-                        </span>
-                        <span className="teaching-plan-week-copy">
+                        <header className="teaching-plan-week-card-header">
                           <strong>第 {week.week} 周</strong>
-                          <span>
-                            {anchoredCount} 个任务 ·{' '}
+                          <span
+                            className={
+                              week.hasConflict
+                                ? 'is-conflict'
+                                : week.remainingHours > 0 && week.usedHours > 0
+                                ? 'has-remaining'
+                                : undefined
+                            }
+                          >
                             {formatHours(week.usedHours)}/
                             {formatHours(week.capacity)} 课时
                           </span>
-                        </span>
-                        <span
-                          className={`teaching-plan-week-state${
-                            week.hasConflict
-                              ? ' is-conflict'
-                              : week.usedHours > 0
-                              ? ' is-filled'
-                              : ''
-                          }`}
-                          aria-label={week.hasConflict ? '有冲突' : '无冲突'}
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
+                        </header>
 
-              <Card className="teaching-plan-week-workbench">
-                <div className="teaching-plan-week-heading">
-                  <div className="teaching-plan-week-title">
-                    <CalendarOutlined />
-                    <h2>第 {selectedWeek} 周</h2>
-                    {activeWeek?.hasConflict ? (
-                      <Tag color="red">容量冲突</Tag>
-                    ) : activeWeek && activeWeek.remainingHours === 0 ? (
-                      <Tag color="green">已排满</Tag>
-                    ) : (
-                      <Tag color="blue">可继续配置</Tag>
-                    )}
-                  </div>
-                  <div className="teaching-plan-week-capacity">
-                    <div className="teaching-plan-week-capacity-copy">
-                      <span>本周容量</span>
-                      <strong>
-                        已用 {formatHours(activeWeek?.usedHours || 0)} /{' '}
-                        {formatHours(activeWeek?.capacity || 0)} 课时
-                      </strong>
-                    </div>
-                    <Progress
-                      percent={weeklyPercent}
-                      showInfo={false}
-                      status={activeWeek?.hasConflict ? 'exception' : 'normal'}
-                      strokeColor={
-                        activeWeek?.hasConflict ? '#c73737' : '#2459d3'
-                      }
-                      trailColor="#e9edf4"
-                      size="small"
-                    />
-                  </div>
-                </div>
-
-                <div className="teaching-plan-week-content">
-                  {continuationSegments.length > 0 && (
-                    <>
-                      <div className="teaching-plan-section-label">
-                        <strong>跨周续排</strong>
-                        <span>由前序任务自动生成，不可直接编辑</span>
-                      </div>
-                      {continuationSegments.map((segment) => (
-                        <div
-                          className="teaching-plan-continuation"
-                          key={`${segment.taskId}-${segment.part}`}
-                        >
-                          <span className="teaching-plan-continuation-icon">
-                            <RetweetOutlined />
-                          </span>
-                          <div className="teaching-plan-continuation-copy">
-                            <strong>{segment.resourceNodeName}</strong>
-                            <span>
-                              来自第 {segment.anchorWeek} 周 · 第 {segment.part}{' '}
-                              段 · 本周占用 {formatHours(segment.hours)} 课时
-                            </span>
-                          </div>
-                          <Tag color="blue">只读续排</Tag>
-                        </div>
-                      ))}
-                    </>
-                  )}
-
-                  <div className="teaching-plan-section-label">
-                    <strong>本周选择的教学任务</strong>
-                    <span>任务顺序决定课时占用与后续跨周排期</span>
-                  </div>
-
-                  {activeWeekTasks.length ? (
-                    <div className="teaching-plan-task-list">
-                      {activeWeekTasks.map((task, index) => {
-                        const currentWeekHours = getTaskWeekHours(
-                          activeTemplate,
-                          task.id,
-                          selectedWeek,
-                        );
-                        const endWeek = getTaskEndWeek(activeTemplate, task.id);
-                        return (
-                          <div
-                            key={task.id}
-                            className={`teaching-plan-task-card${
-                              task.resourceNodeEnabled ? '' : ' is-disabled'
-                            }`}
-                          >
-                            <span className="teaching-plan-task-order">
-                              {String(index + 1).padStart(2, '0')}
-                            </span>
-                            <div className="teaching-plan-task-copy">
-                              <div className="teaching-plan-task-name">
-                                <strong>{task.resourceNodeName}</strong>
-                                {!task.resourceNodeEnabled && (
-                                  <Tag color="red">节点已停用</Tag>
-                                )}
-                                {endWeek && endWeek > selectedWeek && (
-                                  <Tag color="blue">续排至第 {endWeek} 周</Tag>
-                                )}
-                              </div>
-                              <div className="teaching-plan-task-meta">
+                        <div className="teaching-plan-week-card-body">
+                          {weekContinuations.map((segment) => (
+                            <div
+                              className="teaching-plan-week-continuation"
+                              key={`${segment.taskId}-${segment.part}`}
+                              title="跨周续排片段不可直接编辑"
+                            >
+                              <div>
                                 <span>
-                                  <ClockCircleOutlined /> 建议课时{' '}
-                                  {formatHours(task.hours)}
+                                  续排 {formatHours(segment.hours)} 课时
                                 </span>
-                                <span>·</span>
-                                <span>
-                                  本周排入 {formatHours(currentWeekHours)} 课时
-                                </span>
-                                <span>·</span>
-                                <span>来源：资源树末级节点</span>
+                                <strong>
+                                  {segment.resourceNodeName}（续）
+                                </strong>
                               </div>
+                              <Tag color="blue">只读</Tag>
                             </div>
-                            {isEditable && (
-                              <div className="teaching-plan-task-actions">
-                                <Tooltip title="上移">
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<ArrowUpOutlined />}
-                                    aria-label={`上移 ${task.resourceNodeName}`}
-                                    disabled={index === 0}
-                                    onClick={() => reorderTask(task, -1)}
-                                  />
-                                </Tooltip>
-                                <Tooltip title="下移">
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<ArrowDownOutlined />}
-                                    aria-label={`下移 ${task.resourceNodeName}`}
-                                    disabled={
-                                      index === activeWeekTasks.length - 1
-                                    }
-                                    onClick={() => reorderTask(task, 1)}
-                                  />
-                                </Tooltip>
-                                <Tooltip title="移动到其他周">
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<SwapOutlined />}
-                                    aria-label={`移动 ${task.resourceNodeName}`}
-                                    onClick={() => {
-                                      setMoveTask(task);
-                                      moveForm.setFieldsValue({
-                                        week: task.anchorWeek,
-                                      });
-                                    }}
-                                  />
-                                </Tooltip>
-                                <Tooltip title="移除任务">
+                          ))}
+
+                          {weekDeferredSegments.map((segment) => {
+                            const task = taskById.get(segment.taskId);
+                            if (!task) return null;
+                            return (
+                              <div
+                                className="teaching-plan-week-task is-deferred"
+                                key={`deferred-${segment.taskId}`}
+                                draggable={isEditable}
+                                title={`原定第 ${segment.anchorWeek} 周，因前序任务占用容量自动顺延`}
+                                onDragStart={(event) =>
+                                  startTaskDrag(event, task)
+                                }
+                                onDragEnd={finishDragging}
+                              >
+                                <HolderOutlined className="teaching-plan-week-task-handle" />
+                                <strong>{task.resourceNodeName}</strong>
+                                <span>
+                                  {formatHours(segment.hours)} 课时 · 顺延
+                                </span>
+                                {isEditable && (
                                   <Button
                                     type="text"
                                     danger
                                     size="small"
                                     icon={<DeleteOutlined />}
                                     aria-label={`移除 ${task.resourceNodeName}`}
-                                    onClick={() => removeTask(task)}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      removeTask(task);
+                                    }}
                                   />
-                                </Tooltip>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="teaching-plan-empty-week">
-                      <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description={
-                          isEditable
-                            ? '本周尚未选择任务，可主动保留为空周'
-                            : '本周未配置教学任务'
-                        }
-                      >
-                        {isEditable && (
-                          <Button type="primary" onClick={openResourcePicker}>
-                            选择资源节点
-                          </Button>
-                        )}
-                      </Empty>
-                    </div>
-                  )}
+                            );
+                          })}
 
-                  <div className="teaching-plan-workbench-footer">
-                    <span className="teaching-plan-workbench-hint">
-                      {activeWeek?.hasConflict ? (
-                        <>
-                          <ExclamationCircleOutlined />{' '}
-                          本周存在冲突，可保存草稿但不能启动
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircleOutlined /> 剩余{' '}
-                          {formatHours(activeWeek?.remainingHours || 0)} 课时
-                        </>
-                      )}
-                    </span>
-                    <Space wrap>
-                      <Button
-                        icon={<ArrowLeftOutlined />}
-                        disabled={selectedWeek === 1}
-                        onClick={() => setSelectedWeek((week) => week - 1)}
-                      >
-                        上一周
-                      </Button>
-                      {isEditable && activeWeekTasks.length > 0 && (
-                        <Button
-                          icon={<PlusOutlined />}
-                          onClick={openResourcePicker}
-                        >
-                          添加任务
-                        </Button>
-                      )}
-                      <Button
-                        type="primary"
-                        icon={<ArrowRightOutlined />}
-                        disabled={selectedWeek === activeTemplate.totalWeeks}
-                        onClick={() => setSelectedWeek((week) => week + 1)}
-                      >
-                        下一周
-                      </Button>
-                    </Space>
-                  </div>
+                          {weekTasks.map((task, index) => {
+                            const firstSegment = week.segments.find(
+                              (segment) =>
+                                segment.taskId === task.id &&
+                                segment.part === 1,
+                            );
+                            const showBeforeIndicator =
+                              isDropWeek && dropTarget.index === index;
+                            return (
+                              <React.Fragment key={task.id}>
+                                {showBeforeIndicator && (
+                                  <div className="teaching-plan-drop-indicator">
+                                    插入到此处
+                                  </div>
+                                )}
+                                <div
+                                  className={`teaching-plan-week-task${
+                                    task.resourceNodeEnabled
+                                      ? ''
+                                      : ' is-disabled'
+                                  }`}
+                                  draggable={isEditable}
+                                  onDragStart={(event) =>
+                                    startTaskDrag(event, task)
+                                  }
+                                  onDragEnd={finishDragging}
+                                  onDragOver={(event) => {
+                                    if (!isEditable) return;
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    const bounds =
+                                      event.currentTarget.getBoundingClientRect();
+                                    setDropTarget({
+                                      week: week.week,
+                                      index:
+                                        event.clientY >
+                                        bounds.top + bounds.height / 2
+                                          ? index + 1
+                                          : index,
+                                    });
+                                  }}
+                                  onDrop={(event) =>
+                                    dropIntoWeek(
+                                      event,
+                                      week.week,
+                                      dropTarget?.week === week.week
+                                        ? dropTarget.index
+                                        : index,
+                                    )
+                                  }
+                                >
+                                  <HolderOutlined className="teaching-plan-week-task-handle" />
+                                  <strong>{task.resourceNodeName}</strong>
+                                  <span>
+                                    {formatHours(
+                                      firstSegment?.hours ?? task.hours,
+                                    )}{' '}
+                                    课时
+                                    {firstSegment &&
+                                    firstSegment.hours < task.hours
+                                      ? ` / 共 ${formatHours(task.hours)}`
+                                      : ''}
+                                  </span>
+                                  {isEditable && (
+                                    <Button
+                                      type="text"
+                                      danger
+                                      size="small"
+                                      icon={<DeleteOutlined />}
+                                      aria-label={`移除 ${task.resourceNodeName}`}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        removeTask(task);
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              </React.Fragment>
+                            );
+                          })}
+
+                          {showEndDropIndicator && (
+                            <div className="teaching-plan-drop-indicator">
+                              插入到此处
+                            </div>
+                          )}
+                        </div>
+
+                        {week.hasConflict && (
+                          <footer className="teaching-plan-week-card-warning">
+                            本周存在容量冲突
+                          </footer>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
-              </Card>
+              </section>
+            </div>
+
+            <div className="teaching-plan-editor-footer">
+              <div className="teaching-plan-footer-schedule">
+                <span>当前已排</span>
+                <Tag color="blue">
+                  {formatHours(activeTemplate.schedule.scheduledHours)} /{' '}
+                  {formatHours(activeTemplate.schedule.totalCapacity)} 课时
+                </Tag>
+              </div>
+              <Space>
+                <Button onClick={() => setActiveTemplate(null)}>取消</Button>
+                {isEditable && (
+                  <Button
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    onClick={saveDraft}
+                  >
+                    保存草稿
+                  </Button>
+                )}
+              </Space>
             </div>
           </div>
         </Spin>
@@ -1184,11 +1532,14 @@ const TeachingPlanTemplatePage: React.FC = () => {
           confirmLoading={operationLoading}
           onOk={saveSettings}
           onCancel={() => setSettingsOpen(false)}
-          destroyOnClose
+          destroyOnHidden
         >
-          <div className="teaching-plan-create-note">
-            修改周数或每周课时会触发整份模板重新排期与校验；系统不会静默删除任务。
-          </div>
+          <Alert
+            className="teaching-plan-form-note"
+            type="info"
+            showIcon
+            message="修改周数或每周课时会触发整份模板重新排期与校验；系统不会自动删除任务。"
+          />
           <Form form={settingsForm} layout="vertical" preserve={false}>
             <Form.Item
               name="name"
@@ -1230,125 +1581,40 @@ const TeachingPlanTemplatePage: React.FC = () => {
           </Form>
         </Modal>
 
-        <Modal
-          title={`为第 ${selectedWeek} 周添加教学任务`}
-          open={resourceOpen}
-          okText="加入本周"
-          cancelText="取消"
-          confirmLoading={operationLoading}
-          onOk={addTask}
-          onCancel={() => setResourceOpen(false)}
-          destroyOnClose
-        >
-          <div className="teaching-plan-resource-note">
-            仅可选择当前学科已启用的资源树末级节点；课时由节点带入，同一模板内只能选择一次。
-          </div>
-          <Spin spinning={resourceLoading}>
-            <Form form={resourceForm} layout="vertical" preserve={false}>
-              <Form.Item
-                name="resourceNodeId"
-                label="资源节点"
-                rules={[{ required: true, message: '请选择资源节点' }]}
-              >
-                <Select
-                  showSearch
-                  placeholder="搜索并选择末级节点"
-                  optionFilterProp="searchText"
-                  notFoundContent="没有可选择的资源节点"
-                  options={selectableResourceNodes.map((node) => ({
-                    value: node.id,
-                    searchText: `${node.name} ${node.path.join(' ')}`,
-                    label: (
-                      <div className="teaching-plan-resource-option">
-                        <div className="teaching-plan-resource-option-copy">
-                          <strong>{node.name}</strong>
-                          <span>{node.path.join(' / ')}</span>
-                        </div>
-                        <span className="teaching-plan-resource-option-hours">
-                          {formatHours(node.suggestedHours)} 课时
-                        </span>
-                      </div>
-                    ),
-                  }))}
-                />
-              </Form.Item>
-            </Form>
-          </Spin>
-        </Modal>
-
-        <Modal
-          title="移动教学任务"
-          open={Boolean(moveTask)}
-          okText="移动并重新排期"
-          cancelText="取消"
-          confirmLoading={operationLoading}
-          onOk={moveSelectedTask}
-          onCancel={() => setMoveTask(null)}
-          destroyOnClose
-        >
-          <div className="teaching-plan-create-note">
-            移动“{moveTask?.resourceNodeName}
-            ”的锚定周后，整份模板会重新排期；后续人工选择的任务不会被自动移动。
-          </div>
-          <Form form={moveForm} layout="vertical" preserve={false}>
-            <Form.Item
-              name="week"
-              label="目标教学周"
-              rules={[{ required: true, message: '请选择目标教学周' }]}
-            >
-              <Select
-                options={Array.from(
-                  { length: activeTemplate.totalWeeks },
-                  (_, index) => ({
-                    label: `第 ${index + 1} 周`,
-                    value: index + 1,
-                  }),
-                )}
-              />
-            </Form.Item>
-          </Form>
-        </Modal>
+        {confirmationModal}
       </PageContainer>
     );
   }
 
   return (
     <PageContainer className="teaching-plan-page">
-      <Card className="teaching-plan-list-card">
-        <div className="teaching-plan-list-header">
-          <div>
-            <h1 className="teaching-plan-list-title">教学计划模板</h1>
-            <p className="teaching-plan-list-description">
-              后台按学科维护教学周容量与任务顺序，系统根据资源节点建议课时自动完成跨周排期。
-            </p>
-          </div>
+      <ProTable<TemplateFamilyRow>
+        rowKey="familyId"
+        search={false}
+        loading={loading || operationLoading}
+        dataSource={templateFamilies}
+        columns={columns}
+        toolBarRender={() => [
           <Button
             type="primary"
-            icon={<PlusOutlined />}
+            key="create"
             onClick={() => setCreateOpen(true)}
           >
-            创建模板
-          </Button>
-        </div>
-        <Table<TeachingPlanTemplate>
-          className="teaching-plan-list-table"
-          rowKey="id"
-          loading={loading || operationLoading}
-          dataSource={templates}
-          columns={columns}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          scroll={{ x: 1280 }}
-          locale={{
-            emptyText: (
-              <Empty description="还没有教学计划模板">
-                <Button type="primary" onClick={() => setCreateOpen(true)}>
-                  创建第一个模板
-                </Button>
-              </Empty>
-            ),
-          }}
-        />
-      </Card>
+            <PlusOutlined /> 创建模板
+          </Button>,
+        ]}
+        pagination={{ pageSize: 10, showSizeChanger: false }}
+        scroll={{ x: 1240 }}
+        locale={{
+          emptyText: (
+            <Empty description="还没有教学计划模板">
+              <Button type="primary" onClick={() => setCreateOpen(true)}>
+                创建第一个模板
+              </Button>
+            </Empty>
+          ),
+        }}
+      />
 
       <Modal
         title="创建教学计划模板"
@@ -1358,11 +1624,14 @@ const TeachingPlanTemplatePage: React.FC = () => {
         confirmLoading={operationLoading}
         onOk={createTemplate}
         onCancel={() => setCreateOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
-        <div className="teaching-plan-create-note">
-          先确定计划周期和统一周课时，创建后再按周选择教学任务。模板无需配置复习阶段。
-        </div>
+        <Alert
+          className="teaching-plan-form-note"
+          type="info"
+          showIcon
+          message="先确定计划周期和统一周课时，创建后再按周选择教学任务。模板无需配置复习阶段。"
+        />
         <Form
           form={createForm}
           layout="vertical"
@@ -1422,11 +1691,14 @@ const TeachingPlanTemplatePage: React.FC = () => {
         confirmLoading={operationLoading}
         onOk={copyTemplate}
         onCancel={() => setCopySource(null)}
-        destroyOnClose
+        destroyOnHidden
       >
-        <div className="teaching-plan-create-note">
-          将复制周数、每周课时、任务及其顺序。新模板与原模板互不影响。
-        </div>
+        <Alert
+          className="teaching-plan-form-note"
+          type="info"
+          showIcon
+          message="将复制周数、每周课时、任务及其顺序。新模板与原模板互不影响。"
+        />
         <Form form={copyForm} layout="vertical" preserve={false}>
           <Form.Item
             name="name"
@@ -1440,6 +1712,7 @@ const TeachingPlanTemplatePage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+      {confirmationModal}
     </PageContainer>
   );
 };

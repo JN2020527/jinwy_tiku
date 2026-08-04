@@ -166,6 +166,7 @@ export default {
       return store.remove({
         templateId: req.params.id,
         taskId: req.params.taskId,
+        operator: req.body?.operator,
       });
     });
   },
@@ -204,7 +205,10 @@ export default {
     res: Response,
   ) => {
     sendResult(res, () => {
-      const draft = store.createDraftVersion({ id: req.params.id });
+      const draft = store.createDraftVersion({
+        id: req.params.id,
+        operator: req.body.operator,
+      });
       return store.refreshDraftResourceNodes(
         draft.id,
         getCurrentResourceNodes(draft.subject),
@@ -216,7 +220,11 @@ export default {
     res: Response,
   ) => {
     sendResult(res, () => {
-      const copied = store.copy({ id: req.params.id, name: req.body.name });
+      const copied = store.copy({
+        id: req.params.id,
+        name: req.body.name,
+        operator: req.body.operator,
+      });
       return store.refreshDraftResourceNodes(
         copied.id,
         getCurrentResourceNodes(copied.subject),
@@ -224,6 +232,8 @@ export default {
     });
   },
   'DELETE /api/teaching-plan/templates/:id': (req: Request, res: Response) => {
-    sendResult(res, () => store.deleteOrArchive(req.params.id));
+    sendResult(res, () =>
+      store.deleteOrArchive(req.params.id, req.body?.operator),
+    );
   },
 };

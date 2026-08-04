@@ -62,10 +62,10 @@ test('按人工锚定周排期，并把跨周续排放在下一周顶部', () =>
   assert.equal(schedule.unallocatedHours, 3.5);
 });
 
-test('不把后续锚定任务前移填充主动空周，并保留下游容量冲突', () => {
+test('保留主动空周，并在续排占用锚定周时自动顺延后续任务', () => {
   const schedule = scheduleTeachingPlan({
     totalWeeks: 3,
-    weeklyHours: 4,
+    weeklyHours: 2,
     tasks: [
       {
         id: 'task-a',
@@ -73,45 +73,53 @@ test('不把后续锚定任务前移填充主动空周，并保留下游容量�
         resourceNodeName: '跨周任务',
         resourceNodeEnabled: true,
         resourceReferenceMode: 'dynamic',
-        hours: 6,
+        hours: 3,
         anchorWeek: 1,
         order: 0,
       },
       {
         id: 'task-b',
         resourceNodeId: 'node-b',
-        resourceNodeName: '第二周人工任务',
+        resourceNodeName: '第二周人工任务甲',
         resourceNodeEnabled: true,
         resourceReferenceMode: 'dynamic',
-        hours: 4,
+        hours: 1,
         anchorWeek: 2,
         order: 0,
       },
       {
         id: 'task-c',
         resourceNodeId: 'node-c',
-        resourceNodeName: '第四周之外任务',
+        resourceNodeName: '第二周人工任务乙',
         resourceNodeEnabled: true,
         resourceReferenceMode: 'dynamic',
-        hours: 0.5,
-        anchorWeek: 4,
-        order: 0,
+        hours: 1,
+        anchorWeek: 2,
+        order: 1,
       },
     ],
   });
 
-  assert.equal(schedule.weeks[0].usedHours, 4);
   assert.deepEqual(
-    schedule.weeks[1].segments.map((segment) => segment.taskId),
-    ['task-a', 'task-b'],
+    schedule.weeks.map((week) =>
+      week.segments.map((segment) => ({
+        taskId: segment.taskId,
+        hours: segment.hours,
+        continuation: segment.continuation,
+      })),
+    ),
+    [
+      [{ taskId: 'task-a', hours: 2, continuation: false }],
+      [
+        { taskId: 'task-a', hours: 1, continuation: true },
+        { taskId: 'task-b', hours: 1, continuation: false },
+      ],
+      [{ taskId: 'task-c', hours: 1, continuation: false }],
+    ],
   );
-  assert.equal(schedule.weeks[1].usedHours, 6);
-  assert.equal(schedule.weeks[1].hasConflict, true);
-  assert.equal(schedule.unscheduledHours, 0.5);
-  assert.deepEqual(schedule.conflicts.map((conflict) => conflict.type).sort(), [
-    'invalid-anchor-week',
-    'week-over-capacity',
-  ]);
+  assert.equal(schedule.hasConflicts, false);
+  assert.equal(schedule.unscheduledHours, 0);
+  assert.equal(schedule.unallocatedHours, 1);
 });
 
 test('课时容量统一采用 0.5 课时步长', () => {
@@ -121,7 +129,7 @@ test('课时容量统一采用 0.5 课时步长', () => {
   );
 });
 
-test('前一任务刚好排满本周时不生成零课时片段', () => {
+test('前一任务刚好排满本周时，后续任务自动顺延但不误标为续排', () => {
   const schedule = scheduleTeachingPlan({
     totalWeeks: 2,
     weeklyHours: 4,
@@ -159,7 +167,7 @@ test('前一任务刚好排满本周时不生成零课时片段', () => {
     ),
     [
       [{ taskId: 'task-full', hours: 4, continuation: false }],
-      [{ taskId: 'task-next', hours: 1, continuation: true }],
+      [{ taskId: 'task-next', hours: 1, continuation: false }],
     ],
   );
 });

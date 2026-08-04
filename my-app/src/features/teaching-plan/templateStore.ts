@@ -28,8 +28,6 @@ export type TeachingPlanDomainErrorCode =
   | 'SUBJECT_LOCKED'
   | 'NOT_EDITABLE'
   | 'INVALID_TRANSITION'
-  | 'ACTIVE_VERSION_EXISTS'
-  | 'DRAFT_VERSION_EXISTS'
   | 'ACTIVATION_VALIDATION_FAILED';
 
 export class TeachingPlanDomainError extends Error {
@@ -112,6 +110,7 @@ export class TeachingPlanTemplateStore {
       }),
       createdAt: now,
       updatedAt: now,
+      updatedBy: input.operator ?? '系统',
     };
     this.templates.push(template);
     return clone(template);
@@ -138,7 +137,7 @@ export class TeachingPlanTemplateStore {
     this.assertUniqueName(subject, name, template.familyId);
 
     Object.assign(template, { name, subject, totalWeeks, weeklyHours });
-    return this.reschedule(template);
+    return this.reschedule(template, input.operator);
   }
 
   add(input: AddTeachingPlanTaskInput): TeachingPlanTemplate {
@@ -182,7 +181,7 @@ export class TeachingPlanTemplateStore {
       ...template.tasks.filter((task) => task.anchorWeek !== input.anchorWeek),
       ...siblings,
     ];
-    return this.reschedule(template);
+    return this.reschedule(template, input.operator);
   }
 
   move(input: MoveTeachingPlanTaskInput): TeachingPlanTemplate {
@@ -213,7 +212,7 @@ export class TeachingPlanTemplateStore {
       ...remainingTasks.filter((item) => item.anchorWeek !== input.toWeek),
       ...targetSiblings,
     ]);
-    return this.reschedule(template);
+    return this.reschedule(template, input.operator);
   }
 
   reorder(input: ReorderTeachingPlanTasksInput): TeachingPlanTemplate {
@@ -239,7 +238,7 @@ export class TeachingPlanTemplateStore {
         task.order = orderById.get(task.id) ?? task.order;
       }
     });
-    return this.reschedule(template);
+    return this.reschedule(template, input.operator);
   }
 
   remove(input: RemoveTeachingPlanTaskInput): TeachingPlanTemplate {
@@ -250,28 +249,13 @@ export class TeachingPlanTemplateStore {
       throw new TeachingPlanDomainError('NOT_FOUND', '教学任务不存在');
     }
     template.tasks = normalizeOrders(nextTasks);
-    return this.reschedule(template);
+    return this.reschedule(template, input.operator);
   }
 
   activate(input: OperateTeachingPlanTemplateInput): TeachingPlanTemplate {
     const template = this.find(input.id);
     this.assertDraft(template);
-    this.assertNoOtherActiveVersion(template);
-    this.assertCanActivate(template);
-
-    const activatedAt = this.now();
-    template.status = 'active';
-    template.everActivated = true;
-    template.activatedAt = activatedAt;
-    template.activatedBy = input.operator;
-    template.activatedSnapshot = {
-      tasks: clone(template.tasks),
-      schedule: clone(template.schedule),
-      activatedAt,
-      activatedBy: input.operator,
-    };
-    template.updatedAt = activatedAt;
-    return clone(template);
+    return this.activateVersion(template, input.operator);
   }
 
   stop(input: OperateTeachingPlanTemplateInput): TeachingPlanTemplate {
@@ -284,6 +268,7 @@ export class TeachingPlanTemplateStore {
     }
     template.status = 'stopped';
     template.updatedAt = this.now();
+    template.updatedBy = input.operator;
     return clone(template);
   }
 
@@ -295,22 +280,7 @@ export class TeachingPlanTemplateStore {
         '只有已停用版本可以重新启动',
       );
     }
-    this.assertNoOtherActiveVersion(template);
-    this.assertCanActivate(template);
-
-    const activatedAt = this.now();
-    template.status = 'active';
-    template.everActivated = true;
-    template.activatedAt = activatedAt;
-    template.activatedBy = input.operator;
-    template.activatedSnapshot = {
-      tasks: clone(template.tasks),
-      schedule: clone(template.schedule),
-      activatedAt,
-      activatedBy: input.operator,
-    };
-    template.updatedAt = activatedAt;
-    return clone(template);
+    return this.activateVersion(template, input.operator);
   }
 
   createDraftVersion(input: CreateDraftVersionInput): TeachingPlanTemplate {
@@ -321,16 +291,12 @@ export class TeachingPlanTemplateStore {
         '只有曾启动的模板版本才能派生新草稿',
       );
     }
-    if (
-      this.templates.some(
-        (template) =>
-          template.familyId === source.familyId && template.status === 'draft',
-      )
-    ) {
-      throw new TeachingPlanDomainError(
-        'DRAFT_VERSION_EXISTS',
-        '该模板已有待编辑的草稿版本',
-      );
+    const existingDraft = this.templates.find(
+      (template) =>
+        template.familyId === source.familyId && template.status === 'draft',
+    );
+    if (existingDraft) {
+      return clone(existingDraft);
     }
 
     const now = this.now();
@@ -354,6 +320,7 @@ export class TeachingPlanTemplateStore {
       activatedBy: undefined,
       createdAt: now,
       updatedAt: now,
+      updatedBy: input.operator ?? '系统',
     };
     draft.schedule = scheduleTeachingPlan(draft);
     this.templates.push(draft);
@@ -385,13 +352,17 @@ export class TeachingPlanTemplateStore {
       activatedBy: undefined,
       createdAt: now,
       updatedAt: now,
+      updatedBy: input.operator ?? '系统',
     };
     copied.schedule = scheduleTeachingPlan(copied);
     this.templates.push(copied);
     return clone(copied);
   }
 
-  deleteOrArchive(id: string): DeleteOrArchiveTeachingPlanTemplateResult {
+  deleteOrArchive(
+    id: string,
+    operator = '系统',
+  ): DeleteOrArchiveTeachingPlanTemplateResult {
     const template = this.find(id);
     if (template.status === 'active') {
       throw new TeachingPlanDomainError(
@@ -408,6 +379,7 @@ export class TeachingPlanTemplateStore {
     }
     template.status = 'archived';
     template.updatedAt = this.now();
+    template.updatedBy = operator;
     return { action: 'archived', template: clone(template) };
   }
 
@@ -449,7 +421,7 @@ export class TeachingPlanTemplateStore {
         changed = true;
       }
     });
-    return changed ? this.reschedule(template) : clone(template);
+    return changed ? this.reschedule(template, '系统同步') : clone(template);
   }
 
   /** 启动历史版本时只校验节点当前可用性，不改写其冻结课时和名称。 */
@@ -476,10 +448,14 @@ export class TeachingPlanTemplateStore {
     }
   }
 
-  private reschedule(template: TeachingPlanTemplate): TeachingPlanTemplate {
+  private reschedule(
+    template: TeachingPlanTemplate,
+    operator = '系统',
+  ): TeachingPlanTemplate {
     template.tasks = normalizeOrders(template.tasks);
     template.schedule = scheduleTeachingPlan(template);
     template.updatedAt = this.now();
+    template.updatedBy = operator;
     return clone(template);
   }
 
@@ -502,20 +478,38 @@ export class TeachingPlanTemplateStore {
     }
   }
 
-  private assertNoOtherActiveVersion(template: TeachingPlanTemplate): void {
-    if (
-      this.templates.some(
-        (item) =>
-          item.familyId === template.familyId &&
-          item.id !== template.id &&
-          item.status === 'active',
-      )
-    ) {
-      throw new TeachingPlanDomainError(
-        'ACTIVE_VERSION_EXISTS',
-        '同一模板只能有一个当前启动版本',
-      );
-    }
+  private activateVersion(
+    template: TeachingPlanTemplate,
+    operator: string,
+  ): TeachingPlanTemplate {
+    // 先完成整份校验，再切换当前版本，避免失败时中断线上生效版本。
+    this.assertCanActivate(template);
+
+    const activatedAt = this.now();
+    this.templates.forEach((item) => {
+      if (
+        item.familyId === template.familyId &&
+        item.id !== template.id &&
+        item.status === 'active'
+      ) {
+        item.status = 'stopped';
+        item.updatedAt = activatedAt;
+        item.updatedBy = operator;
+      }
+    });
+    template.status = 'active';
+    template.everActivated = true;
+    template.activatedAt = activatedAt;
+    template.activatedBy = operator;
+    template.activatedSnapshot = {
+      tasks: clone(template.tasks),
+      schedule: clone(template.schedule),
+      activatedAt,
+      activatedBy: operator,
+    };
+    template.updatedAt = activatedAt;
+    template.updatedBy = operator;
+    return clone(template);
   }
 
   private assertResourceNodeSelectable(
