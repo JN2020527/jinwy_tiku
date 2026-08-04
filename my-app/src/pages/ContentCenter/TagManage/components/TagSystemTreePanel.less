@@ -306,6 +306,115 @@
     color: #344054;
   }
 }
+
+.tag-system-tree-panel.review-tree-panel {
+  --review-name-column: minmax(240px, 1fr);
+  --review-hours-column: 96px;
+  --review-availability-column: 128px;
+  --review-action-column: 112px;
+  --review-table-columns: var(--review-name-column) var(--review-hours-column)
+    var(--review-availability-column) var(--review-action-column);
+
+  .tag-tree-review-table-header {
+    display: grid;
+    grid-template-columns: var(--review-table-columns);
+    gap: 14px;
+    margin: 10px 0 6px 28px;
+    padding: 0 8px 4px;
+    border-bottom: 1px solid #eef2f6;
+    color: #475467;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 30px;
+    white-space: nowrap;
+
+    span {
+      min-width: 0;
+    }
+
+    span:last-child {
+      justify-self: end;
+      padding-right: 2px;
+    }
+  }
+
+  .ant-tree {
+    padding-top: 0;
+  }
+
+  .ant-tree-treenode {
+    min-height: 36px;
+    align-items: center;
+    padding: 2px 0;
+  }
+
+  .tag-tree-review-table-row {
+    display: grid;
+    width: calc(100% + var(--review-node-indent, 0px));
+    margin-left: calc(var(--review-node-indent, 0px) * -1);
+    grid-template-columns: var(--review-table-columns);
+    gap: 14px;
+    align-items: center;
+
+    .tag-tree-node-content-with-meta,
+    .tag-tree-node-meta,
+    .tag-tree-review-meta-list {
+      display: contents;
+    }
+
+    .tag-tree-node-name {
+      padding-left: var(--review-node-indent, 0px);
+    }
+
+    .tag-tree-node-actions {
+      justify-content: flex-end;
+      min-width: 0;
+    }
+  }
+
+  .tag-tree-review-meta-item {
+    min-width: 0;
+    overflow: hidden;
+    color: #667085;
+    font-size: 13px;
+    line-height: 24px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tag-tree-review-availability-enabled {
+    color: #067647;
+  }
+
+  .tag-tree-review-availability-disabled {
+    color: #b42318;
+  }
+
+  &.tag-system-tree-panel-arranging {
+    .tag-tree-review-table-header {
+      display: none;
+    }
+
+    .tag-tree-review-table-row {
+      display: inline-flex;
+      width: auto;
+      margin-left: 0;
+      gap: 0;
+      grid-template-columns: none;
+
+      .tag-tree-node-name {
+        padding-left: 0;
+      }
+    }
+  }
+
+  @media (max-width: 900px) {
+    --review-name-column: minmax(160px, 1fr);
+    --review-hours-column: 78px;
+    --review-availability-column: 104px;
+    --review-action-column: 96px;
+  }
+}
 .tag-tree-node-schedule-status-enabled {
   border-color: #abefc6;
   background: #ecfdf3;

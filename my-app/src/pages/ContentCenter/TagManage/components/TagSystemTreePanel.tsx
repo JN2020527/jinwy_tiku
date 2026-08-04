@@ -136,6 +136,21 @@ const getTreeMutationResult = (
 
 const createDraftNodeKey = () => `draft-${Date.now()}`;
 
+const findNodeDepth = (
+  nodes: TreeNodeData[],
+  key: React.Key,
+  depth = 1,
+): number => {
+  for (const node of nodes) {
+    if (node.key === key) return depth;
+    if (node.children?.length) {
+      const childDepth = findNodeDepth(node.children, key, depth + 1);
+      if (childDepth > 0) return childDepth;
+    }
+  }
+  return 0;
+};
+
 const getAssetCenterResourceUrl = (subject: string, nodeId?: string) => {
   const searchParams = new URLSearchParams({ subject });
   if (nodeId) searchParams.set('nodeId', nodeId);
@@ -503,21 +518,35 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
 
   const renderNodeMeta = useCallback(
     (node: TreeNodeData) => {
-      if (
-        targetType === 'review' &&
-        !node.children?.length &&
-        typeof node.suggestedHours === 'number'
-      ) {
+      if (targetType === 'review') {
+        const isLeaf = !node.children?.length;
+        const hasScheduling = isLeaf && typeof node.suggestedHours === 'number';
+        const hours = hasScheduling ? `${node.suggestedHours} 课时` : '—';
+        const availability = hasScheduling
+          ? node.enabled === false
+            ? '停用'
+            : '启用'
+          : '—';
         return (
-          <span className="tag-tree-node-tags">
-            <Tag className="tag-tree-node-tag">{node.suggestedHours} 课时</Tag>
-            <Tag
-              className={`tag-tree-node-tag tag-tree-node-schedule-status-${
-                node.enabled === false ? 'disabled' : 'enabled'
-              }`}
+          <span className="tag-tree-review-meta-list">
+            <span
+              className="tag-tree-review-meta-item"
+              aria-label={`建议课时：${hours}`}
             >
-              {node.enabled === false ? '已停用' : '已启用'}
-            </Tag>
+              {hours}
+            </span>
+            <span
+              className={`tag-tree-review-meta-item${
+                hasScheduling
+                  ? ` tag-tree-review-availability-${
+                      node.enabled === false ? 'disabled' : 'enabled'
+                    }`
+                  : ''
+              }`}
+              aria-label={`可用于新任务：${availability}`}
+            >
+              {availability}
+            </span>
           </span>
         );
       }
@@ -894,8 +923,8 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   return (
     <Card
       className={`tag-system-tree-panel tag-system-tree-panel-no-title${
-        arrangeMode ? ' tag-system-tree-panel-arranging' : ''
-      }`}
+        targetType === 'review' ? ' review-tree-panel' : ''
+      }${arrangeMode ? ' tag-system-tree-panel-arranging' : ''}`}
       variant="borderless"
       extra={
         <div className="tag-system-tree-card-extra">
@@ -1012,6 +1041,14 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       }
     >
       <Spin spinning={loading}>
+        {targetType === 'review' && !arrangeMode ? (
+          <div className="tag-tree-review-table-header">
+            <span>节点名称</span>
+            <span>建议课时</span>
+            <span>可用于新任务</span>
+            <span>操作</span>
+          </div>
+        ) : null}
         {visibleTree.length > 0 ? (
           <Tree
             key={treeKey}
@@ -1038,6 +1075,23 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
               <TreeNodeTitle
                 nodeData={node}
                 searchValue={treeSearch.searchValue}
+                className={
+                  targetType === 'review'
+                    ? 'tag-tree-review-table-row'
+                    : undefined
+                }
+                style={
+                  targetType === 'review'
+                    ? ({
+                        '--review-node-indent': `${
+                          Math.max(
+                            findNodeDepth(visibleTree, node.key) - 1,
+                            0,
+                          ) * 24
+                        }px`,
+                      } as React.CSSProperties)
+                    : undefined
+                }
                 inlineEdit={
                   inlineEdit?.key === node.key
                     ? {
@@ -1050,7 +1104,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
                     : undefined
                 }
                 actionsVisible={!arrangeMode}
-                meta={renderNodeMeta(node)}
+                meta={arrangeMode ? null : renderNodeMeta(node)}
                 onAddChild={handleAddChild}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
