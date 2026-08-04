@@ -108,6 +108,11 @@ export default [
         component: './ContentCenter/TeachingPlanTemplate',
       },
       {
+        path: '/preparation/review-tree',
+        name: '复习树',
+        component: './ContentCenter/TagManage/Review',
+      },
+      {
         path: '/preparation/asset-center',
         name: '资产中心',
         component: './ContentCenter/AssetCenter',
@@ -213,8 +218,8 @@ export default [
       },
       {
         path: '/tag-system/review',
-        name: '复习树',
-        component: './ContentCenter/TagManage/Review',
+        redirect: '/preparation/review-tree',
+        hideInMenu: true,
       },
       {
         path: '/tag-system/question-type',
