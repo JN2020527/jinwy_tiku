@@ -1,15 +1,10 @@
 import { Request, Response } from 'express';
-import { RESOURCE_HAS_REFERENCES_CODE } from '../src/services/resourceAuditModel';
 import type {
   ResourceOperationAction,
   ResourceOperationChange,
   ResourceOperationRecord,
 } from '../src/services/resourceAuditModel';
-import { RESOURCE_REFERENCE_ERROR_CODES } from '../src/services/resourceReferenceModel';
-import type {
-  ResourceReference,
-  ResourceReferenceConsumerType,
-} from '../src/services/resourceReferenceModel';
+import { RESOURCE_HAS_REFERENCES_CODE } from '../src/services/resourceAuditModel';
 import type {
   AttachmentResourceType,
   ComposedResourceType,
@@ -28,6 +23,11 @@ import {
   isResourceType,
   isResourceVersionCompatible,
 } from '../src/services/resourceModel';
+import type {
+  ResourceReference,
+  ResourceReferenceConsumerType,
+} from '../src/services/resourceReferenceModel';
+import { RESOURCE_REFERENCE_ERROR_CODES } from '../src/services/resourceReferenceModel';
 
 interface MockAttributeItem {
   id: string;
@@ -1253,14 +1253,47 @@ const seedResourceOperations = (
         changes: [{ label: '资源状态', before: '未上架', after: '已上架' }],
       });
     } else if (resource.status === 'archived') {
+      const initialArchiveAt = '2026-07-30T08:00:00.000Z';
       appendResourceOperation({
         resourceId: resource.id,
         subject,
         action: 'archive',
-        occurredAt: '2026-07-30T08:00:00.000Z',
+        occurredAt: initialArchiveAt,
         summary: '资源归档，停止平台展示和新增业务引用',
         changes: [{ label: '资源状态', before: '未上架', after: '已归档' }],
       });
+
+      const versionsUploadedAfterArchive = resource.versions
+        .filter(
+          (version) =>
+            version.versionNumber > 1 && version.createdAt > initialArchiveAt,
+        )
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+      if (versionsUploadedAfterArchive.length) {
+        const firstUploadedVersion = versionsUploadedAfterArchive[0]!;
+        const latestUploadedVersion = versionsUploadedAfterArchive.at(-1)!;
+        appendResourceOperation({
+          resourceId: resource.id,
+          subject,
+          action: 'restore',
+          operator: firstUploadedVersion.createdBy,
+          occurredAt: new Date(
+            Date.parse(firstUploadedVersion.createdAt) + 1,
+          ).toISOString(),
+          summary: `上传 V${firstUploadedVersion.versionNumber} 时自动恢复为未上架`,
+          changes: [{ label: '资源状态', before: '已归档', after: '未上架' }],
+        });
+        appendResourceOperation({
+          resourceId: resource.id,
+          subject,
+          action: 'archive',
+          occurredAt: new Date(
+            Date.parse(latestUploadedVersion.createdAt) + 60 * 60 * 1000,
+          ).toISOString(),
+          summary: '资源再次归档，停止平台展示和新增业务引用',
+          changes: [{ label: '资源状态', before: '未上架', after: '已归档' }],
+        });
+      }
     }
   });
 };

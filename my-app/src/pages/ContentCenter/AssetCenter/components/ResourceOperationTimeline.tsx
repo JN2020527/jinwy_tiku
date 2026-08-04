@@ -31,8 +31,25 @@ const OPERATION_COLORS: Record<ResourceOperationAction, string> = {
   delete: 'red',
 };
 
-const formatDateTime = (value: string) =>
-  value.replace('T', ' ').replace('Z', '').slice(0, 19);
+const SHANGHAI_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+
+const formatDateTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${SHANGHAI_DATE_TIME_FORMATTER.format(date).replaceAll(
+    '/',
+    '-',
+  )} UTC+8`;
+};
 
 const ResourceOperationTimeline: React.FC<ResourceOperationTimelineProps> = ({
   records,
@@ -58,6 +75,7 @@ const ResourceOperationTimeline: React.FC<ResourceOperationTimelineProps> = ({
       <Timeline
         className="asset-operation-timeline"
         items={records.map((record) => ({
+          key: record.id,
           color: OPERATION_COLORS[record.action],
           dot:
             record.action === 'activateVersion' || record.action === 'list' ? (
