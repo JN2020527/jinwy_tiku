@@ -51,6 +51,7 @@ import {
 } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { history, useSearchParams } from '@umijs/max';
+import type { TreeDataNode } from 'antd';
 import {
   Alert,
   Button,
@@ -61,9 +62,11 @@ import {
   Modal,
   Select,
   Space,
+  Spin,
   Table,
   Tag,
   Tooltip,
+  Tree,
   TreeSelect,
   Upload,
 } from 'antd';
@@ -212,6 +215,19 @@ const buildReviewTreeMetadata = (
   };
 };
 
+const toReviewTreeData = (nodes: ReviewTreeSelectNode[]): TreeDataNode[] =>
+  nodes.map((node) => ({
+    title: node.title,
+    key: node.key,
+    children: node.children ? toReviewTreeData(node.children) : undefined,
+  }));
+
+const collectTreeKeys = (nodes: TreeDataNode[]): React.Key[] =>
+  nodes.flatMap((node) => [
+    node.key,
+    ...(node.children ? collectTreeKeys(node.children) : []),
+  ]);
+
 const getCarrierIcon = (carrierType: ResourceCarrierType) => {
   if (carrierType === 'ppt') return <FilePptOutlined />;
   if (carrierType === 'pdf') return <FilePdfOutlined />;
@@ -271,6 +287,7 @@ const AssetCenterPage: React.FC = () => {
   const [nodeFilter, setNodeFilter] = useState<string | undefined>(
     initialFiltersRef.current.nodeId,
   );
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);
@@ -306,6 +323,10 @@ const AssetCenterPage: React.FC = () => {
   const reviewTreeMetadata = useMemo(
     () => buildReviewTreeMetadata(reviewTree),
     [reviewTree],
+  );
+  const reviewTreeData = useMemo(
+    () => toReviewTreeData(reviewTreeMetadata.filterTreeSelectData),
+    [reviewTreeMetadata],
   );
 
   const isSubjectActive = useCallback(
@@ -396,6 +417,10 @@ const AssetCenterPage: React.FC = () => {
   useEffect(() => {
     void fetchReviewTree();
   }, [catalogRefreshToken, fetchReviewTree]);
+
+  useEffect(() => {
+    setExpandedKeys(collectTreeKeys(reviewTreeData));
+  }, [reviewTreeData]);
 
   const hasActiveFilters = Boolean(
     keyword.trim() ||
@@ -1115,74 +1140,111 @@ const AssetCenterPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="asset-center-filter-panel">
-          <div className="asset-center-filter-heading">
-            <strong>目录筛选</strong>
-            <span>条件可组合；选择父节点时包含其全部后代资源</span>
-          </div>
-          <div className="asset-center-filter-controls">
-            <Input
-              allowClear
-              placeholder="搜索资源名称或原始文件名…"
-              prefix={<SearchOutlined />}
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              aria-label="按名称筛选资产"
-              className="asset-center-search"
-            />
-            <Select
-              value={typeFilter}
-              onChange={setTypeFilter}
-              options={RESOURCE_TYPE_OPTIONS}
-              aria-label="筛选资源类型"
-              className="asset-center-filter-select"
-            />
-            <Select
-              value={carrierFilter}
-              onChange={setCarrierFilter}
-              options={RESOURCE_CARRIER_OPTIONS}
-              aria-label="筛选载体类型"
-              className="asset-center-filter-select"
-            />
-            <Select
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={RESOURCE_STATUS_OPTIONS}
-              aria-label="筛选资源状态"
-              className="asset-center-filter-select"
-            />
-            <TreeSelect
-              allowClear
-              value={nodeFilter}
-              onChange={setNodeFilter}
-              placeholder="全部复习树节点"
-              treeData={reviewTreeMetadata.filterTreeSelectData}
-              treeDefaultExpandAll
-              showSearch
-              treeNodeFilterProp="title"
-              aria-label="筛选复习树节点"
-              className="asset-center-node-filter"
-              notFoundContent="当前学科暂无复习树节点"
-            />
-            <Button onClick={resetFilters} disabled={!hasActiveFilters}>
-              重置
-            </Button>
-          </div>
-        </div>
+        <div className="asset-center-layout">
+          <aside
+            className="asset-center-tree-panel"
+            aria-label="复习树节点筛选"
+          >
+            <div className="asset-center-tree-heading">
+              <div>
+                <strong>复习树节点</strong>
+                <span>点击节点，筛选该节点及后代资源</span>
+              </div>
+              <Button
+                size="small"
+                onClick={() => setNodeFilter(undefined)}
+                disabled={!nodeFilter}
+              >
+                全部节点
+              </Button>
+            </div>
+            {nodeFilter && (
+              <div className="asset-center-tree-active">
+                <span>当前筛选范围</span>
+                <strong
+                  title={
+                    reviewTreeMetadata.nodePathMap.get(nodeFilter) || nodeFilter
+                  }
+                >
+                  {reviewTreeMetadata.nodePathMap.get(nodeFilter) || nodeFilter}
+                </strong>
+              </div>
+            )}
+            <div className="asset-center-tree-body">
+              <Spin spinning={treeLoading}>
+                <Tree
+                  treeData={reviewTreeData}
+                  selectedKeys={nodeFilter ? [nodeFilter] : []}
+                  expandedKeys={expandedKeys}
+                  onExpand={(keys) => setExpandedKeys(keys)}
+                  onSelect={(keys) =>
+                    setNodeFilter(keys[0] ? String(keys[0]) : undefined)
+                  }
+                  showLine
+                  blockNode
+                />
+              </Spin>
+            </div>
+          </aside>
 
-        <Table<ResourceItem>
-          rowKey="id"
-          loading={loading || treeLoading}
-          columns={columns}
-          dataSource={resources}
-          scroll={{ x: 2090 }}
-          locale={{ emptyText: '当前筛选条件下暂无资源' }}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: false,
-            showTotal: (total) => `共 ${total} 份资源`,
-          }}
-        />
+          <section className="asset-center-content">
+            <div className="asset-center-filter-panel">
+              <div className="asset-center-filter-heading">
+                <strong>目录筛选</strong>
+                <span>条件可组合；节点范围由左侧复习树决定</span>
+              </div>
+              <div className="asset-center-filter-controls">
+                <Input
+                  allowClear
+                  placeholder="搜索资源名称或原始文件名…"
+                  prefix={<SearchOutlined />}
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  aria-label="按名称筛选资产"
+                  className="asset-center-search"
+                />
+                <Select
+                  value={typeFilter}
+                  onChange={setTypeFilter}
+                  options={RESOURCE_TYPE_OPTIONS}
+                  aria-label="筛选资源类型"
+                  className="asset-center-filter-select"
+                />
+                <Select
+                  value={carrierFilter}
+                  onChange={setCarrierFilter}
+                  options={RESOURCE_CARRIER_OPTIONS}
+                  aria-label="筛选载体类型"
+                  className="asset-center-filter-select"
+                />
+                <Select
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={RESOURCE_STATUS_OPTIONS}
+                  aria-label="筛选资源状态"
+                  className="asset-center-filter-select"
+                />
+                <Button onClick={resetFilters} disabled={!hasActiveFilters}>
+                  重置
+                </Button>
+              </div>
+            </div>
+
+            <Table<ResourceItem>
+              rowKey="id"
+              loading={loading || treeLoading}
+              columns={columns}
+              dataSource={resources}
+              scroll={{ x: 2090 }}
+              locale={{ emptyText: '当前筛选条件下暂无资源' }}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: false,
+                showTotal: (total) => `共 ${total} 份资源`,
+              }}
+            />
+          </section>
+        </div>
       </Card>
 
       <Modal
