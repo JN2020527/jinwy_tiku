@@ -31,7 +31,6 @@ import {
   ExclamationCircleOutlined,
   HolderOutlined,
   SearchOutlined,
-  SettingOutlined,
 } from '@ant-design/icons';
 import { history } from '@umijs/max';
 import type { TreeProps } from 'antd';
@@ -39,6 +38,7 @@ import {
   Alert,
   Button,
   Card,
+  Form,
   Input,
   InputNumber,
   message,
@@ -116,11 +116,9 @@ interface InlineEditState {
   saving?: boolean;
 }
 
-interface ReviewSchedulingState {
+interface ReviewEditState {
   node: TreeNodeData;
   subject: string;
-  suggestedHours: number;
-  enabled: boolean;
   saving?: boolean;
 }
 
@@ -213,8 +211,13 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
     fileName: string;
   } | null>(null);
   const [importSubmitting, setImportSubmitting] = useState(false);
-  const [reviewScheduling, setReviewScheduling] =
-    useState<ReviewSchedulingState | null>(null);
+  const [reviewEdit, setReviewEdit] = useState<ReviewEditState | null>(null);
+  const [reviewEditForm] = Form.useForm<{
+    name: string;
+    suggestedHours: number;
+    enabled: boolean;
+    description?: string;
+  }>();
   const isMiddleExamContext = selectedTreeContext === MIDDLE_EXAM_TREE_VALUE;
   const isSyncContext = supportsSyncContext && !isMiddleExamContext;
   const displayTree = useMemo(() => {
@@ -523,46 +526,65 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
     [renderNodeRelationMeta, targetType],
   );
 
-  const handleOpenReviewScheduling = (
-    node: TreeNodeData,
-    event: React.MouseEvent,
-  ) => {
-    event.stopPropagation();
-    setReviewScheduling({
-      node,
-      subject: selectedSubject,
-      suggestedHours: node.suggestedHours ?? 1,
-      enabled: node.enabled ?? true,
-    });
-  };
+  const handleReviewEditSubmit = async () => {
+    if (!reviewEdit) return;
+    let values;
+    try {
+      values = await reviewEditForm.validateFields();
+    } catch {
+      return;
+    }
 
-  const handleSaveReviewScheduling = async () => {
-    if (!reviewScheduling) return;
-    const { suggestedHours } = reviewScheduling;
+    const nextTitle = String(values.name).trim();
+    const suggestedHours = Number(values.suggestedHours);
     if (suggestedHours <= 0 || !Number.isInteger(suggestedHours * 2)) {
       message.warning('建议课时必须为正数，且以 0.5 课时为最小单位');
       return;
     }
+    if (
+      hasSiblingTreeNodeTitle(
+        treeData,
+        getParentKey(reviewEdit.node.key, treeData),
+        nextTitle,
+        reviewEdit.node.key,
+      )
+    ) {
+      message.warning('同级已存在同名节点');
+      return;
+    }
 
-    setReviewScheduling({ ...reviewScheduling, saving: true });
+    setReviewEdit({ ...reviewEdit, saving: true });
     try {
-      const res = await updateResourceTreeLeafScheduling({
-        id: String(reviewScheduling.node.key),
-        subject: reviewScheduling.subject,
-        suggestedHours,
-        enabled: reviewScheduling.enabled,
+      const renameRes = await updateKnowledgeNode({
+        id: String(reviewEdit.node.key),
+        title: nextTitle,
+        subject: reviewEdit.subject,
+        targetType: 'review',
+        description: values.description?.trim() || undefined,
       });
-      if (!res.success) {
-        message.error(res.message || '排期属性保存失败');
-        setReviewScheduling({ ...reviewScheduling, saving: false });
+      if (!renameRes.success) {
+        message.error(renameRes.message || '节点信息保存失败');
+        setReviewEdit({ ...reviewEdit, saving: false });
         return;
       }
-      message.success('排期属性已保存');
-      setReviewScheduling(null);
-      await fetchTree();
+      const scheduleRes = await updateResourceTreeLeafScheduling({
+        id: String(reviewEdit.node.key),
+        subject: reviewEdit.subject,
+        suggestedHours,
+        enabled: Boolean(values.enabled),
+      });
+      if (!scheduleRes.success) {
+        message.error(scheduleRes.message || '排期属性保存失败');
+        setReviewEdit({ ...reviewEdit, saving: false });
+        return;
+      }
+      message.success('保存成功');
+      setReviewEdit(null);
+      reviewEditForm.resetFields();
+      fetchTree();
     } catch {
-      message.error('排期属性保存失败');
-      setReviewScheduling({ ...reviewScheduling, saving: false });
+      message.error('保存失败');
+      setReviewEdit({ ...reviewEdit, saving: false });
     }
   };
 
@@ -671,6 +693,16 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
 
   const handleEdit = (node: TreeNodeData, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (targetType === 'review' && !node.children?.length) {
+      reviewEditForm.setFieldsValue({
+        name: node.title,
+        suggestedHours: node.suggestedHours ?? 1,
+        enabled: node.enabled ?? true,
+        description: node.description,
+      });
+      setReviewEdit({ node, subject: selectedSubject });
+      return;
+    }
     setInlineEdit({
       key: node.key,
       mode: 'edit',
@@ -1019,23 +1051,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
                 }
                 actionsVisible={!arrangeMode}
                 meta={renderNodeMeta(node)}
-                extraActions={
-                  targetType === 'review' &&
-                  !node.children?.length &&
-                  typeof node.suggestedHours === 'number' ? (
-                    <Tooltip title="配置排期属性">
-                      <Button
-                        type="text"
-                        size="small"
-                        aria-label="配置排期属性"
-                        icon={<SettingOutlined />}
-                        onClick={(event) =>
-                          handleOpenReviewScheduling(node, event)
-                        }
-                      />
-                    </Tooltip>
-                  ) : undefined
-                }
                 onAddChild={handleAddChild}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
@@ -1062,59 +1077,81 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
           </div>
         )}
       </Spin>
-      {reviewScheduling ? (
+      {reviewEdit ? (
         <Modal
-          title={`配置排期属性：${reviewScheduling.node.title}`}
+          title={`编辑复习节点：${reviewEdit.node.title}`}
           open
           okText="保存"
           cancelText="取消"
-          confirmLoading={reviewScheduling.saving}
-          onOk={handleSaveReviewScheduling}
+          confirmLoading={reviewEdit.saving}
+          onOk={() => void handleReviewEditSubmit()}
           onCancel={() => {
-            if (!reviewScheduling.saving) setReviewScheduling(null);
+            if (!reviewEdit.saving) {
+              setReviewEdit(null);
+              reviewEditForm.resetFields();
+            }
           }}
         >
-          <div className="tag-tree-scheduling-form">
-            <div className="tag-tree-scheduling-field">
-              <span className="tag-tree-scheduling-label">建议课时</span>
+          <Form
+            form={reviewEditForm}
+            layout="vertical"
+            className="tag-tree-review-edit-form"
+          >
+            <Form.Item
+              name="name"
+              label="节点名称"
+              rules={[
+                { required: true, whitespace: true, message: '请输入节点名称' },
+              ]}
+            >
+              <Input
+                placeholder="请输入节点名称"
+                maxLength={40}
+                showCount
+                disabled={reviewEdit.saving}
+              />
+            </Form.Item>
+            <Form.Item
+              name="suggestedHours"
+              label="建议课时"
+              rules={[{ required: true, message: '请输入建议课时' }]}
+              extra="以 0.5 课时为最小单位"
+            >
               <InputNumber
-                value={reviewScheduling.suggestedHours}
                 min={0.5}
                 step={0.5}
                 precision={1}
                 addonAfter="课时"
                 aria-label="建议课时"
-                disabled={reviewScheduling.saving}
-                onChange={(value) =>
-                  setReviewScheduling((current) =>
-                    current
-                      ? { ...current, suggestedHours: Number(value || 0) }
-                      : current,
-                  )
-                }
+                disabled={reviewEdit.saving}
+                style={{ width: '100%' }}
               />
-            </div>
-            <div className="tag-tree-scheduling-field">
-              <span className="tag-tree-scheduling-label">可用于新任务</span>
+            </Form.Item>
+            <Form.Item
+              name="enabled"
+              label="可用于新任务"
+              valuePropName="checked"
+            >
               <Switch
-                checked={reviewScheduling.enabled}
                 checkedChildren="启用"
                 unCheckedChildren="停用"
                 aria-label="可用于新任务"
-                disabled={reviewScheduling.saving}
-                onChange={(enabled) =>
-                  setReviewScheduling((current) =>
-                    current ? { ...current, enabled } : current,
-                  )
-                }
+                disabled={reviewEdit.saving}
               />
-            </div>
-            <Alert
-              type="info"
-              showIcon
-              message="停用后，节点仍会保留并可被已有草稿识别，但不能再用于新任务选择。"
-            />
-          </div>
+            </Form.Item>
+            <Form.Item name="description" label="描述">
+              <Input.TextArea
+                rows={3}
+                placeholder="补充说明…"
+                disabled={reviewEdit.saving}
+              />
+            </Form.Item>
+          </Form>
+          <Alert
+            type="info"
+            showIcon
+            message="停用后，节点仍会保留并可被已有草稿识别，但不能再用于新任务选择。"
+          />
         </Modal>
       ) : null}
       {importPreview && (
