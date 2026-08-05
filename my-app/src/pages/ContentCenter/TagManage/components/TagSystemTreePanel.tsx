@@ -84,13 +84,13 @@ import {
 import TreeNodeTitle from './TreeNodeTitle';
 
 export interface TagSystemTreePanelProps {
-  /** 树类型：knowledge（知识点树）/ topic（专题树）/ review（复习树） */
+  /** 树类型：knowledge（知识点树）/ topic（专题树）/ review（资源树） */
   targetType: TreeTargetType;
   /** 体系筛选项（如仅中考，或中考+各年级同步语境） */
   contextOptions?: { label: string; value: string }[];
   /** 是否支持同步语境（教材版本 + 学期筛选）；知识点树为 true，专题树为 false */
   supportsSyncContext?: boolean;
-  /** 是否展示节点属性标签并拉取属性元数据；复习树等不接入属性体系的场景传 false */
+  /** 是否展示节点属性标签并拉取属性元数据；资源树等不接入属性体系的场景传 false */
   enableAttributeTags?: boolean;
   /** 搜索框占位文案 */
   searchPlaceholder?: string;
@@ -150,7 +150,7 @@ const getAssetCenterResourceUrl = (subject: string, nodeId?: string) => {
 const TREE_TYPE_LABELS: Record<TreeTargetType, string> = {
   knowledge: '知识点树',
   topic: '专题树',
-  review: '复习树',
+  review: '资源树',
 };
 
 const filterTextbookChaptersByContext = (
@@ -600,7 +600,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
         setImportPreview(null);
         treeSearch.resetSearch();
         fetchTree();
-      } else if (!showReviewTreeResourceGuard('无法清空重建复习树', res)) {
+      } else if (!showReviewTreeResourceGuard('无法清空重建资源树', res)) {
         message.error(res.message || '导入失败');
       }
     } catch {
@@ -664,7 +664,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
             message.success('删除成功');
             fetchTree();
           } else if (
-            !showReviewTreeResourceGuard('无法删除复习节点', res, node.key)
+            !showReviewTreeResourceGuard('无法删除资源节点', res, node.key)
           ) {
             message.error(res.message || '删除失败');
           }
@@ -720,7 +720,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       fetchTree();
     } else if (
       !showReviewTreeResourceGuard(
-        '无法移入该复习节点',
+        '无法移入该资源节点',
         res,
         moveRequest.targetId,
       )

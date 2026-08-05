@@ -109,7 +109,7 @@ export default [
       },
       {
         path: '/preparation/review-tree',
-        name: '复习树',
+        name: '资源树',
         component: './ContentCenter/TagManage/Review',
       },
       {
