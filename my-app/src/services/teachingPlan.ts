@@ -150,7 +150,7 @@ export async function deleteOrArchiveTeachingPlanTemplate(
 }
 
 /**
- * 教学计划只消费资源树末级节点的排期投影，不维护第二份节点数据。
+ * 教学计划只消费复习树末级节点的排期投影，不维护第二份节点数据。
  * 停用节点也必须返回，供草稿同步状态；页面负责只把启用节点列为新选项。
  */
 export async function getSchedulableResourceNodes(params: {

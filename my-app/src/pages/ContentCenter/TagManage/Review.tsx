@@ -15,9 +15,9 @@ const ReviewTagPage: React.FC = () => {
         targetType="review"
         contextOptions={TREE_CONTEXT_OPTIONS}
         enableAttributeTags={false}
-        searchPlaceholder="搜索资源节点…"
-        nodeNamePlaceholder="请输入资源节点名称…"
-        deleteTargetName="资源节点"
+        searchPlaceholder="搜索复习节点…"
+        nodeNamePlaceholder="请输入复习节点名称…"
+        deleteTargetName="复习节点"
         selectedSubject={selectedSubject}
         subjectOptions={SUBJECT_OPTIONS}
         onSubjectChange={setSelectedSubject}
