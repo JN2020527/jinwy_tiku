@@ -6,7 +6,7 @@ import {
   TREE_CONTEXT_OPTIONS,
 } from './components/treeFilterConstants';
 
-const ReviewTagPage: React.FC = () => {
+const ResourceTreePage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>('math');
 
   return (
@@ -15,9 +15,9 @@ const ReviewTagPage: React.FC = () => {
         targetType="review"
         contextOptions={TREE_CONTEXT_OPTIONS}
         enableAttributeTags={false}
-        searchPlaceholder="搜索复习节点…"
-        nodeNamePlaceholder="请输入复习节点名称…"
-        deleteTargetName="复习节点"
+        searchPlaceholder="搜索资源树节点…"
+        nodeNamePlaceholder="请输入资源树节点名称…"
+        deleteTargetName="资源树节点"
         selectedSubject={selectedSubject}
         subjectOptions={SUBJECT_OPTIONS}
         onSubjectChange={setSelectedSubject}
@@ -26,4 +26,4 @@ const ReviewTagPage: React.FC = () => {
   );
 };
 
-export default ReviewTagPage;
+export default ResourceTreePage;

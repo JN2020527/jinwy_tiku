@@ -21,11 +21,13 @@ import {
   isAttachmentFileCompatible,
   isAttachmentResourceType,
   isComposedResourceType,
+  RESOURCE_CARRIER_DISPLAY_ORDER,
   RESOURCE_CARRIER_LABELS,
   RESOURCE_LIFECYCLE_ACTION_LABELS,
   RESOURCE_LIFECYCLE_TRANSITIONS,
   RESOURCE_NAME_CONFLICT_CODE,
   RESOURCE_STATUS_LABELS,
+  RESOURCE_TYPE_DISPLAY_ORDER,
   RESOURCE_TYPE_LABELS,
   transitionResourceLifecycle,
   updateResourceMetadata,
@@ -60,6 +62,7 @@ import {
   Input,
   message,
   Modal,
+  Segmented,
   Select,
   Space,
   Spin,
@@ -119,32 +122,28 @@ type ResourceTypeFilter = 'all' | ResourceType;
 type ResourceCarrierFilter = 'all' | ResourceCarrierType;
 type ResourceStatusFilter = 'all' | ResourceStatus;
 
+/** 资源类型筛选：课件 / 学案 / 作业 / 其他，与资源自身的业务分类一一对应。 */
 const RESOURCE_TYPE_OPTIONS: Array<{
   label: string;
   value: ResourceTypeFilter;
 }> = [
-  { label: '全部类型', value: 'all' },
-  ...ATTACHMENT_RESOURCE_TYPES.map((type) => ({
-    label: RESOURCE_TYPE_LABELS[type],
-    value: type,
-  })),
-  ...COMPOSED_RESOURCE_TYPES.map((type) => ({
+  { label: '全部', value: 'all' },
+  ...RESOURCE_TYPE_DISPLAY_ORDER.map((type) => ({
     label: RESOURCE_TYPE_LABELS[type],
     value: type,
   })),
 ];
 
+/** 文件类型筛选：当前生效版本的文件格式，与资源类型是两条独立的筛选维度。 */
 const RESOURCE_CARRIER_OPTIONS: Array<{
   label: string;
   value: ResourceCarrierFilter;
 }> = [
-  { label: '全部载体', value: 'all' },
-  ...(Object.keys(RESOURCE_CARRIER_LABELS) as ResourceCarrierType[]).map(
-    (carrierType) => ({
-      label: RESOURCE_CARRIER_LABELS[carrierType],
-      value: carrierType,
-    }),
-  ),
+  { label: '全部', value: 'all' },
+  ...RESOURCE_CARRIER_DISPLAY_ORDER.map((carrierType) => ({
+    label: RESOURCE_CARRIER_LABELS[carrierType],
+    value: carrierType,
+  })),
 ];
 
 const RESOURCE_STATUS_OPTIONS: Array<{
@@ -398,12 +397,12 @@ const AssetCenterPage: React.FC = () => {
         setReviewTree(response.data);
       } else {
         setReviewTree([]);
-        message.error(response.message || '获取复习树失败');
+        message.error(response.message || '获取资源树失败');
       }
     } catch {
       if (isCurrentRequest()) {
         setReviewTree([]);
-        message.error('获取复习树失败');
+        message.error('获取资源树失败');
       }
     } finally {
       if (isCurrentRequest()) setTreeLoading(false);
@@ -608,7 +607,7 @@ const AssetCenterPage: React.FC = () => {
       message.error(
         type === 'courseware'
           ? '课件仅支持 .ppt 或 .pptx 文件'
-          : '拓展包仅支持 .pdf、.mp3 或 .mp4 文件',
+          : '其他类型仅支持 .pdf、.mp3 或 .mp4 文件',
       );
       return Upload.LIST_IGNORE;
     }
@@ -912,14 +911,14 @@ const AssetCenterPage: React.FC = () => {
       ),
     },
     {
-      title: '当前载体',
+      title: '文件类型',
       key: 'carrierType',
       width: 110,
       render: (_, resource) =>
         RESOURCE_CARRIER_LABELS[resource.currentVersion.carrierType],
     },
     {
-      title: '复习树完整路径',
+      title: '资源树完整路径',
       dataIndex: 'nodeId',
       key: 'nodeId',
       width: 310,
@@ -1090,7 +1089,7 @@ const AssetCenterPage: React.FC = () => {
   return (
     <PageContainer
       title="资产中心"
-      subTitle="统一管理课件、拓展包、学案与作业正式资源"
+      subTitle="统一管理课件、学案、作业与其他正式资源"
       className="asset-center-page"
     >
       <Card variant="borderless" className="asset-center-card">
@@ -1143,11 +1142,11 @@ const AssetCenterPage: React.FC = () => {
         <div className="asset-center-layout">
           <aside
             className="asset-center-tree-panel"
-            aria-label="复习树节点筛选"
+            aria-label="资源树节点筛选"
           >
             <div className="asset-center-tree-heading">
               <div>
-                <strong>复习树节点</strong>
+                <strong>资源树节点</strong>
                 <span>点击节点，筛选该节点及后代资源</span>
               </div>
               <Button
@@ -1191,9 +1190,9 @@ const AssetCenterPage: React.FC = () => {
             <div className="asset-center-filter-panel">
               <div className="asset-center-filter-heading">
                 <strong>目录筛选</strong>
-                <span>条件可组合；节点范围由左侧复习树决定</span>
+                <span>条件可组合；节点范围由左侧资源树决定</span>
               </div>
-              <div className="asset-center-filter-controls">
+              <div className="asset-center-filter-search-row">
                 <Input
                   allowClear
                   placeholder="搜索资源名称或原始文件名…"
@@ -1203,30 +1202,54 @@ const AssetCenterPage: React.FC = () => {
                   aria-label="按名称筛选资产"
                   className="asset-center-search"
                 />
-                <Select
-                  value={typeFilter}
-                  onChange={setTypeFilter}
-                  options={RESOURCE_TYPE_OPTIONS}
-                  aria-label="筛选资源类型"
-                  className="asset-center-filter-select"
-                />
-                <Select
-                  value={carrierFilter}
-                  onChange={setCarrierFilter}
-                  options={RESOURCE_CARRIER_OPTIONS}
-                  aria-label="筛选载体类型"
-                  className="asset-center-filter-select"
-                />
-                <Select
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                  options={RESOURCE_STATUS_OPTIONS}
-                  aria-label="筛选资源状态"
-                  className="asset-center-filter-select"
-                />
                 <Button onClick={resetFilters} disabled={!hasActiveFilters}>
                   重置
                 </Button>
+              </div>
+              <div className="asset-center-filter-groups">
+                <div className="asset-center-filter-group">
+                  <span
+                    className="asset-center-filter-group-label"
+                    id="asset-center-type-filter-label"
+                  >
+                    资源类型
+                  </span>
+                  <Segmented<ResourceTypeFilter>
+                    value={typeFilter}
+                    onChange={setTypeFilter}
+                    options={RESOURCE_TYPE_OPTIONS}
+                    aria-labelledby="asset-center-type-filter-label"
+                  />
+                </div>
+                <div className="asset-center-filter-group">
+                  <span
+                    className="asset-center-filter-group-label"
+                    id="asset-center-carrier-filter-label"
+                  >
+                    文件类型
+                  </span>
+                  <Segmented<ResourceCarrierFilter>
+                    value={carrierFilter}
+                    onChange={setCarrierFilter}
+                    options={RESOURCE_CARRIER_OPTIONS}
+                    aria-labelledby="asset-center-carrier-filter-label"
+                  />
+                </div>
+                <div className="asset-center-filter-group">
+                  <span
+                    className="asset-center-filter-group-label"
+                    id="asset-center-status-filter-label"
+                  >
+                    上架状态
+                  </span>
+                  <Select
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    options={RESOURCE_STATUS_OPTIONS}
+                    aria-labelledby="asset-center-status-filter-label"
+                    className="asset-center-filter-select"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1286,7 +1309,7 @@ const AssetCenterPage: React.FC = () => {
             extra={
               editingResource
                 ? '资源类型创建后不可修改'
-                : '附件上传仅支持课件和拓展包；学案、作业由组合制作发布'
+                : '附件上传仅支持课件和其他类型；学案、作业由组合制作发布'
             }
           >
             <Select
@@ -1306,15 +1329,15 @@ const AssetCenterPage: React.FC = () => {
           {!editingResource && (
             <Form.Item
               name="nodeId"
-              label="所属复习树节点"
+              label="所属资源树节点"
               rules={[
-                { required: true, message: '请选择复习树末级节点' },
+                { required: true, message: '请选择资源树末级节点' },
                 {
                   validator: (_, nodeId?: string) =>
                     nodeId && reviewTreeMetadata.leafNodeIds.has(nodeId)
                       ? Promise.resolve()
                       : Promise.reject(
-                          new Error('请选择当前学科的有效复习树末级节点'),
+                          new Error('请选择当前学科的有效资源树末级节点'),
                         ),
                 },
               ]}
@@ -1322,13 +1345,13 @@ const AssetCenterPage: React.FC = () => {
             >
               <TreeSelect
                 placeholder="请选择末级节点"
-                aria-label="选择资源所属复习树节点"
+                aria-label="选择资源所属资源树节点"
                 treeData={reviewTreeMetadata.ownershipTreeSelectData}
                 treeDefaultExpandAll
                 showSearch
                 treeNodeFilterProp="title"
                 allowClear={false}
-                notFoundContent="当前学科暂无可用复习树节点"
+                notFoundContent="当前学科暂无可用资源树节点"
               />
             </Form.Item>
           )}
@@ -1364,7 +1387,7 @@ const AssetCenterPage: React.FC = () => {
                 selectedFormType === 'courseware'
                   ? '课件仅支持 .ppt、.pptx'
                   : selectedFormType === 'extension'
-                  ? '拓展包仅支持 .pdf、.mp3、.mp4'
+                  ? '其他类型仅支持 .pdf、.mp3、.mp4'
                   : '请先选择资源类型与所属末级节点'
               }
             >
@@ -1510,7 +1533,7 @@ const AssetCenterPage: React.FC = () => {
                       reviewTreeMetadata.leafNodeIds.has(targetNodeId)
                         ? Promise.resolve()
                         : Promise.reject(
-                            new Error('只能选择当前学科的有效复习树末级节点'),
+                            new Error('只能选择当前学科的有效资源树末级节点'),
                           ),
                   },
                 ]}
@@ -1524,7 +1547,7 @@ const AssetCenterPage: React.FC = () => {
                   showSearch
                   treeNodeFilterProp="title"
                   allowClear={false}
-                  notFoundContent="当前学科暂无可用复习树节点"
+                  notFoundContent="当前学科暂无可用资源树节点"
                 />
               </Form.Item>
             </Form>

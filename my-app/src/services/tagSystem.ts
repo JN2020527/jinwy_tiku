@@ -34,7 +34,9 @@ export {
   isResourceCarrierType,
   isResourceType,
   isResourceVersionCompatible,
+  RESOURCE_CARRIER_DISPLAY_ORDER,
   RESOURCE_CARRIERS_BY_TYPE,
+  RESOURCE_TYPE_DISPLAY_ORDER,
   validateFormalResourceVersion,
   validateFormalResourceVersionAggregate,
 } from './resourceModel';
@@ -86,7 +88,7 @@ export type AttributeUsageScene =
   | 'topicTreeNodeDisplay';
 export type AttributeSelectionMode = 'single' | 'multiple';
 export type NodeAttributeTargetType = 'knowledge' | 'topic';
-/** 树面板可实例化的树类型：知识点树 / 专题树 / 复习树 */
+/** 树面板可实例化的树类型：知识点树 / 专题树 / 资源树 */
 export type TreeTargetType = NodeAttributeTargetType | 'review';
 
 export interface AttributeUsageRule {
@@ -145,9 +147,9 @@ export interface KnowledgeNode {
   value?: string;
   subject?: string;
   description?: string;
-  /** 仅复习树末级节点有效；教学计划按此值计算排期。 */
+  /** 仅资源树末级节点有效；教学计划按此值计算排期。 */
   suggestedHours?: number;
-  /** 仅复习树末级节点有效；停用后不可再被新任务选择。 */
+  /** 仅资源树末级节点有效；停用后不可再被新任务选择。 */
   enabled?: boolean;
   children?: KnowledgeNode[];
 }
@@ -172,17 +174,18 @@ export type ResourceLifecycleAction = 'list' | 'unlist' | 'archive' | 'restore';
 
 export const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
   courseware: '课件',
-  extension: '拓展包',
+  extension: '其他',
   studyGuide: '学案',
   homework: '作业',
 };
 
+/** 文件类型：附件资源用真实文件格式，学案/作业用在线组合内容。 */
 export const RESOURCE_CARRIER_LABELS: Record<ResourceCarrierType, string> = {
   ppt: 'PPT',
   pdf: 'PDF',
   audio: '音频',
   video: '视频',
-  online: '在线组合内容',
+  online: '在线组合',
 };
 
 export const RESOURCE_STATUS_LABELS: Record<ResourceStatus, string> = {
@@ -239,9 +242,9 @@ interface ResourceItemFields<T extends ResourceType> {
   readonly id: string;
   readonly name: string;
   readonly type: T;
-  /** 学科由所属复习树节点继承，不提供独立修改入口 */
+  /** 学科由所属资源树节点继承，不提供独立修改入口 */
   readonly subject: string;
-  /** 唯一所属复习树末级节点；响应不保存节点路径文本快照 */
+  /** 唯一所属资源树末级节点；响应不保存节点路径文本快照 */
   readonly nodeId: string;
   readonly status: ResourceStatus;
   /** 仅已上架资源对前台可见并允许产生新的业务引用。 */
@@ -336,7 +339,7 @@ export interface ImportTreeNode {
   children?: ImportTreeNode[];
 }
 
-/** 树结构变更影响的正式资源；scope 为空时表示当前学科整棵复习树 */
+/** 树结构变更影响的正式资源；scope 为空时表示当前学科整棵资源树 */
 export interface TreeMutationResult {
   affectedResourceCount: number;
   affectedTeachingTaskCount?: number;

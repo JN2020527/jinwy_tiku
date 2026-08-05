@@ -275,7 +275,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
       message.error(
         detail.type === 'courseware'
           ? '课件新版本仅支持 .ppt 或 .pptx 文件'
-          : '拓展包新版本仅支持 .pdf、.mp3 或 .mp4 文件',
+          : '其他类型新版本仅支持 .pdf、.mp3 或 .mp4 文件',
       );
       return Upload.LIST_IGNORE;
     }
@@ -354,7 +354,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
 
   const preview = (version: ResourceVersion) => {
     if (!detail || !isResourceVersionCompatible(detail.type, version)) {
-      message.error('该版本载体与资源类型不匹配，不能预览或生效');
+      message.error('该版本文件类型与资源类型不匹配，不能预览或生效');
       return;
     }
     setPreviewedVersionIds((current) => new Set(current).add(version.id));
@@ -471,7 +471,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
             {version.versionNumber} 成为平台资源库使用的当前版本。
           </p>
           <p>
-            资源身份、类型、复习树归属和“{RESOURCE_STATUS_LABELS[detail.status]}
+            资源身份、类型、资源树归属和“{RESOURCE_STATUS_LABELS[detail.status]}
             ”状态均保持不变。
           </p>
         </div>
@@ -498,7 +498,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
       ),
     },
     {
-      title: '内容与载体',
+      title: '内容与文件类型',
       key: 'file',
       width: 260,
       render: (_, version) => (
@@ -549,7 +549,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
                   ? version.carrierType === 'online'
                     ? '查看在线组合内容的只读占位预览'
                     : '查看该附件版本的原型占位预览'
-                  : '版本载体与资源类型不匹配'
+                  : '版本文件类型与资源类型不匹配'
               }
             >
               <span>
@@ -572,7 +572,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
               <Tooltip
                 title={
                   !versionIsValid
-                    ? '版本载体与资源类型不匹配，不能生效'
+                    ? '版本文件类型与资源类型不匹配，不能生效'
                     : hasPreviewed
                     ? version.state === 'pending'
                       ? '设为当前生效版本'
@@ -654,7 +654,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
                   children: <Tag>{RESOURCE_TYPE_LABELS[detail.type]}</Tag>,
                 },
                 {
-                  label: '复习树归属',
+                  label: '资源树归属',
                   span: 2,
                   children: nodePath || <Tag color="error">节点不可用</Tag>,
                 },
@@ -797,7 +797,7 @@ const ResourceDetailDrawer: React.FC<ResourceDetailDrawerProps> = ({
               <p className="ant-upload-hint">
                 {attachmentType === 'courseware'
                   ? '课件版本支持 .ppt、.pptx'
-                  : '拓展包版本支持 .pdf、.mp3、.mp4，载体可随版本变化'}
+                  : '其他类型版本支持 .pdf、.mp3、.mp4，文件类型可随版本变化'}
               </p>
             </Upload.Dragger>
           </div>

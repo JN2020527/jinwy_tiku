@@ -108,9 +108,14 @@ export default [
         component: './ContentCenter/TeachingPlanTemplate',
       },
       {
+        path: '/preparation/resource-tree',
+        name: '资源树',
+        component: './ContentCenter/TagManage/ResourceTree',
+      },
+      {
         path: '/preparation/review-tree',
-        name: '复习树',
-        component: './ContentCenter/TagManage/Review',
+        redirect: '/preparation/resource-tree',
+        hideInMenu: true,
       },
       {
         path: '/preparation/asset-center',
@@ -218,7 +223,12 @@ export default [
       },
       {
         path: '/tag-system/review',
-        redirect: '/preparation/review-tree',
+        redirect: '/preparation/resource-tree',
+        hideInMenu: true,
+      },
+      {
+        path: '/tag-system/resource',
+        redirect: '/preparation/resource-tree',
         hideInMenu: true,
       },
       {

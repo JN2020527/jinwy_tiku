@@ -31,6 +31,23 @@ export const COMPOSED_RESOURCE_TYPES: readonly ComposedResourceType[] = [
   'homework',
 ];
 
+/** 资源类型在筛选与展示中的固定顺序：兜底的「其他」始终排在末位。 */
+export const RESOURCE_TYPE_DISPLAY_ORDER: readonly ResourceType[] = [
+  'courseware',
+  'studyGuide',
+  'homework',
+  'extension',
+];
+
+/** 文件类型在筛选与展示中的固定顺序：真实附件格式在前，在线组合内容在末位。 */
+export const RESOURCE_CARRIER_DISPLAY_ORDER: readonly ResourceCarrierType[] = [
+  'ppt',
+  'pdf',
+  'audio',
+  'video',
+  'online',
+];
+
 /** 资源类型与其所有正式版本载体之间的唯一合法组合。 */
 export const RESOURCE_CARRIERS_BY_TYPE: {
   readonly [T in ResourceType]: readonly ResourceCarrierForType<T>[];

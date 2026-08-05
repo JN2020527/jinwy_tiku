@@ -117,11 +117,33 @@
   }
 }
 
-.asset-center-filter-controls {
+.asset-center-filter-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.asset-center-filter-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.asset-center-filter-group {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.asset-center-filter-group-label {
+  width: 64px;
+  flex: 0 0 auto;
+  color: #475569;
+  font-size: 12px;
+  line-height: 24px;
 }
 
 .asset-center-filter-select {
@@ -1416,14 +1438,23 @@
     gap: 3px;
   }
 
-  .asset-center-filter-controls {
+  .asset-center-filter-search-row,
+  .asset-center-filter-group {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .asset-center-filter-group-label {
+    width: auto;
   }
 
   .asset-center-filter-select,
   .asset-center-search {
     width: 100%;
+  }
+
+  .asset-center-filter-group .ant-segmented {
+    overflow-x: auto;
   }
 
   .asset-center-ownership-summary {

@@ -195,7 +195,7 @@ interface MockResourceItem {
   versionCount: number;
   pendingVersionCount: number;
   updatedAt: string;
-  /** 学案（组合资源）的课时数；绑定到复习树末级节点时自动同步为节点课时。 */
+  /** 学案（组合资源）的课时数；绑定到资源树末级节点时自动同步为节点课时。 */
   classHours?: number;
 }
 
@@ -315,7 +315,7 @@ const defaultKnowledgePointTemplates: KnowledgeSeedNode[] = [
   },
 ];
 
-// Mock Data for Review Tree (复习树：前台平台资源库浏览骨架)
+// Mock Data for Resource Tree（内部协议仍使用 review）
 const defaultReviewTreeTemplates: KnowledgeSeedNode[] = [
   {
     id: 'rv-1',
@@ -969,7 +969,7 @@ const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
   if (context.targetType === 'review') {
     // 节点移动后，原父节点可能首次成为末级节点，需要补齐可排期默认值。
     ensureReviewLeafScheduling(knowledgeTreeStore[storeKey]);
-    // 复习树课时由绑定的学案自动带过来：初始化资产库并同步到节点。
+    // 资源树课时由绑定的学案自动带过来：初始化资产库并同步到节点。
     getResourcesByContext(context);
   }
   return knowledgeTreeStore[storeKey];
@@ -1480,7 +1480,7 @@ interface SeedResourceBase {
   subject: string;
   nodeId: string;
   status?: ResourceStatus;
-  /** 学案（组合资源）课时数；绑定复习树节点时自动同步为节点课时。 */
+  /** 学案（组合资源）课时数；绑定资源树节点时自动同步为节点课时。 */
   classHours?: number;
 }
 
@@ -1620,7 +1620,7 @@ const seedResourcesForSubject = (subject: string): MockResourceItem[] => {
     }),
     createAttachmentSeedResource({
       id: `res-${subject}-2`,
-      name: '夏商周青铜文明拓展包',
+      name: '夏商周青铜文明拓展素材',
       type: 'extension',
       originalFileName: '夏商周拓展素材.pdf',
       subject,
@@ -1698,7 +1698,7 @@ const SUBJECT_KEYS = [
 ] as const;
 
 /**
- * 学案课时同步到复习树末级节点：节点课时 = 绑定的学案课时；
+ * 学案课时同步到资源树末级节点：节点课时 = 绑定的学案课时；
  * 无学案时恢复默认 1（保持教学计划兼容）。
  */
 const syncReviewNodeClassHours = (
@@ -1735,7 +1735,7 @@ const getResourcesByContext = (context: KnowledgeContext) => {
     resourceStore[storeKey] = resources;
     assertResourceReferenceIntegrity(context.subject, resources);
     seedResourceOperations(context.subject, resources);
-    // 复习树节点课时由绑定的学案自动带过来，不在复习树页面手动设置。
+    // 资源树节点课时由绑定的学案自动带过来，不在资源树页面手动设置。
     resources.forEach((resource) => {
       if (resource.type === 'studyGuide') {
         syncReviewNodeClassHours(
@@ -1812,7 +1812,7 @@ const validateResourceListFilters = (
 
   const carrierTypeValidation = parseOptionalResourceFilter(
     query.carrierType,
-    '载体类型',
+    '文件类型',
   );
   if (!carrierTypeValidation.valid) return carrierTypeValidation;
 
@@ -1824,7 +1824,7 @@ const validateResourceListFilters = (
 
   const nodeIdValidation = parseOptionalResourceFilter(
     query.nodeId,
-    '复习树节点',
+    '资源树节点',
   );
   if (!nodeIdValidation.valid) return nodeIdValidation;
 
@@ -1838,7 +1838,7 @@ const validateResourceListFilters = (
     return { valid: false, message: '资源类型筛选条件无效' };
   }
   if (carrierType && !isResourceCarrierType(carrierType)) {
-    return { valid: false, message: '载体类型筛选条件无效' };
+    return { valid: false, message: '文件类型筛选条件无效' };
   }
   if (status && !isResourceStatus(status)) {
     return { valid: false, message: '资源状态筛选条件无效' };
@@ -1849,7 +1849,7 @@ const validateResourceListFilters = (
     const reviewTree = getKnowledgeTreeByContext(context);
     const selectedNode = findTreeNode(reviewTree, nodeId);
     if (!selectedNode || selectedNode.subject !== context.subject) {
-      return { valid: false, message: '复习树节点筛选条件无效' };
+      return { valid: false, message: '资源树节点筛选条件无效' };
     }
     subtreeNodeIds = collectResourceSubtreeNodeIds(selectedNode);
   }
@@ -1936,7 +1936,7 @@ const validateResourceOwnership = (
   nodeId: unknown,
 ) => {
   if (typeof nodeId !== 'string' || !nodeId.trim()) {
-    return { valid: false, message: '请选择复习树末级节点' };
+    return { valid: false, message: '请选择资源树末级节点' };
   }
 
   const normalizedNodeId = nodeId.trim();
@@ -1948,11 +1948,11 @@ const validateResourceOwnership = (
   if (!node || node.subject !== context.subject) {
     return {
       valid: false,
-      message: '请选择当前学科的有效复习树末级节点',
+      message: '请选择当前学科的有效资源树末级节点',
     };
   }
   if (node.children?.length) {
-    return { valid: false, message: '资源只能归属复习树末级节点' };
+    return { valid: false, message: '资源只能归属资源树末级节点' };
   }
   return { valid: true, nodeId: normalizedNodeId };
 };
@@ -2801,7 +2801,7 @@ export default {
       if (affectedResourceCount > 0) {
         res.send({
           success: false,
-          message: `当前学科复习树下有 ${affectedResourceCount} 份正式资源，不能清空重建。请改用节点编辑或整理来调整结构。`,
+          message: `当前学科资源树下有 ${affectedResourceCount} 份正式资源，不能清空重建。请改用节点编辑或整理来调整结构。`,
           data: { affectedResourceCount },
         });
         return;
@@ -3129,7 +3129,7 @@ export default {
       if (sourceNodeId === targetNodeId) {
         res.send({
           success: false,
-          message: '不能将复习节点移动到自身',
+          message: '不能将资源树节点移动到自身',
           data: { affectedResourceCount: 0 },
         });
         return;
@@ -3137,7 +3137,7 @@ export default {
       if (isTreeDescendant(knowledgePoints, sourceNodeId, targetNodeId)) {
         res.send({
           success: false,
-          message: '不能将复习节点移动到其后代节点',
+          message: '不能将资源树节点移动到其后代节点',
           data: { affectedResourceCount: 0 },
         });
         return;
@@ -3159,7 +3159,7 @@ export default {
       ) {
         res.send({
           success: false,
-          message: '复习节点只能在当前学科树内移动',
+          message: '资源树节点只能在当前学科树内移动',
           data: { affectedResourceCount: 0 },
         });
         return;
@@ -3613,7 +3613,7 @@ export default {
         message:
           type === 'courseware'
             ? '课件仅支持 .ppt 或 .pptx 文件'
-            : '拓展包仅支持 .pdf、.mp3 或 .mp4 文件',
+            : '其他类型仅支持 .pdf、.mp3 或 .mp4 文件',
       });
       return;
     }
@@ -3761,7 +3761,7 @@ export default {
         message:
           item.type === 'courseware'
             ? '课件新版本仅支持 .ppt 或 .pptx 文件'
-            : '拓展包新版本仅支持 .pdf、.mp3 或 .mp4 文件',
+            : '其他类型新版本仅支持 .pdf、.mp3 或 .mp4 文件',
       });
       return;
     }
@@ -3867,7 +3867,7 @@ export default {
     if (!isResourceVersionCompatible(item.type, version)) {
       res.send({
         success: false,
-        message: '资源版本载体与资源类型不匹配，不能生效',
+        message: '资源版本文件类型与资源类型不匹配，不能生效',
       });
       return;
     }
@@ -3988,7 +3988,7 @@ export default {
     ) {
       res.send({
         success: false,
-        message: '一个复习树末级节点只绑定一份学案，目标节点已有学案',
+        message: '一个资源树末级节点只绑定一份学案，目标节点已有学案',
       });
       return;
     }
@@ -4277,7 +4277,7 @@ export default {
       ],
     });
     resources.splice(itemIndex, 1);
-    // 学案删除后，原节点的课时恢复默认（复习树课时由学案绑定自动带）。
+    // 学案删除后，原节点的课时恢复默认（资源树课时由学案绑定自动带）。
     if (item.type === 'studyGuide') {
       syncReviewNodeClassHours(context.subject, item.nodeId);
     }

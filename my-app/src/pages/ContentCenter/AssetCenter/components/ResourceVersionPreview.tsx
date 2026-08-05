@@ -77,7 +77,7 @@ export const createPrototypeDownloadPlaceholder = (
       '资产中心原型下载占位说明（不是原始文件）',
       `版本：V${version.versionNumber}`,
       `产品约定的原始文件名：${originalFileName}`,
-      `载体：${RESOURCE_CARRIER_LABELS[version.carrierType]}`,
+      `文件类型：${RESOURCE_CARRIER_LABELS[version.carrierType]}`,
       '',
       '当前纯前端 Mock 不保存上传文件字节；此文本 Blob 仅用于演示下载入口，不能作为原始文件使用。',
       '接入文件存储后，该入口应按上述原始文件名下载对应版本的真实文件。',
@@ -294,7 +294,7 @@ const ResourceVersionPreview: React.FC<ResourceVersionPreviewProps> = ({
                 <dd>{RESOURCE_VERSION_STATE_LABELS[version.state]}</dd>
               </div>
               <div>
-                <dt>内容载体</dt>
+                <dt>文件类型</dt>
                 <dd>{RESOURCE_CARRIER_LABELS[version.carrierType]}</dd>
               </div>
             </dl>

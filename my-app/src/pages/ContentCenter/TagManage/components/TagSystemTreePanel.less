@@ -297,7 +297,7 @@
   font-weight: 500;
 }
 
-.tag-tree-review-edit-form {
+.tag-tree-resource-edit-form {
   .ant-form-item:last-of-type {
     margin-bottom: 8px;
   }
@@ -307,16 +307,16 @@
   }
 }
 
-.tag-system-tree-panel.review-tree-panel {
-  --review-name-column: minmax(280px, 1fr);
-  --review-hours-column: 108px;
-  --review-action-column: 112px;
-  --review-table-columns: var(--review-name-column) var(--review-hours-column)
-    var(--review-action-column);
+.tag-system-tree-panel.resource-tree-panel {
+  --resource-tree-name-column: minmax(280px, 1fr);
+  --resource-tree-hours-column: 108px;
+  --resource-tree-action-column: 112px;
+  --resource-tree-table-columns: var(--resource-tree-name-column)
+    var(--resource-tree-hours-column) var(--resource-tree-action-column);
 
-  .tag-tree-review-table-header {
+  .tag-tree-resource-table-header {
     display: grid;
-    grid-template-columns: var(--review-table-columns);
+    grid-template-columns: var(--resource-tree-table-columns);
     gap: 14px;
     margin: 10px 0 6px 28px;
     padding: 0 8px 4px;
@@ -347,22 +347,22 @@
     padding: 2px 0;
   }
 
-  .tag-tree-review-table-row {
+  .tag-tree-resource-table-row {
     display: grid;
-    width: calc(100% + var(--review-node-indent, 0px));
-    margin-left: calc(var(--review-node-indent, 0px) * -1);
-    grid-template-columns: var(--review-table-columns);
+    width: calc(100% + var(--resource-tree-node-indent, 0px));
+    margin-left: calc(var(--resource-tree-node-indent, 0px) * -1);
+    grid-template-columns: var(--resource-tree-table-columns);
     gap: 14px;
     align-items: center;
 
     .tag-tree-node-content-with-meta,
     .tag-tree-node-meta,
-    .tag-tree-review-meta-list {
+    .tag-tree-resource-meta-list {
       display: contents;
     }
 
     .tag-tree-node-name {
-      padding-left: var(--review-node-indent, 0px);
+      padding-left: var(--resource-tree-node-indent, 0px);
     }
 
     .tag-tree-node-actions {
@@ -371,7 +371,7 @@
     }
   }
 
-  .tag-tree-review-meta-item {
+  .tag-tree-resource-meta-item {
     min-width: 0;
     overflow: hidden;
     color: #667085;
@@ -382,11 +382,11 @@
   }
 
   &.tag-system-tree-panel-arranging {
-    .tag-tree-review-table-header {
+    .tag-tree-resource-table-header {
       display: none;
     }
 
-    .tag-tree-review-table-row {
+    .tag-tree-resource-table-row {
       display: inline-flex;
       width: auto;
       margin-left: 0;
@@ -400,9 +400,9 @@
   }
 
   @media (max-width: 900px) {
-    --review-name-column: minmax(160px, 1fr);
-    --review-hours-column: 84px;
-    --review-action-column: 96px;
+    --resource-tree-name-column: minmax(160px, 1fr);
+    --resource-tree-hours-column: 84px;
+    --resource-tree-action-column: 96px;
   }
 }
 .tag-tree-node-schedule-status-enabled {

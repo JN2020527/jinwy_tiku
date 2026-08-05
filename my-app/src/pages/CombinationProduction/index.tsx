@@ -184,7 +184,7 @@ const CombinationProductionPage: React.FC = () => {
         children: `V${revisionResource.currentVersion.versionNumber}`,
       },
       {
-        label: '载体',
+        label: '文件类型',
         children:
           RESOURCE_CARRIER_LABELS[revisionResource.currentVersion.carrierType],
       },
@@ -283,7 +283,7 @@ const CombinationProductionPage: React.FC = () => {
                 ? revisionResource
                   ? `当前 V${revisionResource.currentVersion.versionNumber} 继续生效；待原子体系接入后，“发起修订”才会先创建独立修订草稿，发布前不改变正式资源。`
                   : '正在只读核对正式资源；核对期间不会创建修订草稿。'
-                : '待原子体系接入后，组合草稿可独立暂存；只有完成编辑并选择同学科复习树末级节点后，才会发布为正式资源。'
+                : '待原子体系接入后，组合草稿可独立暂存；只有完成编辑并选择同学科资源树末级节点后，才会发布为正式资源。'
             }
           />
 
