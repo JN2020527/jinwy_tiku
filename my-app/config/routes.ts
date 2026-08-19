@@ -108,6 +108,11 @@ export default [
         component: './ContentCenter/TeachingPlanTemplate',
       },
       {
+        path: '/preparation/subject-columns',
+        name: '栏目维护',
+        component: './ContentCenter/SubjectColumnManage',
+      },
+      {
         path: '/preparation/resource-tree',
         name: '资源树',
         component: './ContentCenter/TagManage/ResourceTree',

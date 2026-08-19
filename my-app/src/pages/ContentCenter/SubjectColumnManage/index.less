@@ -1,0 +1,127 @@
+.subject-column-panel {
+  .ant-card-body {
+    padding: 0;
+  }
+}
+
+.subject-column-toolbar {
+  display: flex;
+  min-height: 64px;
+  padding: 16px 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.subject-column-context {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.subject-column-context-label {
+  flex: 0 0 auto;
+  color: rgba(0, 0, 0, 0.88);
+  font-weight: 600;
+}
+
+.subject-column-subject-select {
+  width: 148px;
+}
+
+.subject-column-context-tip {
+  overflow: hidden;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subject-column-table {
+  .ant-table-thead > tr > th {
+    color: rgba(0, 0, 0, 0.65);
+    font-weight: 600;
+  }
+
+  .ant-table-row-level-0 > td:first-child {
+    border-inline-start: 3px solid #e6f4ff;
+  }
+
+  .ant-table-row:hover .subject-column-name {
+    color: #1677ff;
+  }
+
+  .ant-table-cell-fix-right {
+    background: #fff;
+  }
+
+  .ant-table-row:hover .ant-table-cell-fix-right {
+    background: #fafafa;
+  }
+
+  .ant-empty {
+    margin-block: 44px;
+  }
+}
+
+.subject-column-name {
+  transition: color 0.18s ease;
+}
+
+.subject-column-actions {
+  white-space: nowrap;
+
+  .ant-btn-link {
+    height: 28px;
+    padding-inline: 6px;
+  }
+}
+
+.subject-column-drawer-intro {
+  margin-bottom: 24px;
+  padding: 12px 14px;
+  border: 1px solid #d6e4ff;
+  border-radius: 6px;
+  background: #f0f5ff;
+  color: rgba(0, 0, 0, 0.65);
+  line-height: 22px;
+}
+
+.subject-column-form {
+  .ant-form-item-extra {
+    padding-top: 4px;
+    color: rgba(0, 0, 0, 0.45);
+    line-height: 20px;
+  }
+}
+
+.subject-column-drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .subject-column-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .subject-column-context {
+    width: 100%;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .subject-column-context-tip {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subject-column-name {
+    transition: none;
+  }
+}
