@@ -118,6 +118,11 @@ export default [
         component: './ContentCenter/TagManage/KnowledgeTree',
       },
       {
+        path: '/preparation/knowledge-blocks',
+        name: '知识块',
+        component: './ContentCenter/KnowledgeBlocks',
+      },
+      {
         path: '/preparation/resource-tree',
         name: '资源树',
         component: './ContentCenter/TagManage/ResourceTree',
@@ -131,6 +136,12 @@ export default [
         path: '/preparation/asset-center',
         name: '资产中心',
         component: './ContentCenter/AssetCenter',
+      },
+      {
+        path: '/preparation/asset-center/study-guide/:draftId/split',
+        name: '学案拆分结果',
+        component: './ContentCenter/StudyGuideSplit',
+        hideInMenu: true,
       },
     ],
   },

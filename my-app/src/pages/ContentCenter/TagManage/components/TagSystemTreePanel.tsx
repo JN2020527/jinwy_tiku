@@ -237,12 +237,30 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       const affectedResourceCount = mutationResult?.affectedResourceCount || 0;
       const affectedKnowledgeBlockCount =
         mutationResult?.affectedKnowledgeBlockCount || 0;
+      const affectedStudyGuideReferenceCount =
+        mutationResult?.affectedStudyGuideReferenceCount || 0;
 
       if (
         structureOnly &&
         targetType === 'knowledgeTree' &&
-        affectedKnowledgeBlockCount > 0
+        (affectedKnowledgeBlockCount > 0 ||
+          affectedStudyGuideReferenceCount > 0)
       ) {
+        const hasKnowledgeBlockDependency = affectedKnowledgeBlockCount > 0;
+        const hasStudyGuideReference = affectedStudyGuideReferenceCount > 0;
+        const dependencyFallbackMessage =
+          hasKnowledgeBlockDependency && hasStudyGuideReference
+            ? `检测到 ${affectedKnowledgeBlockCount} 个相关知识块和 ${affectedStudyGuideReferenceCount} 个学案三级考点项引用，本次操作已停止。`
+            : hasKnowledgeBlockDependency
+            ? `检测到 ${affectedKnowledgeBlockCount} 个相关知识块，本次操作已停止。`
+            : `检测到 ${affectedStudyGuideReferenceCount} 个学案三级考点项引用，本次操作已停止。`;
+        const dependencyUnchangedNote =
+          hasKnowledgeBlockDependency && hasStudyGuideReference
+            ? '树结构和知识块关联、学案三级考点项引用均未改变。'
+            : hasStudyGuideReference
+            ? '树结构和学案三级考点项引用均未改变。'
+            : '树结构和知识块关联均未改变。';
+
         Modal.warning({
           title,
           icon: <ExclamationCircleOutlined />,
@@ -250,12 +268,9 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
           maskTransitionName: '',
           content: (
             <div>
-              <p>
-                {response.message ||
-                  `检测到 ${affectedKnowledgeBlockCount} 个相关知识块，本次操作已停止。`}
-              </p>
+              <p>{response.message || dependencyFallbackMessage}</p>
               <p style={{ marginBottom: 0, color: '#64748b' }}>
-                树结构和知识块关联均未改变。
+                {dependencyUnchangedNote}
               </p>
             </div>
           ),

@@ -1,6 +1,6 @@
 import { request } from '@umijs/max';
 
-export type SubjectColumnLevel = 1 | 2 | 3 | 4;
+export type SubjectColumnLevel = 1 | 4;
 export type SubjectColumnType = 'knowledge' | 'question';
 export type SubjectColumnMoveDirection = 'up' | 'down';
 
@@ -12,7 +12,7 @@ export interface SubjectColumn {
   parentId: string | null;
   type: SubjectColumnType;
   sort: number;
-  isUsed: boolean;
+  usedCount: number;
 }
 
 export interface SubjectColumnResponse<T> {

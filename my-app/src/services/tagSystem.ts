@@ -347,6 +347,8 @@ export interface TreeMutationResult {
   affectedResourceCount: number;
   /** 知识树结构操作涉及的知识块关联数量。 */
   affectedKnowledgeBlockCount?: number;
+  /** 知识树结构操作涉及的学案三级考点项引用数量。 */
+  affectedStudyGuideReferenceCount?: number;
   affectedPlatformTemplateCount?: number;
   affectedTeacherTeachingTaskCount?: number;
   /** 旧调用方兼容字段；新资源树校验使用上面两类独立计数。 */

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define -- 单文件 Mock 路由与共享 store 按业务域分段，初始化函数会引用后置声明。 */
 import { Request, Response } from 'express';
 import type {
   ResourceOperationAction,
@@ -29,6 +30,11 @@ import type {
 } from '../src/services/resourceReferenceModel';
 import { RESOURCE_REFERENCE_ERROR_CODES } from '../src/services/resourceReferenceModel';
 
+import {
+  getStudyGuideReferenceCounts,
+  knowledgeBlockStore,
+  knowledgeTreesBySubject,
+} from './resourceAssetsStore';
 import { countTeacherTeachingTaskReferences } from './teacherTeachingTaskReferenceRegistry';
 import { countTeachingPlanTaskReferences } from './teachingPlanReferenceRegistry';
 
@@ -952,29 +958,54 @@ const applyKnowledgeScope = (
 const knowledgeTreeStore: Record<string, MockKnowledgeNode[]> = {};
 let knowledgeNodeSequence = 0;
 const EMPTY_REVIEW_TREE_SUBJECTS = new Set(['biology']);
-const EMPTY_KNOWLEDGE_TREE_SUBJECTS = new Set(['biology']);
 
 /**
  * 已由知识块新建/编辑功能形成的存量关联，仅供树结构守卫验收。
  * 关联独立按稳定节点 ID 保存，节点改名、排序和移动均不会改变该映射。
  */
-const knowledgeBlockRelationCountBySubject: Record<
-  string,
-  Record<string, number>
-> = {
-  math: {
-    'kp-1-1-1-knowledge-tree-math': 3,
-    'kp-2-1-1-knowledge-tree-math': 1,
-  },
-};
-
 const getKnowledgeBlockRelationCount = (
   context: KnowledgeContext,
   nodeId: string,
 ) =>
   context.targetType === 'knowledgeTree'
-    ? knowledgeBlockRelationCountBySubject[context.subject]?.[nodeId] || 0
+    ? knowledgeBlockStore.filter(
+        (block) =>
+          block.subject === context.subject &&
+          block.knowledgeNodeIds.includes(nodeId),
+      ).length
     : 0;
+
+/**
+ * 已由学案维护功能形成的存量三级考点项引用，仅供树结构守卫验收。
+ * 引用独立按稳定节点 ID 保存，节点改名、排序和移动均不会改变该映射；
+ * 外部学案维护功能移除全部引用（映射中不再命中该节点）后恢复可操作。
+ */
+const getStudyGuideReferenceCount = (
+  context: KnowledgeContext,
+  nodeId: string,
+) =>
+  context.targetType === 'knowledgeTree'
+    ? getStudyGuideReferenceCounts(context.subject)[nodeId] || 0
+    : 0;
+
+/**
+ * 组合知识树结构守卫提示：知识块关联与学案三级考点项引用同时存在时，
+ * 两类数量都会展示；只存在一类时保持原有单类提示文案不变。
+ */
+const composeKnowledgeTreeGuardMessage = (
+  nodeSubject: string,
+  affectedKnowledgeBlockCount: number,
+  affectedStudyGuideReferenceCount: number,
+  actionText: string,
+) => {
+  if (affectedKnowledgeBlockCount > 0 && affectedStudyGuideReferenceCount > 0) {
+    return `${nodeSubject}已关联 ${affectedKnowledgeBlockCount} 个知识块且被 ${affectedStudyGuideReferenceCount} 个学案三级考点项引用，${actionText}。请先在知识块新建或编辑功能中调整关联，并在学案维护功能中移除引用。`;
+  }
+  if (affectedKnowledgeBlockCount > 0) {
+    return `${nodeSubject}已关联 ${affectedKnowledgeBlockCount} 个知识块，${actionText}。请先在知识块新建或编辑功能中调整关联。`;
+  }
+  return `${nodeSubject}被 ${affectedStudyGuideReferenceCount} 个学案三级考点项引用，${actionText}。请先在学案维护功能中移除引用。`;
+};
 
 const ensureReviewLeafScheduling = (nodes: MockKnowledgeNode[]) => {
   nodes.forEach((node) => {
@@ -990,16 +1021,26 @@ const ensureReviewLeafScheduling = (nodes: MockKnowledgeNode[]) => {
 const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
   const storeKey = getKnowledgeStoreKey(context);
   if (!knowledgeTreeStore[storeKey]) {
-    const templates =
-      context.targetType === 'review'
-        ? EMPTY_REVIEW_TREE_SUBJECTS.has(context.subject)
-          ? []
-          : defaultReviewTreeTemplates
-        : context.targetType === 'knowledgeTree' &&
-          EMPTY_KNOWLEDGE_TREE_SUBJECTS.has(context.subject)
-        ? []
-        : defaultKnowledgePointTemplates;
-    knowledgeTreeStore[storeKey] = applyKnowledgeScope(templates, context);
+    if (context.targetType === 'knowledgeTree') {
+      const sharedTree = (knowledgeTreesBySubject[context.subject] ||
+        []) as unknown as MockKnowledgeNode[];
+      const applySubject = (nodes: MockKnowledgeNode[]) => {
+        nodes.forEach((node) => {
+          node.subject = context.subject;
+          if (node.children?.length) applySubject(node.children);
+        });
+      };
+      applySubject(sharedTree);
+      knowledgeTreeStore[storeKey] = sharedTree;
+    } else {
+      const templates =
+        context.targetType === 'review'
+          ? EMPTY_REVIEW_TREE_SUBJECTS.has(context.subject)
+            ? []
+            : defaultReviewTreeTemplates
+          : defaultKnowledgePointTemplates;
+      knowledgeTreeStore[storeKey] = applyKnowledgeScope(templates, context);
+    }
   }
   if (context.targetType === 'review') {
     // 节点移动后，原父节点可能首次成为末级节点，需要补齐可排期默认值。
@@ -1744,7 +1785,7 @@ const syncReviewNodeClassHours = (
   const tree = getKnowledgeTreeByContext({ subject, targetType: 'review' });
   const node = findTreeNode(tree, nodeId);
   if (!node) return;
-  node.suggestedHours = classHours != null ? classHours : 1;
+  node.suggestedHours = classHours !== undefined ? classHours : 1;
 };
 
 const getResourceStoreKey = (context: KnowledgeContext) =>
@@ -3085,13 +3126,26 @@ export default {
           context,
           parentNode.key,
         );
-        if (affectedKnowledgeBlockCount > 0) {
+        const affectedStudyGuideReferenceCount = getStudyGuideReferenceCount(
+          context,
+          parentNode.key,
+        );
+        if (
+          affectedKnowledgeBlockCount > 0 ||
+          affectedStudyGuideReferenceCount > 0
+        ) {
           res.send({
             success: false,
-            message: `该末级节点已关联 ${affectedKnowledgeBlockCount} 个知识块，不能新增子节点。请先在知识块新建或编辑功能中调整关联。`,
+            message: composeKnowledgeTreeGuardMessage(
+              '该末级节点',
+              affectedKnowledgeBlockCount,
+              affectedStudyGuideReferenceCount,
+              '不能新增子节点',
+            ),
             data: {
               affectedResourceCount: 0,
               affectedKnowledgeBlockCount,
+              affectedStudyGuideReferenceCount,
             },
           });
           return;
@@ -3243,6 +3297,7 @@ export default {
           data: {
             affectedResourceCount: 0,
             affectedKnowledgeBlockCount: 0,
+            affectedStudyGuideReferenceCount: 0,
           },
         });
         return;
@@ -3251,13 +3306,26 @@ export default {
         context,
         targetNode.key,
       );
-      if (affectedKnowledgeBlockCount > 0) {
+      const affectedStudyGuideReferenceCount = getStudyGuideReferenceCount(
+        context,
+        targetNode.key,
+      );
+      if (
+        affectedKnowledgeBlockCount > 0 ||
+        affectedStudyGuideReferenceCount > 0
+      ) {
         res.send({
           success: false,
-          message: `该节点已关联 ${affectedKnowledgeBlockCount} 个知识块，不能删除。请先在知识块新建或编辑功能中调整关联。`,
+          message: composeKnowledgeTreeGuardMessage(
+            '该节点',
+            affectedKnowledgeBlockCount,
+            affectedStudyGuideReferenceCount,
+            '不能删除',
+          ),
           data: {
             affectedResourceCount: 0,
             affectedKnowledgeBlockCount,
+            affectedStudyGuideReferenceCount,
           },
         });
         return;
@@ -3303,6 +3371,7 @@ export default {
     const targetNodeId = String(targetId);
     let affectedResourceCount = 0;
     let affectedKnowledgeBlockCount = 0;
+    let affectedStudyGuideReferenceCount = 0;
 
     if (context.targetType === 'knowledgeTree') {
       if (!['before', 'after', 'inside'].includes(position)) {
@@ -3367,13 +3436,26 @@ export default {
           context,
           targetNode.key,
         );
-        if (affectedKnowledgeBlockCount > 0) {
+        affectedStudyGuideReferenceCount = getStudyGuideReferenceCount(
+          context,
+          targetNode.key,
+        );
+        if (
+          affectedKnowledgeBlockCount > 0 ||
+          affectedStudyGuideReferenceCount > 0
+        ) {
           res.send({
             success: false,
-            message: `目标末级节点已关联 ${affectedKnowledgeBlockCount} 个知识块，不能接收其他节点。请先在知识块新建或编辑功能中调整关联。`,
+            message: composeKnowledgeTreeGuardMessage(
+              '目标末级节点',
+              affectedKnowledgeBlockCount,
+              affectedStudyGuideReferenceCount,
+              '不能接收其他节点',
+            ),
             data: {
               affectedResourceCount: 0,
               affectedKnowledgeBlockCount,
+              affectedStudyGuideReferenceCount,
             },
           });
           return;
@@ -3381,6 +3463,10 @@ export default {
       }
 
       affectedKnowledgeBlockCount = getKnowledgeBlockRelationCount(
+        context,
+        sourceNode.key,
+      );
+      affectedStudyGuideReferenceCount = getStudyGuideReferenceCount(
         context,
         sourceNode.key,
       );
@@ -3510,6 +3596,9 @@ export default {
         affectedResourceCount: result.success ? affectedResourceCount : 0,
         affectedKnowledgeBlockCount: result.success
           ? affectedKnowledgeBlockCount
+          : 0,
+        affectedStudyGuideReferenceCount: result.success
+          ? affectedStudyGuideReferenceCount
           : 0,
       },
     });

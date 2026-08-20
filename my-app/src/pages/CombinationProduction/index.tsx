@@ -1,361 +1,1074 @@
-import type { KnowledgeNode, ResourceDetail } from '@/services/tagSystem';
+import RichTextEditor from '@/components/RichTextEditor';
+import type {
+  KnowledgeBlock,
+  KnowledgeLeaf,
+  RegisteredColumn,
+  StructureLevel,
+  StudyGuideContentBlock,
+  StudyGuideDetail,
+  StudyGuideStructureNode,
+} from '@/services/resourceAssets';
 import {
-  getKnowledgeTree,
-  getResourceDetail,
-  RESOURCE_CARRIER_LABELS,
-  RESOURCE_STATUS_LABELS,
-  RESOURCE_TYPE_LABELS,
-} from '@/services/tagSystem';
+  getAssetDetail,
+  getKnowledgeBlocks,
+  getResourceAssetContext,
+  KNOWLEDGE_BLOCK_TYPE_LABELS,
+  updateFormalStudyGuide,
+} from '@/services/resourceAssets';
+import { sanitizeHtml } from '@/utils/sanitize';
 import {
+  ArrowDownOutlined,
   ArrowLeftOutlined,
-  CheckCircleOutlined,
-  FileTextOutlined,
-  LockOutlined,
-  StopOutlined,
+  ArrowUpOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  EyeOutlined,
+  PlusOutlined,
+  SaveOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { history, useLocation, useParams, useSearchParams } from '@umijs/max';
-import { Alert, Button, Card, Descriptions, Skeleton, Tag } from 'antd';
-import React, { useEffect, useMemo, useState } from 'react';
-import { SUBJECT_OPTIONS } from '../ContentCenter/TagManage/components/treeFilterConstants';
-import './index.less';
 import {
-  parseCombinationProductionRouteContext,
-  validateRevisionRouteResource,
-} from './routeContext';
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Descriptions,
+  Drawer,
+  Empty,
+  Form,
+  Input,
+  message,
+  Modal,
+  Select,
+  Skeleton,
+  Space,
+  Tag,
+} from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
+import './index.less';
+import { parseCombinationProductionRouteContext } from './routeContext';
 
-const findNodePath = (
-  nodes: KnowledgeNode[],
-  targetNodeId: string,
-  parentTitles: string[] = [],
-): string | undefined => {
+interface StructureFormValues {
+  label: string;
+  referenceId?: string;
+  parentId?: string;
+}
+
+interface BlockFormValues {
+  knowledgeBlockId?: string;
+  html?: string;
+  currentKnowledgeScope?: string[];
+}
+
+const LEVEL_LABELS: Record<StructureLevel, string> = {
+  level1: '一级栏目',
+  level2: '二级分组',
+  level3: '三级考点',
+  level4: '四级栏目',
+};
+const LEVEL_COLORS: Record<StructureLevel, string> = {
+  level1: 'blue',
+  level2: 'cyan',
+  level3: 'purple',
+  level4: 'geekblue',
+};
+const NEXT_LEVEL: Partial<Record<StructureLevel, StructureLevel>> = {
+  level1: 'level2',
+  level2: 'level3',
+  level3: 'level4',
+};
+let localSequence = 0;
+const localId = (prefix: string) => {
+  localSequence += 1;
+  return `${prefix}-local-${Date.now()}-${localSequence}`;
+};
+
+const flattenStructure = (
+  nodes: StudyGuideStructureNode[],
+  parentId?: string,
+): Array<StudyGuideStructureNode & { parentId?: string }> =>
+  nodes.flatMap((node) => [
+    { ...node, parentId },
+    ...flattenStructure(node.children, node.id),
+  ]);
+
+const mapNodes = (
+  nodes: StudyGuideStructureNode[],
+  updater: (node: StudyGuideStructureNode) => StudyGuideStructureNode,
+): StudyGuideStructureNode[] =>
+  nodes.map((node) => {
+    const updated = updater(node);
+    return { ...updated, children: mapNodes(updated.children, updater) };
+  });
+
+const removeNode = (
+  nodes: StudyGuideStructureNode[],
+  nodeId: string,
+): StudyGuideStructureNode[] =>
+  nodes
+    .filter((node) => node.id !== nodeId)
+    .map((node) => ({ ...node, children: removeNode(node.children, nodeId) }));
+
+const appendNode = (
+  nodes: StudyGuideStructureNode[],
+  parentId: string | undefined,
+  newNode: StudyGuideStructureNode,
+): StudyGuideStructureNode[] => {
+  if (!parentId) return [...nodes, newNode];
+  return mapNodes(nodes, (node) =>
+    node.id === parentId
+      ? { ...node, children: [...node.children, newNode] }
+      : node,
+  );
+};
+
+const findNode = (
+  nodes: StudyGuideStructureNode[],
+  id: string,
+): StudyGuideStructureNode | undefined => {
   for (const node of nodes) {
-    const titles = [...parentTitles, node.title];
-    if (node.key === targetNodeId) return titles.join(' / ');
-    const childPath = findNodePath(node.children || [], targetNodeId, titles);
-    if (childPath) return childPath;
+    if (node.id === id) return node;
+    const child = findNode(node.children, id);
+    if (child) return child;
   }
   return undefined;
 };
+
+const moveSibling = (
+  nodes: StudyGuideStructureNode[],
+  nodeId: string,
+  direction: 'up' | 'down',
+): StudyGuideStructureNode[] => {
+  const index = nodes.findIndex((node) => node.id === nodeId);
+  if (index >= 0) {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= nodes.length) return nodes;
+    const next = [...nodes];
+    [next[index], next[target]] = [next[target], next[index]];
+    return next;
+  }
+  return nodes.map((node) => ({
+    ...node,
+    children: moveSibling(node.children, nodeId, direction),
+  }));
+};
+
+const collectSubtreeIds = (node: StudyGuideStructureNode): string[] => [
+  node.id,
+  ...node.children.flatMap(collectSubtreeIds),
+];
 
 const CombinationProductionPage: React.FC = () => {
   const { resourceId } = useParams<'resourceId'>();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const [revisionResource, setRevisionResource] =
-    useState<ResourceDetail | null>(null);
-  const [revisionNodePath, setRevisionNodePath] = useState<string>();
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string>();
-
-  const requestedSubject = searchParams.get('subject');
-  const requestedType = searchParams.get('type');
-  const mode = location.pathname.startsWith('/combination-production/revision')
-    ? 'revision'
-    : 'new';
+  const mode = location.pathname.includes('/revision') ? 'revision' : 'new';
   const routeContext = useMemo(
     () =>
       parseCombinationProductionRouteContext({
         mode,
-        subject: requestedSubject,
-        type: requestedType,
+        subject: searchParams.get('subject'),
+        type: searchParams.get('type'),
         resourceId,
       }),
-    [mode, requestedSubject, requestedType, resourceId],
+    [mode, resourceId, searchParams],
   );
-  const isRevision = routeContext.mode === 'revision';
-  const routeError = routeContext.valid ? undefined : routeContext.error;
+  const subject = routeContext.valid ? routeContext.subject : '';
+  const [guide, setGuide] = useState<StudyGuideDetail | null>(null);
+  const [structure, setStructure] = useState<StudyGuideStructureNode[]>([]);
+  const [blocks, setBlocks] = useState<StudyGuideContentBlock[]>([]);
+  const [columns, setColumns] = useState<RegisteredColumn[]>([]);
+  const [knowledgeLeaves, setKnowledgeLeaves] = useState<KnowledgeLeaf[]>([]);
+  const [knowledgeBlocks, setKnowledgeBlocks] = useState<KnowledgeBlock[]>([]);
+  const [loading, setLoading] = useState(mode === 'revision');
+  const [loadError, setLoadError] = useState('');
+  const [editing, setEditing] = useState(searchParams.get('view') === 'edit');
+
+  const [structureDrawer, setStructureDrawer] = useState<{
+    mode: 'add' | 'edit' | 'move';
+    level: StructureLevel;
+    nodeId?: string;
+    parentId?: string;
+  } | null>(null);
+  const [blockDrawer, setBlockDrawer] = useState<{
+    mode: 'add' | 'edit';
+    block?: StudyGuideContentBlock;
+    structureNodeId: string;
+  } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [structureForm] = Form.useForm<StructureFormValues>();
+  const [blockForm] = Form.useForm<BlockFormValues>();
+  const selectedKnowledgeBlockId = Form.useWatch('knowledgeBlockId', blockForm);
 
   useEffect(() => {
-    let cancelled = false;
-    setRevisionResource(null);
-    setRevisionNodePath(undefined);
-    setLoadError(undefined);
-
     if (!routeContext.valid || routeContext.mode !== 'revision') {
       setLoading(false);
-      return () => {
-        cancelled = true;
-      };
+      return;
     }
-
-    const revisionContext = routeContext;
+    let cancelled = false;
     setLoading(true);
     void Promise.all([
-      getResourceDetail({
-        id: revisionContext.resourceId,
-        subject: revisionContext.subject,
+      getAssetDetail({
+        id: routeContext.resourceId,
+        subject: routeContext.subject,
       }),
-      getKnowledgeTree({
-        subject: revisionContext.subject,
-        targetType: 'review',
-      }),
+      getResourceAssetContext({ subject: routeContext.subject }),
+      getKnowledgeBlocks({ subject: routeContext.subject }),
     ])
-      .then(([resourceResponse, treeResponse]) => {
+      .then(([assetResponse, contextResponse, blocksResponse]) => {
         if (cancelled) return;
-        if (!resourceResponse.success) {
-          setLoadError(
-            `未找到待修订的正式资源，或资源不属于${revisionContext.subjectLabel}`,
-          );
+        if (
+          !assetResponse.success ||
+          assetResponse.data.type !== 'studyGuide' ||
+          assetResponse.data.status !== 'formal'
+        ) {
+          setLoadError('正式学案不存在，或该资产不属于当前学科');
           return;
         }
+        const detail = assetResponse.data as StudyGuideDetail;
+        setGuide(detail);
+        setStructure(detail.structure);
+        setBlocks(detail.contentBlocks);
 
-        const resourceValidation = validateRevisionRouteResource(
-          revisionContext,
-          resourceResponse.data,
-        );
-        if (!resourceValidation.valid) {
-          setLoadError(resourceValidation.message);
-          return;
+        if (contextResponse.success) {
+          setColumns(contextResponse.data.columns);
+          setKnowledgeLeaves(contextResponse.data.knowledgeLeaves);
         }
-
-        setRevisionResource(resourceValidation.resource);
-        if (treeResponse.success) {
-          setRevisionNodePath(
-            findNodePath(treeResponse.data, resourceValidation.resource.nodeId),
-          );
-        }
+        if (blocksResponse.success) setKnowledgeBlocks(blocksResponse.data);
       })
-      .catch(() => {
-        if (!cancelled) setLoadError('正式资源详情不可用，请返回资产中心重试');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
+      .catch(() => setLoadError('正式学案加载失败'))
+      .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
   }, [routeContext]);
 
-  const activeType =
-    revisionResource?.type ||
-    (routeContext.valid ? routeContext.resourceType : null);
-  const typeLabel = activeType
-    ? RESOURCE_TYPE_LABELS[activeType]
-    : '学案或作业';
-  const displayError = routeError || loadError;
-  const placeholderTitle = displayError
-    ? '组合制作入口不可用'
-    : isRevision
-    ? revisionResource
-      ? `“${revisionResource.name}”的修订入口暂不可用`
-      : '修订草稿入口暂不可用'
-    : `${typeLabel}组合制作暂不可用`;
-  const disabledActionLabel = isRevision
-    ? '暂不可创建修订草稿'
-    : '暂不可创建组合草稿';
+  const flatNodes = useMemo(() => flattenStructure(structure), [structure]);
+  const nodeMap = useMemo(
+    () => new Map(flatNodes.map((node) => [node.id, node])),
+    [flatNodes],
+  );
+  const leafMap = useMemo(
+    () => new Map(knowledgeLeaves.map((leaf) => [leaf.id, leaf])),
+    [knowledgeLeaves],
+  );
+  const guideKnowledgeIds = useMemo(
+    () =>
+      new Set(
+        flatNodes
+          .filter((node) => node.level === 'level3' && node.referenceId)
+          .map((node) => node.referenceId as string),
+      ),
+    [flatNodes],
+  );
 
-  const contextItems = useMemo(() => {
-    const items = [
-      {
-        label: '入口动作',
-        children: isRevision ? '发起修订草稿' : `新建${typeLabel}`,
-      },
-      {
-        label: '资源类型',
-        children: routeContext.valid
-          ? RESOURCE_TYPE_LABELS[routeContext.resourceType]
-          : requestedType?.trim() || '未提供',
-      },
-      {
-        label: '学科',
-        children: routeContext.valid
-          ? routeContext.subjectLabel
-          : requestedSubject?.trim() || '未提供',
-      },
-    ];
-
-    if (isRevision) {
-      items.push({
-        label: '正式资源 ID',
-        children: resourceId?.trim() || '未提供',
+  useEffect(() => {
+    if (!editing) return;
+    setBlocks((current) => {
+      let changed = false;
+      const next = current.map((block) => {
+        if (block.kind !== 'comprehensive') return block;
+        const source = knowledgeBlocks.find(
+          (item) => item.id === block.knowledgeBlockId,
+        );
+        const validIntersection = (
+          source?.knowledgeNodeIds || block.knowledgeNodeIds
+        ).filter((nodeId) => guideKnowledgeIds.has(nodeId));
+        const nextScope = (block.currentKnowledgeScope || []).filter((nodeId) =>
+          validIntersection.includes(nodeId),
+        );
+        if (
+          validIntersection.join('|') === block.knowledgeNodeIds.join('|') &&
+          nextScope.join('|') === (block.currentKnowledgeScope || []).join('|')
+        ) {
+          return block;
+        }
+        changed = true;
+        return {
+          ...block,
+          knowledgeNodeIds: validIntersection,
+          currentKnowledgeScope: nextScope,
+        };
       });
-    }
-    if (!revisionResource) return items;
-    return [
-      ...items,
-      {
-        label: '正式资源状态',
-        children: RESOURCE_STATUS_LABELS[revisionResource.status],
-      },
-      {
-        label: '当前版本',
-        children: `V${revisionResource.currentVersion.versionNumber}`,
-      },
-      {
-        label: '文件类型',
-        children:
-          RESOURCE_CARRIER_LABELS[revisionResource.currentVersion.carrierType],
-      },
-      {
-        label: '末级节点归属',
-        children: revisionNodePath || revisionResource.nodeId,
-      },
-    ];
-  }, [
-    isRevision,
-    requestedSubject,
-    requestedType,
-    resourceId,
-    revisionNodePath,
-    revisionResource,
-    routeContext,
-    typeLabel,
-  ]);
+      return changed ? next : current;
+    });
+  }, [editing, guideKnowledgeIds, knowledgeBlocks]);
 
-  const returnToAssetCenter = () => {
-    const requestedSubjectOption = SUBJECT_OPTIONS.find(
-      (option) => option.value === requestedSubject?.trim(),
+  const selectedKnowledgeBlock = knowledgeBlocks.find(
+    (item) => item.id === selectedKnowledgeBlockId,
+  );
+  const comprehensiveIntersection =
+    selectedKnowledgeBlock?.knowledgeNodeIds.filter((nodeId) =>
+      guideKnowledgeIds.has(nodeId),
     );
-    if (!requestedSubjectOption) {
-      history.push('/content/asset-center');
+
+  const enterEdit = () => {
+    setEditing(true);
+    const params = new URLSearchParams(searchParams);
+    params.set('view', 'edit');
+    history.replace(`${location.pathname}?${params.toString()}`);
+  };
+
+  const cancelEdit = () => {
+    if (!guide) return;
+    setStructure(guide.structure);
+    setBlocks(guide.contentBlocks);
+    setEditing(false);
+    const params = new URLSearchParams(searchParams);
+    params.set('view', 'preview');
+    history.replace(`${location.pathname}?${params.toString()}`);
+  };
+
+  const openAddStructure = (level: StructureLevel, parentId?: string) => {
+    structureForm.resetFields();
+    structureForm.setFieldsValue({ parentId });
+    setStructureDrawer({ mode: 'add', level, parentId });
+  };
+
+  const openEditStructure = (node: StudyGuideStructureNode) => {
+    structureForm.setFieldsValue({
+      label: node.label,
+      referenceId: node.referenceId,
+    });
+    setStructureDrawer({ mode: 'edit', level: node.level, nodeId: node.id });
+  };
+
+  const openMoveStructure = (node: StudyGuideStructureNode) => {
+    const parentId = flatNodes.find(
+      (candidate) => candidate.id === node.id,
+    )?.parentId;
+    structureForm.setFieldsValue({ parentId });
+    setStructureDrawer({ mode: 'move', level: node.level, nodeId: node.id });
+  };
+
+  const saveStructureDrawer = async () => {
+    if (!structureDrawer) return;
+    const values = await structureForm.validateFields();
+    if (structureDrawer.mode === 'move' && structureDrawer.nodeId) {
+      const moving = findNode(structure, structureDrawer.nodeId);
+      if (!moving) return;
+      const removed = removeNode(structure, moving.id);
+      setStructure(appendNode(removed, values.parentId, moving));
+      setStructureDrawer(null);
       return;
     }
-    const params = new URLSearchParams({
-      subject: requestedSubjectOption.value,
-    });
-    history.push(`/content/asset-center?${params.toString()}`);
+    if (structureDrawer.mode === 'edit' && structureDrawer.nodeId) {
+      setStructure(
+        mapNodes(structure, (node) =>
+          node.id === structureDrawer.nodeId
+            ? {
+                ...node,
+                label: values.label,
+                referenceId: values.referenceId,
+              }
+            : node,
+        ),
+      );
+      setStructureDrawer(null);
+      return;
+    }
+    const newNode: StudyGuideStructureNode = {
+      id: localId('sg-node'),
+      level: structureDrawer.level,
+      label: values.label,
+      referenceId: values.referenceId,
+      children: [],
+    };
+    setStructure(appendNode(structure, structureDrawer.parentId, newNode));
+    setStructureDrawer(null);
   };
+
+  const deleteStructure = (node: StudyGuideStructureNode) => {
+    const subtreeIds = new Set(collectSubtreeIds(node));
+    const affectedBlocks = blocks.filter((block) =>
+      subtreeIds.has(block.structureNodeId),
+    );
+    Modal.confirm({
+      title: `删除${LEVEL_LABELS[node.level]}“${node.label}”？`,
+      content: `该结构下有 ${node.children.length} 个直接子结构、${affectedBlocks.length} 个栏目项，将一起从本次编辑中移除。源知识块和知识树关系不会被修改。`,
+      okText: '确认删除',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        setStructure(removeNode(structure, node.id));
+        setBlocks((current) =>
+          current.filter((block) => !subtreeIds.has(block.structureNodeId)),
+        );
+      },
+    });
+  };
+
+  const openAddBlock = (structureNodeId: string) => {
+    blockForm.resetFields();
+    setBlockDrawer({ mode: 'add', structureNodeId });
+  };
+
+  const openEditBlock = (block: StudyGuideContentBlock) => {
+    blockForm.setFieldsValue({
+      knowledgeBlockId: block.knowledgeBlockId,
+      html: block.html,
+      currentKnowledgeScope: block.currentKnowledgeScope,
+    });
+    setBlockDrawer({
+      mode: 'edit',
+      block,
+      structureNodeId: block.structureNodeId,
+    });
+  };
+
+  useEffect(() => {
+    if (selectedKnowledgeBlock?.type === 'comprehensive') {
+      blockForm.setFieldValue(
+        'currentKnowledgeScope',
+        comprehensiveIntersection || [],
+      );
+    }
+  }, [blockForm, comprehensiveIntersection, selectedKnowledgeBlock]);
+
+  const saveBlockDrawer = async () => {
+    if (!blockDrawer) return;
+    const values = await blockForm.validateFields();
+    const source = knowledgeBlocks.find(
+      (item) => item.id === values.knowledgeBlockId,
+    );
+    let nextBlock: StudyGuideContentBlock;
+    if (blockDrawer.block?.kind === 'columnContent') {
+      nextBlock = { ...blockDrawer.block, html: values.html || '' };
+    } else {
+      if (!source) return;
+      nextBlock = {
+        id: blockDrawer.block?.id || localId('sg-block'),
+        kind: source.type,
+        structureNodeId: blockDrawer.structureNodeId,
+        knowledgeBlockId: source.id,
+        html: source.html,
+        knowledgeNodeIds: source.knowledgeNodeIds,
+        currentKnowledgeScope:
+          source.type === 'comprehensive'
+            ? values.currentKnowledgeScope
+            : undefined,
+      };
+    }
+    setBlocks((current) =>
+      blockDrawer.mode === 'edit'
+        ? current.map((block) =>
+            block.id === nextBlock.id ? nextBlock : block,
+          )
+        : [...current, nextBlock],
+    );
+    setBlockDrawer(null);
+  };
+
+  const saveFormal = async () => {
+    if (!guide) return;
+    const impactTotal =
+      guide.mountCount + guide.platformTemplateCount + guide.teacherTaskCount;
+    const execute = async () => {
+      setSaving(true);
+      try {
+        const response = await updateFormalStudyGuide({
+          id: guide.id,
+          subject,
+          structure,
+          contentBlocks: blocks,
+        });
+        if (!response.success) {
+          message.error(response.message);
+          return;
+        }
+        setGuide(response.data);
+        setStructure(response.data.structure);
+        setBlocks(response.data.contentBlocks);
+        setEditing(false);
+        message.success(response.message);
+        const params = new URLSearchParams(searchParams);
+        params.set('view', 'preview');
+        history.replace(`${location.pathname}?${params.toString()}`);
+      } catch {
+        message.error('保存失败，修改前正式内容保持不变，本次编辑仍保留在页面');
+      } finally {
+        setSaving(false);
+      }
+    };
+    if (impactTotal) {
+      Modal.confirm({
+        title: '保存将影响正在使用的正式学案',
+        width: 560,
+        content: (
+          <div className="combination-impact-grid">
+            <div>
+              <strong>{guide.mountCount}</strong>
+              <span>资源节点挂载</span>
+            </div>
+            <div>
+              <strong>{guide.platformTemplateCount}</strong>
+              <span>平台模板</span>
+            </div>
+            <div>
+              <strong>{guide.teacherTaskCount}</strong>
+              <span>教师任务</span>
+            </div>
+          </div>
+        ),
+        okText: '确认保存',
+        onOk: execute,
+      });
+      return;
+    }
+    await execute();
+  };
+
+  if (!routeContext.valid) {
+    return (
+      <PageContainer title="组合编辑器">
+        <Card>
+          <Empty description={routeContext.error}>
+            <Button onClick={() => history.push('/preparation/asset-center')}>
+              返回资产中心
+            </Button>
+          </Empty>
+        </Card>
+      </PageContainer>
+    );
+  }
+
+  if (routeContext.mode === 'new') {
+    const typeLabel =
+      routeContext.resourceType === 'studyGuide' ? '学案' : '作业';
+    return (
+      <PageContainer title={`新建${typeLabel}`} subTitle="加工组合型资产入口">
+        <Card className="combination-entry-card">
+          <Alert
+            type="info"
+            showIcon
+            message={`“新建${typeLabel}”本期仅保留可见入口`}
+            description="点击入口不会创建草稿、不会回流资产中心，也不会进入从零加工流程。完整能力由“加工组合型资产”需求后续承接。"
+          />
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() =>
+              history.push(
+                `/preparation/asset-center?subject=${routeContext.subject}`,
+              )
+            }
+          >
+            返回资产中心
+          </Button>
+        </Card>
+      </PageContainer>
+    );
+  }
+
+  if (loading) {
+    return (
+      <PageContainer title="正式学案">
+        <Card>
+          <Skeleton active paragraph={{ rows: 12 }} />
+        </Card>
+      </PageContainer>
+    );
+  }
+
+  if (!guide || loadError) {
+    return (
+      <PageContainer title="正式学案">
+        <Card>
+          <Empty description={loadError || '正式学案不存在'} />
+        </Card>
+      </PageContainer>
+    );
+  }
+
+  const renderNode = (
+    node: StudyGuideStructureNode,
+    index: number,
+    total: number,
+  ) => {
+    const nodeBlocks = blocks.filter(
+      (block) => block.structureNodeId === node.id,
+    );
+    const nextLevel = NEXT_LEVEL[node.level];
+    return (
+      <article
+        key={node.id}
+        className={`combination-node combination-node-${node.level}`}
+      >
+        <header>
+          <div>
+            <Tag color={LEVEL_COLORS[node.level]}>
+              {LEVEL_LABELS[node.level]}
+            </Tag>
+            <strong>{node.label}</strong>
+          </div>
+          {editing && (
+            <Space size={2} wrap>
+              <Button
+                type="text"
+                size="small"
+                icon={<ArrowUpOutlined />}
+                disabled={index === 0}
+                onClick={() =>
+                  setStructure(moveSibling(structure, node.id, 'up'))
+                }
+                aria-label={`上移${node.label}`}
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<ArrowDownOutlined />}
+                disabled={index === total - 1}
+                onClick={() =>
+                  setStructure(moveSibling(structure, node.id, 'down'))
+                }
+                aria-label={`下移${node.label}`}
+              />
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => openEditStructure(node)}
+              >
+                编辑
+              </Button>
+              {node.level !== 'level1' && (
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<SwapOutlined />}
+                  onClick={() => openMoveStructure(node)}
+                >
+                  移动
+                </Button>
+              )}
+              {nextLevel && (
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={() => openAddStructure(nextLevel, node.id)}
+                >
+                  添加{LEVEL_LABELS[nextLevel]}
+                </Button>
+              )}
+              {(node.level === 'level2' ||
+                node.level === 'level3' ||
+                node.level === 'level4') && (
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={() => openAddBlock(node.id)}
+                >
+                  引用知识块
+                </Button>
+              )}
+              <Button
+                type="link"
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => deleteStructure(node)}
+              >
+                删除
+              </Button>
+            </Space>
+          )}
+        </header>
+        {nodeBlocks.map((block) => (
+          <section key={block.id} className="combination-block">
+            <div className="combination-block-heading">
+              <Tag bordered={false}>
+                {block.kind === 'columnContent'
+                  ? '栏目内容'
+                  : KNOWLEDGE_BLOCK_TYPE_LABELS[block.kind]}
+              </Tag>
+              {block.kind === 'comprehensive' && (
+                <span>
+                  本次知识范围：
+                  {block.currentKnowledgeScope
+                    ?.map((id) => leafMap.get(id)?.title || id)
+                    .join('、') || '未设置'}
+                </span>
+              )}
+              {editing && (
+                <Space size={2}>
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() => openEditBlock(block)}
+                  >
+                    {block.kind === 'columnContent' ? '编辑内容' : '更换引用'}
+                  </Button>
+                  <Button
+                    type="link"
+                    size="small"
+                    danger
+                    onClick={() =>
+                      setBlocks((current) =>
+                        current.filter((item) => item.id !== block.id),
+                      )
+                    }
+                  >
+                    移除
+                  </Button>
+                </Space>
+              )}
+            </div>
+            <div
+              className="rich-content"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.html) }}
+            />
+          </section>
+        ))}
+        {node.children.length > 0 && (
+          <div className="combination-children">
+            {node.children.map((child, childIndex) =>
+              renderNode(child, childIndex, node.children.length),
+            )}
+          </div>
+        )}
+      </article>
+    );
+  };
+
+  const structureLevel = structureDrawer?.level;
+  const structureTargetNode = structureDrawer?.nodeId
+    ? flatNodes.find((node) => node.id === structureDrawer.nodeId)
+    : undefined;
+  const structureParentId =
+    structureDrawer?.parentId || structureTargetNode?.parentId;
+  let ancestorLevel1Id = structureParentId;
+  while (ancestorLevel1Id) {
+    const ancestor = nodeMap.get(ancestorLevel1Id);
+    if (!ancestor || ancestor.level === 'level1') break;
+    ancestorLevel1Id = ancestor.parentId;
+  }
+  const ancestorLevel1ReferenceId = ancestorLevel1Id
+    ? flatNodes.find((node) => node.id === ancestorLevel1Id)?.referenceId
+    : undefined;
+  const referenceOptions =
+    structureLevel === 'level1'
+      ? columns.filter((column) => column.level === 1)
+      : structureLevel === 'level4'
+      ? columns.filter(
+          (column) =>
+            column.level === 4 && column.parentId === ancestorLevel1ReferenceId,
+        )
+      : structureLevel === 'level3'
+      ? knowledgeLeaves
+      : [];
+  const parentLevel: Partial<Record<StructureLevel, StructureLevel>> = {
+    level2: 'level1',
+    level3: 'level2',
+    level4: 'level3',
+  };
+  const getLevel1ReferenceForNode = (nodeId: string) => {
+    let current = nodeMap.get(nodeId);
+    while (current && current.level !== 'level1' && current.parentId) {
+      current = nodeMap.get(current.parentId);
+    }
+    return current?.level === 'level1' ? current.referenceId : undefined;
+  };
+  const unfilteredMoveParentOptions = structureLevel
+    ? flatNodes.filter((node) => node.level === parentLevel[structureLevel])
+    : [];
+  const movingLevel4ColumnParentId =
+    structureLevel === 'level4' && structureTargetNode?.referenceId
+      ? columns.find((column) => column.id === structureTargetNode.referenceId)
+          ?.parentId
+      : undefined;
+  const moveParentOptions = movingLevel4ColumnParentId
+    ? unfilteredMoveParentOptions.filter(
+        (node) =>
+          getLevel1ReferenceForNode(node.id) === movingLevel4ColumnParentId,
+      )
+    : unfilteredMoveParentOptions;
+  const selectedStructureNode = blockDrawer
+    ? nodeMap.get(blockDrawer.structureNodeId)
+    : undefined;
+  let enclosingLevel3ReferenceId =
+    selectedStructureNode?.level === 'level3'
+      ? selectedStructureNode.referenceId
+      : undefined;
+  let enclosingNode = selectedStructureNode;
+  while (!enclosingLevel3ReferenceId && enclosingNode?.parentId) {
+    enclosingNode = nodeMap.get(enclosingNode.parentId);
+    if (enclosingNode?.level === 'level3') {
+      enclosingLevel3ReferenceId = enclosingNode.referenceId;
+    }
+  }
+  const allowedKnowledgeBlocks = knowledgeBlocks.filter((block) => {
+    if (!selectedStructureNode) return false;
+    return selectedStructureNode.level === 'level2'
+      ? block.type === 'comprehensive'
+      : ['single', 'method', 'example'].includes(block.type) &&
+          Boolean(
+            enclosingLevel3ReferenceId &&
+              block.knowledgeNodeIds.includes(enclosingLevel3ReferenceId),
+          );
+  });
 
   return (
     <PageContainer
-      title="组合制作"
-      subTitle="独立于资产中心的学案与作业制作模块"
+      title={guide.name}
+      subTitle={editing ? '正式学案编辑' : '正式学案只读预览'}
       className="combination-production-page"
-      extra={
-        <Button icon={<ArrowLeftOutlined />} onClick={returnToAssetCenter}>
-          返回资产中心
-        </Button>
-      }
-    >
-      <Card variant="borderless" className="combination-production-card">
-        <div
-          className="combination-production-placeholder"
-          data-production-disabled="true"
-          data-route-valid={
-            routeContext.valid && !displayError ? 'true' : 'false'
+      extra={[
+        <Button
+          key="back"
+          icon={<ArrowLeftOutlined />}
+          onClick={() =>
+            history.push(`/preparation/asset-center?subject=${subject}`)
           }
         >
-          <section className="combination-production-hero">
-            <div className="combination-production-seal" aria-hidden="true">
-              <StopOutlined />
-            </div>
-            <div className="combination-production-hero-copy">
-              <div className="combination-production-eyebrow">
-                <Tag color={displayError ? 'error' : 'default'}>
-                  {displayError ? '入口已拒绝' : '禁用占位'}
-                </Tag>
-                <span>{isRevision ? '修订草稿流程' : '组合草稿流程'}</span>
-              </div>
-              <h1>{placeholderTitle}</h1>
-              <p>
-                {routeError
-                  ? '入口参数未通过校验；本页面不会读取正式资源，也不会创建或修改任何资源。'
-                  : loadError
-                  ? '正式资源只读复核未通过；本页面已经停止后续处理，不会创建或修改任何资源。'
-                  : '原子化知识块与试题组合能力尚未接入。当前页面只明确制作边界，'}
-                {!displayError &&
-                  (isRevision
-                    ? '没有创建修订草稿，也不会改写当前正式内容。'
-                    : '不会创建组合草稿，也不会产出正式资源。')}
-              </p>
-              <Button type="primary" icon={<LockOutlined />} disabled>
-                {disabledActionLabel}
-              </Button>
-            </div>
-          </section>
-
-          <Alert
-            type={displayError ? 'error' : 'info'}
-            showIcon
-            className="combination-production-alert"
-            message={
-              displayError ||
-              (isRevision
-                ? '当前正式资源保持只读'
-                : '本次访问不会写入任何资源数据')
-            }
-            description={
-              displayError
-                ? '入口已受控拒绝；不会创建草稿、切换版本或改写正式内容。'
-                : isRevision
-                ? revisionResource
-                  ? `当前 V${revisionResource.currentVersion.versionNumber} 继续生效；待原子体系接入后，“发起修订”才会先创建独立修订草稿，发布前不改变正式资源。`
-                  : '正在只读核对正式资源；核对期间不会创建修订草稿。'
-                : '待原子体系接入后，组合草稿可独立暂存；只有完成编辑并选择同学科资源树末级节点后，才会发布为正式资源。'
-            }
-          />
-
-          <div className="combination-production-workspace">
-            <section
-              className="combination-production-rail"
-              aria-label="组合制作发布边界"
-            >
-              <div className="combination-production-section-heading">
-                <span>制作链路</span>
-                <strong>阻断在内容原料接入前</strong>
-              </div>
-              <div className="combination-production-stages">
-                <article className="combination-production-stage combination-production-stage-blocked">
-                  <span className="combination-production-stage-icon">
-                    <StopOutlined />
-                  </span>
-                  <div>
-                    <small>内容原料</small>
-                    <strong>原子体系未接入</strong>
-                    <p>暂无原子化知识块与试题可供选择</p>
-                  </div>
-                </article>
-                <article className="combination-production-stage">
-                  <span className="combination-production-stage-icon">
-                    <LockOutlined />
-                  </span>
-                  <div>
-                    <small>{isRevision ? '修订草稿' : '组合草稿'}</small>
-                    <strong>不创建</strong>
-                    <p>资产中心不承载草稿或组合编辑器</p>
-                  </div>
-                </article>
-                <article className="combination-production-stage">
-                  <span className="combination-production-stage-icon">
-                    <FileTextOutlined />
-                  </span>
-                  <div>
-                    <small>正式发布</small>
-                    <strong>不产出资源</strong>
-                    <p>未选择有效末级节点前不能形成正式资源</p>
-                  </div>
-                </article>
-              </div>
-            </section>
-
-            <aside className="combination-production-context">
-              <div className="combination-production-section-heading">
-                <span>入口上下文</span>
-                <strong>{isRevision ? '正式资源快照' : '新建意图'}</strong>
-              </div>
-              {loading ? (
-                <Skeleton active paragraph={{ rows: 5 }} />
-              ) : (
-                <Descriptions column={1} size="small" items={contextItems} />
-              )}
-              <div className="combination-production-readonly-note">
-                <CheckCircleOutlined />
-                <span>
-                  {routeError
-                    ? '入口参数校验失败时不读取正式资源，也不调用任何写接口。'
-                    : loadError
-                    ? '正式资源只读复核已停止；复核过程未调用任何写接口。'
-                    : isRevision
-                    ? '这里只读取正式资源身份、归属、状态和当前版本。'
-                    : '这里只保留入口意图，不保存草稿。'}
-                </span>
-              </div>
-            </aside>
-          </div>
-        </div>
+          返回资产中心
+        </Button>,
+        editing ? (
+          <Button key="cancel" onClick={cancelEdit}>
+            放弃本次修改
+          </Button>
+        ) : null,
+        editing ? (
+          <Button
+            key="save"
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={saving}
+            onClick={() => void saveFormal()}
+          >
+            保存正式学案
+          </Button>
+        ) : (
+          <Button
+            key="edit"
+            type="primary"
+            icon={<EditOutlined />}
+            onClick={enterEdit}
+          >
+            编辑正式学案
+          </Button>
+        ),
+      ]}
+    >
+      {!editing && (
+        <Alert
+          type="info"
+          showIcon
+          icon={<EyeOutlined />}
+          message="当前为只读预览"
+          description="从知识块详情进入时不会直接修改正式学案；点击“编辑正式学案”后才进入维护状态。"
+        />
+      )}
+      <Card variant="borderless" className="combination-summary">
+        <Descriptions
+          size="small"
+          column={4}
+          items={[
+            { label: '状态', children: <Tag color="green">正式</Tag> },
+            {
+              label: '原文件',
+              children: guide.originalFileName || '无原始文件',
+            },
+            { label: '结构位置', children: flatNodes.length },
+            { label: '栏目项', children: blocks.length },
+          ]}
+        />
       </Card>
+      <div className="combination-editor-toolbar">
+        <div>
+          <strong>栏目结构</strong>
+          <span>编辑不修改注册栏目定义或源知识块本体</span>
+        </div>
+        {editing && (
+          <Button
+            icon={<PlusOutlined />}
+            onClick={() => openAddStructure('level1')}
+          >
+            添加一级栏目
+          </Button>
+        )}
+      </div>
+      <div className="combination-structure">
+        {structure.length ? (
+          structure.map((node, index) =>
+            renderNode(node, index, structure.length),
+          )
+        ) : (
+          <Empty description="当前学案暂无栏目结构" />
+        )}
+      </div>
+
+      <Drawer
+        title={
+          structureDrawer
+            ? `${
+                structureDrawer.mode === 'add'
+                  ? '添加'
+                  : structureDrawer.mode === 'edit'
+                  ? '编辑'
+                  : '移动'
+              }${LEVEL_LABELS[structureDrawer.level]}`
+            : '编辑结构'
+        }
+        open={Boolean(structureDrawer)}
+        width={520}
+        onClose={() => setStructureDrawer(null)}
+        extra={
+          <Button type="primary" onClick={() => void saveStructureDrawer()}>
+            应用到本次编辑
+          </Button>
+        }
+        destroyOnClose
+      >
+        {structureDrawer && (
+          <Form form={structureForm} layout="vertical">
+            {structureDrawer.mode === 'move' ? (
+              <Form.Item
+                name="parentId"
+                label="新的上级结构"
+                rules={[
+                  {
+                    required: structureDrawer.level !== 'level1',
+                    message: '请选择新的上级结构',
+                  },
+                ]}
+              >
+                <Select
+                  options={moveParentOptions.map((node) => ({
+                    value: node.id,
+                    label: `${LEVEL_LABELS[node.level]} · ${node.label}`,
+                  }))}
+                />
+              </Form.Item>
+            ) : structureDrawer.level === 'level2' ? (
+              <Form.Item
+                name="label"
+                label="分组名称"
+                rules={[
+                  {
+                    required: true,
+                    whitespace: true,
+                    message: '请输入二级分组名称',
+                  },
+                ]}
+              >
+                <Input placeholder="二级分组属于当前学案，可重复命名" />
+              </Form.Item>
+            ) : (
+              <>
+                <Form.Item
+                  name="referenceId"
+                  label={LEVEL_LABELS[structureDrawer.level]}
+                  rules={[{ required: true, message: '请选择结构对象' }]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={referenceOptions.map((item) => ({
+                      value: item.id,
+                      label: 'name' in item ? item.name : item.path.join(' / '),
+                    }))}
+                    onChange={(value) => {
+                      const option = referenceOptions.find(
+                        (item) => item.id === value,
+                      );
+                      structureForm.setFieldValue(
+                        'label',
+                        option
+                          ? 'name' in option
+                            ? option.name
+                            : option.title
+                          : '',
+                      );
+                    }}
+                  />
+                </Form.Item>
+                <Form.Item name="label" hidden>
+                  <Input />
+                </Form.Item>
+              </>
+            )}
+          </Form>
+        )}
+      </Drawer>
+
+      <Drawer
+        title={
+          blockDrawer?.mode === 'add'
+            ? '引用知识块'
+            : blockDrawer?.block?.kind === 'columnContent'
+            ? '编辑栏目内容'
+            : '更换知识块引用'
+        }
+        open={Boolean(blockDrawer)}
+        width={700}
+        onClose={() => setBlockDrawer(null)}
+        extra={
+          <Button type="primary" onClick={() => void saveBlockDrawer()}>
+            应用到本次编辑
+          </Button>
+        }
+        destroyOnClose
+      >
+        {blockDrawer?.block?.kind === 'columnContent' ? (
+          <Form form={blockForm} layout="vertical">
+            <Form.Item
+              name="html"
+              label="栏目原生内容"
+              rules={[
+                { required: true, whitespace: true, message: '请输入内容' },
+              ]}
+            >
+              <RichTextEditor />
+            </Form.Item>
+          </Form>
+        ) : (
+          <Form form={blockForm} layout="vertical">
+            <Form.Item
+              name="knowledgeBlockId"
+              label="知识块"
+              rules={[{ required: true, message: '请选择知识块' }]}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                options={allowedKnowledgeBlocks.map((block) => ({
+                  value: block.id,
+                  label: `${
+                    KNOWLEDGE_BLOCK_TYPE_LABELS[block.type]
+                  } · ${block.html.replace(/<[^>]+>/g, '').slice(0, 42)}`,
+                }))}
+              />
+            </Form.Item>
+            {selectedKnowledgeBlock?.type === 'comprehensive' && (
+              <Form.Item
+                name="currentKnowledgeScope"
+                label="本次知识范围"
+                rules={[{ required: true, message: '至少选择一个本次知识点' }]}
+                extra="只显示“源知识块关联且本学案实际涉及的三级考点”交集，默认全选"
+              >
+                <Checkbox.Group
+                  options={(comprehensiveIntersection || []).map((id) => ({
+                    value: id,
+                    label: leafMap.get(id)?.title || id,
+                  }))}
+                />
+              </Form.Item>
+            )}
+            {selectedKnowledgeBlock && (
+              <Card size="small" title="源知识块当前内容">
+                <div
+                  className="rich-content"
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeHtml(selectedKnowledgeBlock.html),
+                  }}
+                />
+              </Card>
+            )}
+          </Form>
+        )}
+      </Drawer>
     </PageContainer>
   );
 };

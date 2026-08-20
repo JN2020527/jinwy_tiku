@@ -32,6 +32,7 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -58,15 +59,11 @@ interface SubjectColumnTreeNode extends SubjectColumn {
 
 const LEVEL_OPTIONS = [
   { label: '一级栏目', value: 1 },
-  { label: '二级栏目', value: 2 },
-  { label: '三级栏目', value: 3 },
   { label: '四级栏目', value: 4 },
 ];
 
 const LEVEL_LABELS: Record<SubjectColumnLevel, string> = {
   1: '一级',
-  2: '二级',
-  3: '三级',
   4: '四级',
 };
 
@@ -111,20 +108,6 @@ const buildColumnTree = (columns: SubjectColumn[]): SubjectColumnTreeNode[] => {
   };
   sortTree(roots);
   return roots;
-};
-
-const getDescendantIds = (columns: SubjectColumn[], columnId: string) => {
-  const result = new Set<string>();
-  const collect = (parentId: string) => {
-    columns
-      .filter((column) => column.parentId === parentId)
-      .forEach((column) => {
-        result.add(column.id);
-        collect(column.id);
-      });
-  };
-  collect(columnId);
-  return result;
 };
 
 const SubjectColumnManage: React.FC = () => {
@@ -201,30 +184,19 @@ const SubjectColumnManage: React.FC = () => {
     return result;
   }, [columns]);
 
-  const excludedParentIds = useMemo(() => {
-    if (!editingColumn) return new Set<string>();
-    return new Set([
-      editingColumn.id,
-      ...getDescendantIds(columns, editingColumn.id),
-    ]);
-  }, [columns, editingColumn]);
-
   const parentOptions = useMemo(
     () =>
       columns
-        .filter(
-          (column) =>
-            column.level < selectedLevel && !excludedParentIds.has(column.id),
-        )
-        .sort(
-          (left, right) => left.level - right.level || left.sort - right.sort,
-        )
+        .filter((column) => column.level === 1)
+        .sort((left, right) => left.sort - right.sort)
         .map((column) => ({
           label: `${LEVEL_LABELS[column.level]} · ${column.name}`,
           value: column.id,
         })),
-    [columns, excludedParentIds, selectedLevel],
+    [columns],
   );
+
+  const parentLocked = Boolean(editingColumn && editingColumn.usedCount > 0);
 
   const closeDrawer = () => {
     if (submitting) return;
@@ -267,11 +239,7 @@ const SubjectColumnManage: React.FC = () => {
   };
 
   const handleLevelChange = (level: SubjectColumnLevel) => {
-    const currentParentId = form.getFieldValue('parentId');
-    const currentParent = currentParentId
-      ? columnMap.get(currentParentId)
-      : undefined;
-    if (level === 1 || !currentParent || currentParent.level >= level) {
+    if (level === 1) {
       form.setFieldValue('parentId', undefined);
     }
   };
@@ -281,11 +249,9 @@ const SubjectColumnManage: React.FC = () => {
       ? 'name'
       : errorMessage.includes('类型')
       ? 'type'
-      : errorMessage.includes('调整后') || errorMessage.includes('栏目层级')
+      : errorMessage.includes('层级')
       ? 'level'
-      : errorMessage.includes('父栏目') ||
-        errorMessage.includes('自身') ||
-        errorMessage.includes('后代')
+      : errorMessage.includes('归属') || errorMessage.includes('父栏目')
       ? 'parentId'
       : undefined;
     if (fieldName) {
@@ -391,6 +357,55 @@ const SubjectColumnManage: React.FC = () => {
     }
   };
 
+  const getDeleteBlockReason = (column: SubjectColumn) => {
+    const childCount =
+      column.level === 1
+        ? columns.filter((candidate) => candidate.parentId === column.id).length
+        : 0;
+    if (childCount > 0) {
+      return `该一级栏目下还有 ${childCount} 个四级栏目，不能删除；请先处理后再删除`;
+    }
+    if (column.usedCount > 0) {
+      return `该栏目已被 ${column.usedCount} 处学案使用，不能删除`;
+    }
+    return null;
+  };
+
+  const renderDeleteAction = (column: SubjectColumnTreeNode) => {
+    const blockReason = getDeleteBlockReason(column);
+    const deleteButton = (
+      <Button
+        type="link"
+        danger
+        size="small"
+        icon={<DeleteOutlined />}
+        disabled={Boolean(blockReason) || mutationPending}
+        loading={deletingColumnId === column.id}
+        aria-label={
+          blockReason
+            ? `删除栏目“${column.name}”（不可删除：${blockReason}）`
+            : `删除栏目“${column.name}”`
+        }
+      >
+        删除
+      </Button>
+    );
+    return blockReason ? (
+      <Tooltip title={blockReason}>{deleteButton}</Tooltip>
+    ) : (
+      <Popconfirm
+        title="确认删除栏目？"
+        description={`删除“${column.name}”后立即生效；有四级子栏目或已被学案使用时系统将阻止删除。`}
+        okText="确认删除"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        onConfirm={() => handleDelete(column)}
+      >
+        {deleteButton}
+      </Popconfirm>
+    );
+  };
+
   const tableColumns: ColumnsType<SubjectColumnTreeNode> = [
     {
       title: '栏目名称',
@@ -411,12 +426,12 @@ const SubjectColumnManage: React.FC = () => {
       render: (level: SubjectColumnLevel) => LEVEL_LABELS[level],
     },
     {
-      title: '父栏目',
+      title: '归属一级',
       dataIndex: 'parentId',
       key: 'parentId',
       width: 220,
       render: (parentId: string | null) =>
-        parentId ? columnMap.get(parentId)?.name || '父栏目不可用' : '—',
+        parentId ? columnMap.get(parentId)?.name || '归属一级不可用' : '—',
     },
     {
       title: '栏目类型',
@@ -426,6 +441,14 @@ const SubjectColumnManage: React.FC = () => {
       render: (type: SubjectColumnType) => (
         <Tag color={TYPE_COLORS[type]}>{TYPE_LABELS[type]}</Tag>
       ),
+    },
+    {
+      title: '使用情况',
+      dataIndex: 'usedCount',
+      key: 'usedCount',
+      width: 130,
+      render: (usedCount: number) =>
+        usedCount > 0 ? <Tag color="orange">已使用 {usedCount} 处</Tag> : '—',
     },
     {
       title: '操作',
@@ -473,26 +496,7 @@ const SubjectColumnManage: React.FC = () => {
             >
               编辑
             </Button>
-            <Popconfirm
-              title="确认删除栏目？"
-              description={`删除“${column.name}”后立即生效；有子栏目或已被使用时系统将阻止删除。`}
-              okText="确认删除"
-              cancelText="取消"
-              okButtonProps={{ danger: true }}
-              onConfirm={() => handleDelete(column)}
-            >
-              <Button
-                type="link"
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                disabled={mutationPending}
-                loading={deletingColumnId === column.id}
-                aria-label={`删除栏目“${column.name}”`}
-              >
-                删除
-              </Button>
-            </Popconfirm>
+            {renderDeleteAction(column)}
           </Space>
         );
       },
@@ -535,7 +539,7 @@ const SubjectColumnManage: React.FC = () => {
           loading={loading}
           pagination={false}
           defaultExpandAllRows
-          scroll={{ x: 1060 }}
+          scroll={{ x: 1190 }}
           className="subject-column-table"
           locale={{
             emptyText: loading ? null : loadError ? (
@@ -585,7 +589,7 @@ const SubjectColumnManage: React.FC = () => {
       >
         <div className="subject-column-drawer-intro">
           当前维护 <strong>{subjectLabel}</strong>{' '}
-          栏目；移动到其他父栏目后，默认排在目标同组末尾。
+          栏目；同一学科内栏目名称全局唯一，四级栏目必须归属同学科一级栏目。
         </div>
         <Form form={form} layout="vertical" className="subject-column-form">
           <Form.Item
@@ -594,6 +598,18 @@ const SubjectColumnManage: React.FC = () => {
             rules={[
               { required: true, message: '请输入栏目名称' },
               { whitespace: true, message: '栏目名称不能为空' },
+              {
+                validator: async (_, value: string) => {
+                  const duplicated = columns.some(
+                    (column) =>
+                      column.id !== editingColumn?.id &&
+                      column.name.trim() === (value || '').trim(),
+                  );
+                  if (duplicated) {
+                    throw new Error('当前学科已存在同名栏目');
+                  }
+                },
+              },
             ]}
           >
             <Input placeholder="请输入栏目名称" autoComplete="off" />
@@ -603,23 +619,37 @@ const SubjectColumnManage: React.FC = () => {
             name="level"
             label="栏目层级"
             rules={[{ required: true, message: '请选择栏目层级' }]}
+            extra={
+              editingColumn
+                ? '学科和层级创建后不可修改。'
+                : '本页只注册一级、四级栏目。'
+            }
           >
-            <Select options={LEVEL_OPTIONS} onChange={handleLevelChange} />
+            <Select
+              options={LEVEL_OPTIONS}
+              onChange={handleLevelChange}
+              disabled={Boolean(editingColumn)}
+            />
           </Form.Item>
 
-          {selectedLevel > 1 ? (
+          {selectedLevel === 4 ? (
             <Form.Item
               name="parentId"
-              label="父栏目"
-              rules={[{ required: true, message: '请选择父栏目' }]}
-              extra="可跨级选择，但父栏目层级必须低于当前栏目。"
+              label="归属一级"
+              rules={[{ required: true, message: '请选择归属一级栏目' }]}
+              extra={
+                parentLocked
+                  ? `该四级栏目已被 ${editingColumn?.usedCount} 处学案使用，不能调整归属一级；请先解除使用关系。`
+                  : '未被使用的四级栏目可调整归属一级，保存后排到新一级的四级组末尾。'
+              }
             >
               <Select
                 showSearch
                 optionFilterProp="label"
                 options={parentOptions}
-                placeholder="请选择当前学科中的父栏目"
-                notFoundContent="暂无层级更低的可选栏目"
+                placeholder="请选择同学科一级栏目"
+                notFoundContent="当前学科暂无一级栏目，请先新增"
+                disabled={parentLocked}
               />
             </Form.Item>
           ) : null}
@@ -629,12 +659,15 @@ const SubjectColumnManage: React.FC = () => {
             label="栏目类型"
             rules={[{ required: true, message: '请选择栏目类型' }]}
             extra={
-              editingColumn?.isUsed
-                ? '该栏目已有内容块或试题引用，栏目类型不能修改；仍可改名、移动和排序。'
-                : '类型只作用于当前栏目，不会向子栏目继承。'
+              editingColumn && editingColumn.usedCount > 0
+                ? `该栏目已被 ${editingColumn.usedCount} 处学案使用，栏目类型不能修改；仍可改名和排序。`
+                : '类型只作用于当前栏目。'
             }
           >
-            <Select options={TYPE_OPTIONS} disabled={editingColumn?.isUsed} />
+            <Select
+              options={TYPE_OPTIONS}
+              disabled={Boolean(editingColumn && editingColumn.usedCount > 0)}
+            />
           </Form.Item>
         </Form>
       </Drawer>

@@ -4,6 +4,7 @@ import type {
   SubjectColumn,
   SubjectColumnMoveDirection,
 } from '../src/services/subjectColumns';
+import { getRegisteredColumnUsageCounts } from './resourceAssetsStore';
 
 const subjectColumnStore: Record<string, SubjectColumn[]> = {
   math: [
@@ -15,7 +16,7 @@ const subjectColumnStore: Record<string, SubjectColumn[]> = {
       parentId: null,
       type: 'knowledge',
       sort: 0,
-      isUsed: true,
+      usedCount: 2,
     },
     {
       id: 'column-math-preview',
@@ -25,27 +26,7 @@ const subjectColumnStore: Record<string, SubjectColumn[]> = {
       parentId: null,
       type: 'knowledge',
       sort: 1,
-      isUsed: false,
-    },
-    {
-      id: 'column-math-core',
-      subject: 'math',
-      name: '核心知识',
-      level: 2,
-      parentId: 'column-math-preview',
-      type: 'knowledge',
-      sort: 0,
-      isUsed: true,
-    },
-    {
-      id: 'column-math-example',
-      subject: 'math',
-      name: '典型例题',
-      level: 3,
-      parentId: 'column-math-preview',
-      type: 'question',
-      sort: 1,
-      isUsed: false,
+      usedCount: 0,
     },
     {
       id: 'column-math-practice',
@@ -55,7 +36,27 @@ const subjectColumnStore: Record<string, SubjectColumn[]> = {
       parentId: 'column-math-goal',
       type: 'question',
       sort: 0,
-      isUsed: false,
+      usedCount: 1,
+    },
+    {
+      id: 'column-math-example',
+      subject: 'math',
+      name: '典型例题',
+      level: 4,
+      parentId: 'column-math-preview',
+      type: 'question',
+      sort: 0,
+      usedCount: 0,
+    },
+    {
+      id: 'column-math-summary',
+      subject: 'math',
+      name: '课堂小结',
+      level: 4,
+      parentId: 'column-math-preview',
+      type: 'knowledge',
+      sort: 1,
+      usedCount: 0,
     },
   ],
   chinese: [
@@ -67,17 +68,37 @@ const subjectColumnStore: Record<string, SubjectColumn[]> = {
       parentId: null,
       type: 'knowledge',
       sort: 0,
-      isUsed: false,
+      usedCount: 0,
     },
     {
       id: 'column-chinese-reading',
       subject: 'chinese',
       name: '阅读鉴赏',
-      level: 2,
-      parentId: 'column-chinese-goal',
+      level: 1,
+      parentId: null,
+      type: 'knowledge',
+      sort: 1,
+      usedCount: 1,
+    },
+    {
+      id: 'column-chinese-ancient',
+      subject: 'chinese',
+      name: '文言文精读',
+      level: 4,
+      parentId: 'column-chinese-reading',
       type: 'knowledge',
       sort: 0,
-      isUsed: true,
+      usedCount: 0,
+    },
+    {
+      id: 'column-chinese-modern',
+      subject: 'chinese',
+      name: '现代文阅读',
+      level: 4,
+      parentId: 'column-chinese-reading',
+      type: 'knowledge',
+      sort: 1,
+      usedCount: 0,
     },
   ],
   english: [
@@ -89,7 +110,7 @@ const subjectColumnStore: Record<string, SubjectColumn[]> = {
       parentId: null,
       type: 'knowledge',
       sort: 0,
-      isUsed: false,
+      usedCount: 0,
     },
     {
       id: 'column-english-training',
@@ -99,7 +120,17 @@ const subjectColumnStore: Record<string, SubjectColumn[]> = {
       parentId: null,
       type: 'question',
       sort: 1,
-      isUsed: false,
+      usedCount: 0,
+    },
+    {
+      id: 'column-english-vocab',
+      subject: 'english',
+      name: '词汇辨析',
+      level: 4,
+      parentId: 'column-english-language',
+      type: 'knowledge',
+      sort: 0,
+      usedCount: 0,
     },
   ],
 };
@@ -109,11 +140,21 @@ let subjectColumnSequence = 0;
 const getQueryValue = (value: unknown) =>
   Array.isArray(value) ? String(value[0] || '') : String(value || '');
 
-const getSubjectColumns = (subject: string) =>
-  (subjectColumnStore[subject] ||= []);
+const getSubjectColumns = (subject: string) => {
+  const columns = (subjectColumnStore[subject] ||= []);
+  const usageCounts = getRegisteredColumnUsageCounts(subject);
+  columns.forEach((column) => {
+    column.usedCount = usageCounts[column.id] || 0;
+  });
+  return columns;
+};
 
 const cloneColumns = (columns: SubjectColumn[]) =>
   columns.map((column) => ({ ...column }));
+
+/** 供同一 Mock 进程内的学案上传与组合编辑器读取当前注册栏目。 */
+export const getSubjectColumnsSnapshot = (subject: string) =>
+  cloneColumns(getSubjectColumns(subject));
 
 const normalizeSiblingSort = (columns: SubjectColumn[]) => {
   const groups = new Map<string, SubjectColumn[]>();
@@ -130,18 +171,6 @@ const normalizeSiblingSort = (columns: SubjectColumn[]) => {
   });
 };
 
-const hasDescendant = (
-  columns: SubjectColumn[],
-  ancestorId: string,
-  targetId: string,
-): boolean => {
-  const children = columns.filter((column) => column.parentId === ancestorId);
-  return children.some(
-    (child) =>
-      child.id === targetId || hasDescendant(columns, child.id, targetId),
-  );
-};
-
 const getValidationError = (
   columns: SubjectColumn[],
   input: SaveSubjectColumnInput,
@@ -150,7 +179,7 @@ const getValidationError = (
   const name = input.name.trim();
   if (!input.subject) return '请选择学科';
   if (!name) return '请输入栏目名称';
-  if (![1, 2, 3, 4].includes(input.level)) return '请选择有效的栏目层级';
+  if (![1, 4].includes(input.level)) return '只支持注册一级、四级栏目';
   if (!['knowledge', 'question'].includes(input.type)) {
     return '请选择有效的栏目类型';
   }
@@ -164,46 +193,25 @@ const getValidationError = (
 
   if (input.level === 1) {
     if (input.parentId) return '一级栏目不能选择父栏目';
-  } else {
-    if (!input.parentId) return '二至四级栏目必须选择父栏目';
+  } else if (input.level === 4) {
+    if (!input.parentId) return '四级栏目必须选择同学科一级栏目';
     const parent = columns.find((column) => column.id === input.parentId);
-    if (!parent) return '父栏目不存在或不属于当前学科';
-    if (parent.level >= input.level) return '父栏目层级必须低于当前栏目';
-    if (editingId && input.parentId === editingId) {
-      return '栏目不能选择自身作为父栏目';
-    }
-    if (editingId && hasDescendant(columns, editingId, input.parentId)) {
-      return '栏目不能选择自己的后代作为父栏目';
-    }
+    if (!parent) return '归属一级不存在或不属于当前学科';
+    if (parent.level !== 1) return '四级栏目只能归属一级栏目';
   }
 
   if (!editingId) return null;
   const current = columns.find((column) => column.id === editingId);
   if (!current) return '栏目不存在或不属于当前学科';
-  if (current.isUsed && current.type !== input.type) {
-    return '该栏目已有内容块或试题引用，不能修改栏目类型';
+  if (current.level !== input.level) return '栏目层级创建后不可修改';
+  if (current.usedCount > 0 && current.type !== input.type) {
+    return `该栏目已被 ${current.usedCount} 处学案使用，不能修改栏目类型`;
   }
-
-  const nextColumns = columns.map((column) =>
-    column.id === editingId
-      ? {
-          ...column,
-          name,
-          level: input.level,
-          parentId: input.level === 1 ? null : input.parentId,
-          type: input.type,
-        }
-      : { ...column },
-  );
-
-  for (const column of nextColumns) {
-    if (!column.parentId) continue;
-    const parent = nextColumns.find(
-      (candidate) => candidate.id === column.parentId,
-    );
-    if (!parent || parent.level >= column.level) {
-      return `调整后会破坏“${column.name}”的父子层级关系`;
-    }
+  if (
+    current.usedCount > 0 &&
+    current.parentId !== (input.level === 1 ? null : input.parentId)
+  ) {
+    return `该四级栏目已被 ${current.usedCount} 处学案使用，不能调整归属一级；请先解除使用关系`;
   }
 
   return null;
@@ -252,7 +260,7 @@ export default {
       id: `column-${subject}-${Date.now()}-${subjectColumnSequence}`,
       ...normalizedInput,
       sort: siblings.length,
-      isUsed: false,
+      usedCount: 0,
     };
     columns.push(column);
     normalizeSiblingSort(columns);
@@ -360,12 +368,18 @@ export default {
       sendFailure(res, '栏目不存在或不属于当前学科');
       return;
     }
-    if (columns.some((column) => column.parentId === id)) {
-      sendFailure(res, '该栏目存在子栏目，请先处理全部子栏目后再删除');
+    const childCount = columns.filter(
+      (column) => column.parentId === id,
+    ).length;
+    if (childCount > 0) {
+      sendFailure(
+        res,
+        `该一级栏目下还有 ${childCount} 个四级栏目，不能删除；请先处理后再删除`,
+      );
       return;
     }
-    if (current.isUsed) {
-      sendFailure(res, '该栏目存在内容块或试题引用，不能删除');
+    if (current.usedCount > 0) {
+      sendFailure(res, `该栏目已被 ${current.usedCount} 处学案使用，不能删除`);
       return;
     }
 
