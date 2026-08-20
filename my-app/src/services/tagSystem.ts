@@ -88,8 +88,11 @@ export type AttributeUsageScene =
   | 'topicTreeNodeDisplay';
 export type AttributeSelectionMode = 'single' | 'multiple';
 export type NodeAttributeTargetType = 'knowledge' | 'topic';
-/** 树面板可实例化的树类型：知识点树 / 专题树 / 资源树 */
-export type TreeTargetType = NodeAttributeTargetType | 'review';
+/** 树面板可实例化的树类型：试题知识体系 / 专题树 / 知识块知识树 / 资源树 */
+export type TreeTargetType =
+  | NodeAttributeTargetType
+  | 'knowledgeTree'
+  | 'review';
 
 export interface AttributeUsageRule {
   id: string;
@@ -342,6 +345,8 @@ export interface ImportTreeNode {
 /** 树结构变更依赖；资源 scope 为空时表示当前学科整棵资源树。 */
 export interface TreeMutationResult {
   affectedResourceCount: number;
+  /** 知识树结构操作涉及的知识块关联数量。 */
+  affectedKnowledgeBlockCount?: number;
   affectedPlatformTemplateCount?: number;
   affectedTeacherTeachingTaskCount?: number;
   /** 旧调用方兼容字段；新资源树校验使用上面两类独立计数。 */

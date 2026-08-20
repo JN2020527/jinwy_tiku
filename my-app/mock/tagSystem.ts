@@ -60,7 +60,7 @@ type AttributeUsageScene =
   | 'topicTreeNodeDisplay';
 type AttributeSelectionMode = 'single' | 'multiple';
 type NodeAttributeTargetType = 'knowledge' | 'topic';
-type TreeTargetType = NodeAttributeTargetType | 'review';
+type TreeTargetType = NodeAttributeTargetType | 'knowledgeTree' | 'review';
 
 const ATTRIBUTE_USAGE_SCENES: AttributeUsageScene[] = [
   'paperUpload',
@@ -772,7 +772,10 @@ const normalizeQueryValue = (value: unknown, fallback: string) => {
 };
 
 const normalizeNodeAttributeTargetType = (value: unknown): TreeTargetType =>
-  value === 'topic' || value === 'knowledge' || value === 'review'
+  value === 'topic' ||
+  value === 'knowledge' ||
+  value === 'knowledgeTree' ||
+  value === 'review'
     ? value
     : 'knowledge';
 
@@ -793,7 +796,8 @@ const getQuestionTypeContext = (req: Request): QuestionTypeContext => ({
   ),
 });
 
-const getKnowledgeContextKey = ({ subject }: KnowledgeContext) => subject;
+const getKnowledgeContextKey = ({ subject, targetType }: KnowledgeContext) =>
+  targetType === 'knowledgeTree' ? `knowledge-tree-${subject}` : subject;
 
 const getKnowledgeStoreKey = ({ subject, targetType }: KnowledgeContext) =>
   `${targetType}-${subject}`;
@@ -948,6 +952,29 @@ const applyKnowledgeScope = (
 const knowledgeTreeStore: Record<string, MockKnowledgeNode[]> = {};
 let knowledgeNodeSequence = 0;
 const EMPTY_REVIEW_TREE_SUBJECTS = new Set(['biology']);
+const EMPTY_KNOWLEDGE_TREE_SUBJECTS = new Set(['biology']);
+
+/**
+ * 已由知识块新建/编辑功能形成的存量关联，仅供树结构守卫验收。
+ * 关联独立按稳定节点 ID 保存，节点改名、排序和移动均不会改变该映射。
+ */
+const knowledgeBlockRelationCountBySubject: Record<
+  string,
+  Record<string, number>
+> = {
+  math: {
+    'kp-1-1-1-knowledge-tree-math': 3,
+    'kp-2-1-1-knowledge-tree-math': 1,
+  },
+};
+
+const getKnowledgeBlockRelationCount = (
+  context: KnowledgeContext,
+  nodeId: string,
+) =>
+  context.targetType === 'knowledgeTree'
+    ? knowledgeBlockRelationCountBySubject[context.subject]?.[nodeId] || 0
+    : 0;
 
 const ensureReviewLeafScheduling = (nodes: MockKnowledgeNode[]) => {
   nodes.forEach((node) => {
@@ -968,6 +995,9 @@ const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
         ? EMPTY_REVIEW_TREE_SUBJECTS.has(context.subject)
           ? []
           : defaultReviewTreeTemplates
+        : context.targetType === 'knowledgeTree' &&
+          EMPTY_KNOWLEDGE_TREE_SUBJECTS.has(context.subject)
+        ? []
         : defaultKnowledgePointTemplates;
     knowledgeTreeStore[storeKey] = applyKnowledgeScope(templates, context);
   }
@@ -2230,6 +2260,50 @@ const validateTreeNodeTitle = <
   return { valid: true, title: normalizedTitle };
 };
 
+const validateGlobalTreeNodeTitle = <
+  T extends { key: string; title?: string; children?: T[] },
+>(
+  nodes: T[],
+  title: unknown,
+  excludeId?: unknown,
+) => {
+  const allNodes: T[] = [];
+  const collect = (currentNodes: T[]) => {
+    currentNodes.forEach((node) => {
+      allNodes.push(node);
+      if (node.children?.length) collect(node.children);
+    });
+  };
+  collect(nodes);
+  const validation = validateTreeNodeTitle(allNodes, title, excludeId);
+  return !validation.valid && validation.message === '同级已存在同名节点'
+    ? { ...validation, message: '当前学科知识树内已存在同名节点' }
+    : validation;
+};
+
+const findDuplicateTreeNodeTitle = <
+  T extends { title?: string; children?: T[] },
+>(
+  nodes: T[],
+): string | null => {
+  const seenTitles = new Set<string>();
+  let duplicatedTitle: string | null = null;
+  const visit = (currentNodes: T[]) => {
+    for (const node of currentNodes) {
+      const title = normalizeTreeNodeTitle(node.title);
+      if (title && seenTitles.has(title)) {
+        duplicatedTitle = title;
+        return;
+      }
+      if (title) seenTitles.add(title);
+      if (node.children?.length) visit(node.children);
+      if (duplicatedTitle) return;
+    }
+  };
+  visit(nodes);
+  return duplicatedTitle;
+};
+
 const isTreeDescendant = <T extends { key: string; children?: T[] }>(
   nodes: T[],
   ancestorId: string,
@@ -3004,13 +3078,39 @@ export default {
       }
     }
 
+    if (context.targetType === 'knowledgeTree' && parentId) {
+      const parentNode = findTreeNode(knowledgePoints, String(parentId));
+      if (parentNode) {
+        const affectedKnowledgeBlockCount = getKnowledgeBlockRelationCount(
+          context,
+          parentNode.key,
+        );
+        if (affectedKnowledgeBlockCount > 0) {
+          res.send({
+            success: false,
+            message: `该末级节点已关联 ${affectedKnowledgeBlockCount} 个知识块，不能新增子节点。请先在知识块新建或编辑功能中调整关联。`,
+            data: {
+              affectedResourceCount: 0,
+              affectedKnowledgeBlockCount,
+            },
+          });
+          return;
+        }
+      }
+    }
+
     const parentNode = parentId
       ? findTreeNode(knowledgePoints, String(parentId))
       : null;
     const siblingNodes = parentId
-      ? parentNode?.children || null
+      ? parentNode
+        ? parentNode.children || []
+        : null
       : knowledgePoints;
-    const validation = validateTreeNodeTitle(siblingNodes, title);
+    const validation =
+      context.targetType === 'knowledgeTree'
+        ? validateGlobalTreeNodeTitle(knowledgePoints, title)
+        : validateTreeNodeTitle(siblingNodes, title);
     if (!validation.valid) {
       res.send({
         success: false,
@@ -3049,7 +3149,10 @@ export default {
     const context = getKnowledgeContext(req);
     const knowledgePoints = getKnowledgeTreeByContext(context);
     const siblingNodes = findTreeParentList(knowledgePoints, id);
-    const validation = validateTreeNodeTitle(siblingNodes, title, id);
+    const validation =
+      context.targetType === 'knowledgeTree'
+        ? validateGlobalTreeNodeTitle(knowledgePoints, title, id)
+        : validateTreeNodeTitle(siblingNodes, title, id);
     if (!validation.valid) {
       res.send({ success: false, message: validation.message });
       return;
@@ -3132,6 +3235,35 @@ export default {
       }
     }
 
+    if (context.targetType === 'knowledgeTree') {
+      if (targetNode.children?.length) {
+        res.send({
+          success: false,
+          message: `该节点存在 ${targetNode.children.length} 个直接子节点，不能删除。请先逐个处理子节点。`,
+          data: {
+            affectedResourceCount: 0,
+            affectedKnowledgeBlockCount: 0,
+          },
+        });
+        return;
+      }
+      const affectedKnowledgeBlockCount = getKnowledgeBlockRelationCount(
+        context,
+        targetNode.key,
+      );
+      if (affectedKnowledgeBlockCount > 0) {
+        res.send({
+          success: false,
+          message: `该节点已关联 ${affectedKnowledgeBlockCount} 个知识块，不能删除。请先在知识块新建或编辑功能中调整关联。`,
+          data: {
+            affectedResourceCount: 0,
+            affectedKnowledgeBlockCount,
+          },
+        });
+        return;
+      }
+    }
+
     let deletedNodeKeys = new Set<string>();
     const deleteNode = (nodes: MockKnowledgeNode[]) => {
       for (let i = 0; i < nodes.length; i++) {
@@ -3170,6 +3302,89 @@ export default {
     const sourceNodeId = String(id);
     const targetNodeId = String(targetId);
     let affectedResourceCount = 0;
+    let affectedKnowledgeBlockCount = 0;
+
+    if (context.targetType === 'knowledgeTree') {
+      if (!['before', 'after', 'inside'].includes(position)) {
+        res.send({
+          success: false,
+          message: '移动位置无效',
+          data: { affectedResourceCount: 0, affectedKnowledgeBlockCount: 0 },
+        });
+        return;
+      }
+      if (sourceNodeId === targetNodeId) {
+        res.send({
+          success: false,
+          message: '不能将知识树节点移动到自身',
+          data: { affectedResourceCount: 0, affectedKnowledgeBlockCount: 0 },
+        });
+        return;
+      }
+      if (isTreeDescendant(knowledgePoints, sourceNodeId, targetNodeId)) {
+        res.send({
+          success: false,
+          message: '不能将知识树节点移动到其后代节点',
+          data: { affectedResourceCount: 0, affectedKnowledgeBlockCount: 0 },
+        });
+        return;
+      }
+
+      const sourceNode = findTreeNode(knowledgePoints, sourceNodeId);
+      const targetNode = findTreeNode(knowledgePoints, targetNodeId);
+      if (!sourceNode || !targetNode) {
+        res.send({
+          success: false,
+          message: '源节点或目标节点不存在，不能跨学科移动',
+          data: { affectedResourceCount: 0, affectedKnowledgeBlockCount: 0 },
+        });
+        return;
+      }
+      if (
+        sourceNode.subject !== context.subject ||
+        targetNode.subject !== context.subject
+      ) {
+        res.send({
+          success: false,
+          message: '知识树节点只能在当前学科树内移动',
+          data: { affectedResourceCount: 0, affectedKnowledgeBlockCount: 0 },
+        });
+        return;
+      }
+
+      const duplicatedTitle = findDuplicateTreeNodeTitle(knowledgePoints);
+      if (duplicatedTitle) {
+        res.send({
+          success: false,
+          message: `当前学科知识树内存在同名节点「${duplicatedTitle}」，原结构保持不变`,
+          data: { affectedResourceCount: 0, affectedKnowledgeBlockCount: 0 },
+        });
+        return;
+      }
+
+      if (position === 'inside') {
+        affectedKnowledgeBlockCount = getKnowledgeBlockRelationCount(
+          context,
+          targetNode.key,
+        );
+        if (affectedKnowledgeBlockCount > 0) {
+          res.send({
+            success: false,
+            message: `目标末级节点已关联 ${affectedKnowledgeBlockCount} 个知识块，不能接收其他节点。请先在知识块新建或编辑功能中调整关联。`,
+            data: {
+              affectedResourceCount: 0,
+              affectedKnowledgeBlockCount,
+            },
+          });
+          return;
+        }
+      }
+
+      affectedKnowledgeBlockCount = getKnowledgeBlockRelationCount(
+        context,
+        sourceNode.key,
+      );
+    }
 
     if (context.targetType === 'review') {
       if (!['before', 'after', 'inside'].includes(position)) {
@@ -3293,6 +3508,9 @@ export default {
       ...result,
       data: {
         affectedResourceCount: result.success ? affectedResourceCount : 0,
+        affectedKnowledgeBlockCount: result.success
+          ? affectedKnowledgeBlockCount
+          : 0,
       },
     });
   },

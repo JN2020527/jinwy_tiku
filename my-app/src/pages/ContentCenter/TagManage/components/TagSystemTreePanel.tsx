@@ -80,12 +80,13 @@ import {
   getParentKey,
   getTreeMoveRequest,
   hasSiblingTreeNodeTitle,
+  hasTreeNodeTitle,
   useTreeSearch,
 } from './treeHelpers';
 import TreeNodeTitle from './TreeNodeTitle';
 
 export interface TagSystemTreePanelProps {
-  /** 树类型：knowledge（知识点树）/ topic（专题树）/ review（资源树，保留旧协议值） */
+  /** 树类型：knowledge（试题知识体系）/ topic（专题树）/ knowledgeTree（知识块知识树）/ review（资源树） */
   targetType: TreeTargetType;
   /** 体系筛选项（如仅中考，或中考+各年级同步语境） */
   contextOptions?: { label: string; value: string }[];
@@ -93,6 +94,8 @@ export interface TagSystemTreePanelProps {
   supportsSyncContext?: boolean;
   /** 是否展示节点属性标签并拉取属性元数据；资源树等不接入属性体系的场景传 false */
   enableAttributeTags?: boolean;
+  /** 是否仅维护单棵学科树结构；隐藏体系、属性和导入导出等旧能力 */
+  structureOnly?: boolean;
   /** 搜索框占位文案 */
   searchPlaceholder?: string;
   /** 行内编辑输入占位文案 */
@@ -135,6 +138,7 @@ const getAssetCenterResourceUrl = (subject: string, nodeId?: string) => {
 
 const TREE_TYPE_LABELS: Record<TreeTargetType, string> = {
   knowledge: '知识点树',
+  knowledgeTree: '知识树',
   topic: '专题树',
   review: '资源树',
 };
@@ -164,6 +168,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   contextOptions = KNOWLEDGE_TREE_CONTEXT_OPTIONS,
   supportsSyncContext = false,
   enableAttributeTags = true,
+  structureOnly = false,
   searchPlaceholder = '搜索节点…',
   nodeNamePlaceholder = '请输入节点名称…',
   deleteTargetName = '节点',
@@ -204,6 +209,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   const [importSubmitting, setImportSubmitting] = useState(false);
   const isMiddleExamContext = selectedTreeContext === MIDDLE_EXAM_TREE_VALUE;
   const isSyncContext = supportsSyncContext && !isMiddleExamContext;
+  const isStructuralTree = structureOnly || targetType === 'review';
   const displayTree = useMemo(() => {
     if (!inlineEdit || inlineEdit.mode !== 'add') {
       return treeData;
@@ -221,7 +227,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   const visibleTree = arrangeMode ? displayTree : treeSearch.filteredTreeData;
   const isSearching = Boolean(treeSearch.searchValue.trim());
 
-  const showResourceTreeResourceGuard = useCallback(
+  const showTreeDependencyGuard = useCallback(
     (
       title: string,
       response: TreeMutationResponse,
@@ -229,6 +235,35 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
     ) => {
       const mutationResult = getTreeMutationResult(response);
       const affectedResourceCount = mutationResult?.affectedResourceCount || 0;
+      const affectedKnowledgeBlockCount =
+        mutationResult?.affectedKnowledgeBlockCount || 0;
+
+      if (
+        structureOnly &&
+        targetType === 'knowledgeTree' &&
+        affectedKnowledgeBlockCount > 0
+      ) {
+        Modal.warning({
+          title,
+          icon: <ExclamationCircleOutlined />,
+          transitionName: '',
+          maskTransitionName: '',
+          content: (
+            <div>
+              <p>
+                {response.message ||
+                  `检测到 ${affectedKnowledgeBlockCount} 个相关知识块，本次操作已停止。`}
+              </p>
+              <p style={{ marginBottom: 0, color: '#64748b' }}>
+                树结构和知识块关联均未改变。
+              </p>
+            </div>
+          ),
+          okText: '知道了',
+        });
+        return true;
+      }
+
       if (targetType !== 'review' || affectedResourceCount <= 0) {
         return false;
       }
@@ -265,7 +300,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       });
       return true;
     },
-    [selectedSubject, targetType],
+    [selectedSubject, structureOnly, targetType],
   );
 
   useEffect(() => {
@@ -487,10 +522,10 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
 
   const renderNodeMeta = useCallback(
     (node: TreeNodeData) => {
-      if (targetType === 'review') return null;
+      if (isStructuralTree) return null;
       return renderNodeRelationMeta(node.key);
     },
-    [renderNodeRelationMeta, targetType],
+    [isStructuralTree, renderNodeRelationMeta],
   );
 
   const handleAddRoot = () => {
@@ -572,7 +607,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
         setImportPreview(null);
         treeSearch.resetSearch();
         fetchTree();
-      } else if (!showResourceTreeResourceGuard('无法清空重建资源树', res)) {
+      } else if (!showTreeDependencyGuard('无法清空重建资源树', res)) {
         message.error(res.message || '导入失败');
       }
     } catch {
@@ -636,7 +671,13 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
             message.success('删除成功');
             fetchTree();
           } else if (
-            !showResourceTreeResourceGuard('无法删除资源树节点', res, node.key)
+            !showTreeDependencyGuard(
+              targetType === 'review'
+                ? '无法删除资源树节点'
+                : '无法删除知识树节点',
+              res,
+              node.key,
+            )
           ) {
             message.error(res.message || '删除失败');
           }
@@ -692,8 +733,10 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
         );
         fetchTree();
       } else if (
-        !showResourceTreeResourceGuard(
-          '无法移入该资源树节点',
+        !showTreeDependencyGuard(
+          targetType === 'review'
+            ? '无法移入该资源树节点'
+            : '无法移入该知识树节点',
           res,
           moveRequest.targetId,
         )
@@ -720,19 +763,26 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       message.warning('请选择教材版本');
       return;
     }
-    if (
-      hasSiblingTreeNodeTitle(
-        treeData,
-        inlineEdit.parentKey,
-        nextTitle,
-        inlineEdit.mode === 'edit' ? inlineEdit.key : undefined,
-      )
-    ) {
-      message.warning('同级已存在同名节点');
+    const excludeKey = inlineEdit.mode === 'edit' ? inlineEdit.key : undefined;
+    const hasDuplicateTitle =
+      targetType === 'knowledgeTree'
+        ? hasTreeNodeTitle(treeData, nextTitle, excludeKey)
+        : hasSiblingTreeNodeTitle(
+            treeData,
+            inlineEdit.parentKey,
+            nextTitle,
+            excludeKey,
+          );
+    if (hasDuplicateTitle) {
+      message.warning(
+        targetType === 'knowledgeTree'
+          ? '当前学科知识树内已存在同名节点'
+          : '同级已存在同名节点',
+      );
       return;
     }
 
-    const editSnapshot = inlineEdit;
+    const editSnapshot = { ...inlineEdit, initialValue: nextTitle };
     setInlineEdit({ ...editSnapshot, saving: true });
     try {
       const res =
@@ -776,7 +826,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
         fetchTree();
       } else {
         if (
-          !showResourceTreeResourceGuard(
+          !showTreeDependencyGuard(
             editSnapshot.mode === 'add' ? '无法新增子节点' : '无法重命名节点',
             res,
             editSnapshot.parentKey || undefined,
@@ -810,12 +860,12 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
                 className={`tag-system-tree-context-filters${
                   isSyncContext ? ' tag-system-tree-context-filters-sync' : ''
                 }${
-                  targetType === 'review'
+                  isStructuralTree
                     ? ' tag-system-tree-context-filters-single'
                     : ''
                 }`}
               >
-                {targetType === 'review' ? null : (
+                {isStructuralTree ? null : (
                   <Select
                     value={selectedTreeContext}
                     onChange={setSelectedTreeContext}
@@ -879,7 +929,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
             >
               {arrangeMode ? '完成整理' : '整理'}
             </Button>
-            {arrangeMode || targetType === 'review' ? null : (
+            {arrangeMode || isStructuralTree ? null : (
               <>
                 <Button
                   size="small"
@@ -980,13 +1030,17 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
               displayTree.length > 0 && isSearching
-                ? '没有匹配的资源节点'
+                ? targetType === 'review'
+                  ? '没有匹配的资源节点'
+                  : '没有匹配的知识树节点'
                 : targetType === 'review'
                 ? '当前学科还没有资源节点'
+                : structureOnly && targetType === 'knowledgeTree'
+                ? '当前学科还没有知识树节点'
                 : '暂无数据'
             }
           >
-            {targetType === 'review' && !isSearching && !arrangeMode ? (
+            {isStructuralTree && !isSearching && !arrangeMode ? (
               <Button type="primary" onClick={handleAddRoot}>
                 新增根节点
               </Button>

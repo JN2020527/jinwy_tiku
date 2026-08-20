@@ -113,6 +113,11 @@ export default [
         component: './ContentCenter/SubjectColumnManage',
       },
       {
+        path: '/preparation/knowledge-tree',
+        name: '知识树',
+        component: './ContentCenter/TagManage/KnowledgeTree',
+      },
+      {
         path: '/preparation/resource-tree',
         name: '资源树',
         component: './ContentCenter/TagManage/ResourceTree',

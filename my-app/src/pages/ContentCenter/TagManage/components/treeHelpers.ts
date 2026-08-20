@@ -176,6 +176,25 @@ export const hasSiblingTreeNodeTitle = (
   );
 };
 
+export const hasTreeNodeTitle = (
+  tree: TreeNodeData[],
+  title: string,
+  excludeKey?: React.Key,
+): boolean => {
+  const normalizedTitle = title.trim();
+  if (!normalizedTitle) return false;
+
+  return tree.some(
+    (node) =>
+      (node.key !== excludeKey &&
+        String(node.title).trim() === normalizedTitle) ||
+      Boolean(
+        node.children?.length &&
+          hasTreeNodeTitle(node.children, normalizedTitle, excludeKey),
+      ),
+  );
+};
+
 export const getTreeMoveRequest = (
   tree: TreeNodeData[],
   info: Parameters<NonNullable<TreeProps['onDrop']>>[0],
