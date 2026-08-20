@@ -37,6 +37,7 @@ import {
   Alert,
   Button,
   Card,
+  Empty,
   Input,
   message,
   Modal,
@@ -125,21 +126,6 @@ const getTreeMutationResult = (
     : undefined;
 
 const createDraftNodeKey = () => `draft-${Date.now()}`;
-
-const findNodeDepth = (
-  nodes: TreeNodeData[],
-  key: React.Key,
-  depth = 1,
-): number => {
-  for (const node of nodes) {
-    if (node.key === key) return depth;
-    if (node.children?.length) {
-      const childDepth = findNodeDepth(node.children, key, depth + 1);
-      if (childDepth > 0) return childDepth;
-    }
-  }
-  return 0;
-};
 
 const getAssetCenterResourceUrl = (subject: string, nodeId?: string) => {
   const searchParams = new URLSearchParams({ subject });
@@ -501,21 +487,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
 
   const renderNodeMeta = useCallback(
     (node: TreeNodeData) => {
-      if (targetType === 'review') {
-        const isLeaf = !node.children?.length;
-        const hasScheduling = isLeaf && typeof node.suggestedHours === 'number';
-        const hours = hasScheduling ? `${node.suggestedHours} 课时` : '—';
-        return (
-          <span className="tag-tree-resource-meta-list">
-            <span
-              className="tag-tree-resource-meta-item"
-              aria-label={`建议课时：${hours}`}
-            >
-              {hours}
-            </span>
-          </span>
-        );
-      }
+      if (targetType === 'review') return null;
       return renderNodeRelationMeta(node.key);
     },
     [renderNodeRelationMeta, targetType],
@@ -664,11 +636,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
             message.success('删除成功');
             fetchTree();
           } else if (
-            !showResourceTreeResourceGuard(
-              '无法删除资源树节点',
-              res,
-              node.key,
-            )
+            !showResourceTreeResourceGuard('无法删除资源树节点', res, node.key)
           ) {
             message.error(res.message || '删除失败');
           }
@@ -696,40 +664,44 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
 
     const moveRequest = getTreeMoveRequest(treeData, info);
 
-    const res =
-      isSyncContext && selectedTextbookVersion
-        ? await moveTextbookChapter({
-            id: String(info.dragNode.key),
-            targetId: String(moveRequest.targetId),
-            position: moveRequest.position,
-            version: selectedTextbookVersion,
-            subject: selectedSubject,
-          })
-        : await moveKnowledgeNode({
-            id: String(info.dragNode.key),
-            targetId: String(moveRequest.targetId),
-            position: moveRequest.position,
-            subject: selectedSubject,
-            targetType,
-          });
+    try {
+      const res =
+        isSyncContext && selectedTextbookVersion
+          ? await moveTextbookChapter({
+              id: String(info.dragNode.key),
+              targetId: String(moveRequest.targetId),
+              position: moveRequest.position,
+              version: selectedTextbookVersion,
+              subject: selectedSubject,
+            })
+          : await moveKnowledgeNode({
+              id: String(info.dragNode.key),
+              targetId: String(moveRequest.targetId),
+              position: moveRequest.position,
+              subject: selectedSubject,
+              targetType,
+            });
 
-    if (res.success) {
-      const affectedResourceCount =
-        getTreeMutationResult(res)?.affectedResourceCount || 0;
-      message.success(
-        targetType === 'review' && affectedResourceCount > 0
-          ? `移动成功，${affectedResourceCount} 份资源的目录路径已同步更新`
-          : '移动成功',
-      );
-      fetchTree();
-    } else if (
-      !showResourceTreeResourceGuard(
-        '无法移入该资源树节点',
-        res,
-        moveRequest.targetId,
-      )
-    ) {
-      message.error(res.message || '移动失败');
+      if (res.success) {
+        const affectedResourceCount =
+          getTreeMutationResult(res)?.affectedResourceCount || 0;
+        message.success(
+          targetType === 'review' && affectedResourceCount > 0
+            ? `移动成功，${affectedResourceCount} 份资源的目录路径已同步更新`
+            : '移动成功',
+        );
+        fetchTree();
+      } else if (
+        !showResourceTreeResourceGuard(
+          '无法移入该资源树节点',
+          res,
+          moveRequest.targetId,
+        )
+      ) {
+        message.error(res.message || '移动失败，原结构保持不变');
+      }
+    } catch {
+      message.error('移动保存失败，原结构保持不变，请重新拖拽');
     }
   };
 
@@ -760,57 +732,63 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       return;
     }
 
-    setInlineEdit({ ...inlineEdit, saving: true });
-    const res =
-      isSyncContext && selectedTextbookVersion
-        ? inlineEdit.mode === 'add'
-          ? await addTextbookChapter({
+    const editSnapshot = inlineEdit;
+    setInlineEdit({ ...editSnapshot, saving: true });
+    try {
+      const res =
+        isSyncContext && selectedTextbookVersion
+          ? editSnapshot.mode === 'add'
+            ? await addTextbookChapter({
+                title: nextTitle,
+                parentId: editSnapshot.parentKey
+                  ? String(editSnapshot.parentKey)
+                  : null,
+                version: selectedTextbookVersion,
+                subject: selectedSubject,
+              })
+            : await updateTextbookChapter({
+                id: String(editSnapshot.key),
+                title: nextTitle,
+                version: selectedTextbookVersion,
+                subject: selectedSubject,
+                description: editSnapshot.description,
+              })
+          : editSnapshot.mode === 'add'
+          ? await addKnowledgeNode({
               title: nextTitle,
-              parentId: inlineEdit.parentKey
-                ? String(inlineEdit.parentKey)
+              parentId: editSnapshot.parentKey
+                ? String(editSnapshot.parentKey)
                 : null,
-              version: selectedTextbookVersion,
               subject: selectedSubject,
+              targetType,
             })
-          : await updateTextbookChapter({
-              id: String(inlineEdit.key),
+          : await updateKnowledgeNode({
+              id: String(editSnapshot.key),
               title: nextTitle,
-              version: selectedTextbookVersion,
               subject: selectedSubject,
-              description: inlineEdit.description,
-            })
-        : inlineEdit.mode === 'add'
-        ? await addKnowledgeNode({
-            title: nextTitle,
-            parentId: inlineEdit.parentKey
-              ? String(inlineEdit.parentKey)
-              : null,
-            subject: selectedSubject,
-            targetType,
-          })
-        : await updateKnowledgeNode({
-            id: String(inlineEdit.key),
-            title: nextTitle,
-            subject: selectedSubject,
-            targetType,
-            description: inlineEdit.description,
-          });
+              targetType,
+              description: editSnapshot.description,
+            });
 
-    if (res.success) {
-      message.success(inlineEdit.mode === 'add' ? '添加成功' : '修改成功');
-      setInlineEdit(null);
-      fetchTree();
-    } else {
-      if (
-        !showResourceTreeResourceGuard(
-          '无法新增子节点',
-          res,
-          inlineEdit.parentKey || undefined,
-        )
-      ) {
-        message.error(res.message || '保存失败');
+      if (res.success) {
+        message.success(editSnapshot.mode === 'add' ? '添加成功' : '修改成功');
+        setInlineEdit(null);
+        fetchTree();
+      } else {
+        if (
+          !showResourceTreeResourceGuard(
+            editSnapshot.mode === 'add' ? '无法新增子节点' : '无法重命名节点',
+            res,
+            editSnapshot.parentKey || undefined,
+          )
+        ) {
+          message.error(res.message || '保存失败，请保留当前输入后重试');
+        }
+        setInlineEdit({ ...editSnapshot, saving: false });
       }
-      setInlineEdit({ ...inlineEdit, saving: false });
+    } catch {
+      message.error('保存失败，当前输入已保留，请重试');
+      setInlineEdit({ ...editSnapshot, saving: false });
     }
   };
 
@@ -821,8 +799,8 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
   return (
     <Card
       className={`tag-system-tree-panel tag-system-tree-panel-no-title${
-        targetType === 'review' ? ' resource-tree-panel' : ''
-      }${arrangeMode ? ' tag-system-tree-panel-arranging' : ''}`}
+        arrangeMode ? ' tag-system-tree-panel-arranging' : ''
+      }`}
       variant="borderless"
       extra={
         <div className="tag-system-tree-card-extra">
@@ -831,15 +809,21 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
               <div
                 className={`tag-system-tree-context-filters${
                   isSyncContext ? ' tag-system-tree-context-filters-sync' : ''
+                }${
+                  targetType === 'review'
+                    ? ' tag-system-tree-context-filters-single'
+                    : ''
                 }`}
               >
-                <Select
-                  value={selectedTreeContext}
-                  onChange={setSelectedTreeContext}
-                  className="tag-system-tree-filter-select"
-                  options={contextOptions}
-                  aria-label="选择体系"
-                />
+                {targetType === 'review' ? null : (
+                  <Select
+                    value={selectedTreeContext}
+                    onChange={setSelectedTreeContext}
+                    className="tag-system-tree-filter-select"
+                    options={contextOptions}
+                    aria-label="选择体系"
+                  />
+                )}
                 {isSyncContext ? (
                   <Select
                     value={selectedSemester}
@@ -895,7 +879,7 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
             >
               {arrangeMode ? '完成整理' : '整理'}
             </Button>
-            {arrangeMode ? null : (
+            {arrangeMode || targetType === 'review' ? null : (
               <>
                 <Button
                   size="small"
@@ -939,13 +923,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
       }
     >
       <Spin spinning={loading}>
-        {targetType === 'review' && !arrangeMode ? (
-          <div className="tag-tree-resource-table-header">
-            <span>节点名称</span>
-            <span>建议课时</span>
-            <span>操作</span>
-          </div>
-        ) : null}
         {visibleTree.length > 0 ? (
           <Tree
             key={treeKey}
@@ -972,23 +949,6 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
               <TreeNodeTitle
                 nodeData={node}
                 searchValue={treeSearch.searchValue}
-                className={
-                  targetType === 'review'
-                    ? 'tag-tree-resource-table-row'
-                    : undefined
-                }
-                style={
-                  targetType === 'review'
-                    ? ({
-                        '--resource-tree-node-indent': `${
-                          Math.max(
-                            findNodeDepth(visibleTree, node.key) - 1,
-                            0,
-                          ) * 24
-                        }px`,
-                      } as React.CSSProperties)
-                    : undefined
-                }
                 inlineEdit={
                   inlineEdit?.key === node.key
                     ? {
@@ -1015,17 +975,23 @@ const TagSystemTreePanel: React.FC<TagSystemTreePanelProps> = ({
             height={600}
           />
         ) : (
-          <div
-            style={{
-              padding: 20,
-              textAlign: 'center',
-              color: '#999',
-            }}
+          <Empty
+            className="tag-system-tree-empty"
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              displayTree.length > 0 && isSearching
+                ? '没有匹配的资源节点'
+                : targetType === 'review'
+                ? '当前学科还没有资源节点'
+                : '暂无数据'
+            }
           >
-            {displayTree.length > 0 && isSearching
-              ? '暂无搜索结果'
-              : '暂无数据'}
-          </div>
+            {targetType === 'review' && !isSearching && !arrangeMode ? (
+              <Button type="primary" onClick={handleAddRoot}>
+                新增根节点
+              </Button>
+            ) : null}
+          </Empty>
         )}
       </Spin>
       {importPreview && (

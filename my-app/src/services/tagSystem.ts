@@ -339,9 +339,12 @@ export interface ImportTreeNode {
   children?: ImportTreeNode[];
 }
 
-/** 树结构变更影响的正式资源；scope 为空时表示当前学科整棵资源树 */
+/** 树结构变更依赖；资源 scope 为空时表示当前学科整棵资源树。 */
 export interface TreeMutationResult {
   affectedResourceCount: number;
+  affectedPlatformTemplateCount?: number;
+  affectedTeacherTeachingTaskCount?: number;
+  /** 旧调用方兼容字段；新资源树校验使用上面两类独立计数。 */
   affectedTeachingTaskCount?: number;
   resourceScopeNodeId?: string;
 }

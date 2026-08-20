@@ -29,6 +29,7 @@ import type {
 } from '../src/services/resourceReferenceModel';
 import { RESOURCE_REFERENCE_ERROR_CODES } from '../src/services/resourceReferenceModel';
 
+import { countTeacherTeachingTaskReferences } from './teacherTeachingTaskReferenceRegistry';
 import { countTeachingPlanTaskReferences } from './teachingPlanReferenceRegistry';
 
 interface MockAttributeItem {
@@ -945,6 +946,8 @@ const applyKnowledgeScope = (
 };
 
 const knowledgeTreeStore: Record<string, MockKnowledgeNode[]> = {};
+let knowledgeNodeSequence = 0;
+const EMPTY_REVIEW_TREE_SUBJECTS = new Set(['biology']);
 
 const ensureReviewLeafScheduling = (nodes: MockKnowledgeNode[]) => {
   nodes.forEach((node) => {
@@ -962,7 +965,9 @@ const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
   if (!knowledgeTreeStore[storeKey]) {
     const templates =
       context.targetType === 'review'
-        ? defaultReviewTreeTemplates
+        ? EMPTY_REVIEW_TREE_SUBJECTS.has(context.subject)
+          ? []
+          : defaultReviewTreeTemplates
         : defaultKnowledgePointTemplates;
     knowledgeTreeStore[storeKey] = applyKnowledgeScope(templates, context);
   }
@@ -1795,6 +1800,20 @@ const getReviewResourceDependency = (
   return {
     affectedResourceCount: countResourcesOwnedByNodes(context, nodeIds),
     resourceScopeNodeId: node.key,
+  };
+};
+
+const getReviewReferenceDependency = (nodeIds: Iterable<string>) => {
+  const stableNodeIds = [...nodeIds];
+  const affectedPlatformTemplateCount =
+    countTeachingPlanTaskReferences(stableNodeIds);
+  const affectedTeacherTeachingTaskCount =
+    countTeacherTeachingTaskReferences(stableNodeIds);
+  return {
+    affectedPlatformTemplateCount,
+    affectedTeacherTeachingTaskCount,
+    affectedTeachingTaskCount:
+      affectedPlatformTemplateCount + affectedTeacherTeachingTaskCount,
   };
 };
 
@@ -2963,24 +2982,34 @@ export default {
           });
           return;
         }
-        const affectedTeachingTaskCount = countTeachingPlanTaskReferences([
+        const referenceDependency = getReviewReferenceDependency([
           parentNode.key,
         ]);
-        if (affectedTeachingTaskCount > 0) {
+        if (referenceDependency.affectedPlatformTemplateCount > 0) {
           res.send({
             success: false,
-            message: `该末级节点已被 ${affectedTeachingTaskCount} 个教学任务引用，不能新增子节点。请保留其末级节点身份。`,
-            data: { affectedResourceCount: 0, affectedTeachingTaskCount },
+            message: `该末级节点已被 ${referenceDependency.affectedPlatformTemplateCount} 个平台教学计划模板引用，不能新增子节点。请先处理模板引用。`,
+            data: { affectedResourceCount: 0, ...referenceDependency },
+          });
+          return;
+        }
+        if (referenceDependency.affectedTeacherTeachingTaskCount > 0) {
+          res.send({
+            success: false,
+            message: `该末级节点已被 ${referenceDependency.affectedTeacherTeachingTaskCount} 个教师教学任务引用，不能新增子节点。请先处理教师任务引用。`,
+            data: { affectedResourceCount: 0, ...referenceDependency },
           });
           return;
         }
       }
     }
 
-    const siblingNodes = getTreeSiblingListByParentId(
-      knowledgePoints,
-      parentId,
-    );
+    const parentNode = parentId
+      ? findTreeNode(knowledgePoints, String(parentId))
+      : null;
+    const siblingNodes = parentId
+      ? parentNode?.children || null
+      : knowledgePoints;
     const validation = validateTreeNodeTitle(siblingNodes, title);
     if (!validation.valid) {
       res.send({
@@ -2992,7 +3021,8 @@ export default {
     }
 
     const contextKey = getKnowledgeStoreKey(context);
-    const nodeId = `kp-${contextKey}-${Date.now()}`;
+    knowledgeNodeSequence += 1;
+    const nodeId = `kp-${contextKey}-custom-${knowledgeNodeSequence}`;
     const newNode: MockKnowledgeNode = {
       id: nodeId,
       key: nodeId,
@@ -3003,7 +3033,11 @@ export default {
       children: [],
     };
 
-    siblingNodes!.push(newNode);
+    if (parentNode) {
+      parentNode.children = [...(parentNode.children || []), newNode];
+    } else {
+      knowledgePoints.push(newNode);
+    }
     res.send({
       success: true,
       message: 'Node created successfully',
@@ -3056,23 +3090,43 @@ export default {
     }
 
     if (context.targetType === 'review') {
-      const affectedTeachingTaskCount = countTeachingPlanTaskReferences(
-        collectTreeNodeKeys(targetNode),
-      );
-      if (affectedTeachingTaskCount > 0) {
+      if (targetNode.children?.length) {
         res.send({
           success: false,
-          message: `该节点及其子树已被 ${affectedTeachingTaskCount} 个教学任务引用，不能删除；如需停止新模板使用，请停用对应末级节点。`,
-          data: { affectedResourceCount: 0, affectedTeachingTaskCount },
+          message: `该节点存在 ${targetNode.children.length} 个直接子节点，不能删除。请先逐个处理子节点。`,
+          data: { affectedResourceCount: 0 },
         });
         return;
       }
-      const dependency = getReviewResourceDependency(context, targetNode, true);
+      const dependency = getReviewResourceDependency(
+        context,
+        targetNode,
+        false,
+      );
       if (dependency.affectedResourceCount > 0) {
         res.send({
           success: false,
-          message: `该节点及其子树下有 ${dependency.affectedResourceCount} 份正式资源，不能删除。请先在资产中心将相关资源调整到其他末级节点。`,
+          message: `该节点已挂载 ${dependency.affectedResourceCount} 份正式资源，不能删除。请先在资产中心调整资源归属。`,
           data: dependency,
+        });
+        return;
+      }
+      const referenceDependency = getReviewReferenceDependency([
+        targetNode.key,
+      ]);
+      if (referenceDependency.affectedPlatformTemplateCount > 0) {
+        res.send({
+          success: false,
+          message: `该节点已被 ${referenceDependency.affectedPlatformTemplateCount} 个平台教学计划模板引用，不能删除。请先处理模板引用。`,
+          data: { affectedResourceCount: 0, ...referenceDependency },
+        });
+        return;
+      }
+      if (referenceDependency.affectedTeacherTeachingTaskCount > 0) {
+        res.send({
+          success: false,
+          message: `该节点已被 ${referenceDependency.affectedTeacherTeachingTaskCount} 个教师教学任务引用，不能删除。请先处理教师任务引用。`,
+          data: { affectedResourceCount: 0, ...referenceDependency },
         });
         return;
       }
@@ -3165,15 +3219,44 @@ export default {
         return;
       }
 
+      const destinationSiblings =
+        position === 'inside'
+          ? targetNode.children || []
+          : findTreeParentList(knowledgePoints, targetNodeId);
+      const duplicateValidation = validateTreeNodeTitle(
+        destinationSiblings,
+        sourceNode.title,
+        sourceNodeId,
+      );
+      if (!duplicateValidation.valid) {
+        res.send({
+          success: false,
+          message:
+            duplicateValidation.message === '同级已存在同名节点'
+              ? `新父节点下已存在同名节点「${sourceNode.title}」，原结构保持不变`
+              : duplicateValidation.message,
+          data: { affectedResourceCount: 0 },
+        });
+        return;
+      }
+
       if (position === 'inside') {
-        const affectedTeachingTaskCount = countTeachingPlanTaskReferences([
+        const referenceDependency = getReviewReferenceDependency([
           targetNode.key,
         ]);
-        if (affectedTeachingTaskCount > 0) {
+        if (referenceDependency.affectedPlatformTemplateCount > 0) {
           res.send({
             success: false,
-            message: `目标末级节点已被 ${affectedTeachingTaskCount} 个教学任务引用，不能接收其他节点。请保留其末级节点身份。`,
-            data: { affectedResourceCount: 0, affectedTeachingTaskCount },
+            message: `目标末级节点已被 ${referenceDependency.affectedPlatformTemplateCount} 个平台教学计划模板引用，不能接收其他节点。请先处理模板引用。`,
+            data: { affectedResourceCount: 0, ...referenceDependency },
+          });
+          return;
+        }
+        if (referenceDependency.affectedTeacherTeachingTaskCount > 0) {
+          res.send({
+            success: false,
+            message: `目标末级节点已被 ${referenceDependency.affectedTeacherTeachingTaskCount} 个教师教学任务引用，不能接收其他节点。请先处理教师任务引用。`,
+            data: { affectedResourceCount: 0, ...referenceDependency },
           });
           return;
         }

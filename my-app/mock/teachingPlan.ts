@@ -19,9 +19,9 @@ const sample = store.create({
 store.add({
   templateId: sample.id,
   resourceNode: {
-    id: 'rv-1-1-1-history',
-    name: '史前时期',
-    path: ['一轮复习', '中国古代史', '史前时期'],
+    id: 'rv-1-2-1-history',
+    name: '近代史',
+    path: ['一轮复习', '中国近现代史', '近代史'],
     subject: 'history',
     suggestedHours: 1.5,
     enabled: true,
@@ -62,9 +62,9 @@ const getCurrentResourceNode = (templateId: string, resourceNodeId: string) => {
 store.add({
   templateId: sample.id,
   resourceNode: {
-    id: 'rv-1-1-2-history',
-    name: '夏商周时期',
-    path: ['一轮复习', '中国古代史', '夏商周时期'],
+    id: 'rv-1-2-2-history',
+    name: '现代史',
+    path: ['一轮复习', '中国近现代史', '现代史'],
     subject: 'history',
     suggestedHours: 1,
     enabled: true,
