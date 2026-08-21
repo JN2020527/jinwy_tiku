@@ -134,7 +134,7 @@ export default [
       },
       {
         path: '/preparation/asset-center',
-        name: '资产中心',
+        name: '资源上传',
         component: './ContentCenter/AssetCenter',
       },
       {
