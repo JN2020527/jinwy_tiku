@@ -317,38 +317,40 @@
 
   // —— 预览页：连续成品文档式排版 ——
   .homework-preview-stage {
-    padding: 32px;
+    padding: 36px;
     border: 1px solid #dfe5ee;
     border-radius: 8px;
-    background: #eef2f7;
+    background: #f1f3f5;
   }
 
   .homework-preview-document {
-    width: min(920px, 100%);
+    width: min(980px, 100%);
     min-height: 680px;
     margin: 0 auto;
-    padding: 56px 68px 72px;
+    padding: 58px 76px 80px;
     border: 1px solid #e2e8f0;
     background: #fff;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 8%);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 7%);
 
     .homework-preview-document-header {
-      margin-bottom: 28px;
-      padding-bottom: 22px;
-      border-bottom: 1px solid #cbd5e1;
+      margin-bottom: 34px;
       text-align: center;
     }
 
     .homework-preview-title {
-      margin: 0 0 18px;
+      margin: 0 0 12px;
       color: #172033;
-      font-size: 28px;
-      letter-spacing: 0.03em;
+      font-size: 26px;
+      letter-spacing: 0.02em;
     }
 
-    .homework-preview-meta {
-      margin-bottom: 0;
-      text-align: left;
+    .homework-preview-student-line {
+      display: flex;
+      justify-content: center;
+      gap: 22px;
+      margin: 0;
+      color: #334155;
+      font-size: 14px;
     }
 
     .homework-preview-missing-alert {
@@ -361,61 +363,79 @@
     }
 
     .homework-preview-question {
-      padding: 28px 0 30px;
-      border-bottom: 1px solid #e2e8f0;
+      padding: 0 0 30px;
 
-      &:first-child {
-        padding-top: 4px;
-      }
-
-      &:last-child {
-        border-bottom: 0;
-      }
-
-      .homework-preview-question-head {
-        display: flex;
-        align-items: center;
-        margin-bottom: 10px;
-
-        .ant-typography {
-          font-size: 15px;
-        }
+      & + .homework-preview-question {
+        padding-top: 30px;
       }
 
       .homework-preview-stem {
-        margin-bottom: 8px;
-        color: #1e293b;
+        display: flex;
+        gap: 4px;
+        margin-bottom: 12px;
+        color: #172033;
         font-size: 15px;
-        line-height: 1.8;
+        line-height: 1.9;
         white-space: pre-wrap;
+
+        strong {
+          flex: none;
+        }
       }
 
       .homework-preview-options {
-        margin: 0 0 8px;
-        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px 36px;
+        margin: 0 0 12px;
+        padding: 0 0 0 22px;
         list-style: none;
 
         li {
-          padding: 3px 0;
+          min-width: 0;
           color: #334155;
           font-size: 14px;
-          line-height: 1.8;
+          line-height: 1.7;
         }
       }
 
       .homework-preview-answer-collapse {
         .ant-collapse-header {
-          padding-block: 4px !important;
+          width: fit-content;
+          padding: 4px 0 !important;
           color: #64748b;
           font-size: 13px;
         }
 
         .homework-preview-answer {
+          overflow: hidden;
+          border-radius: 6px;
+          background: #f8fafc;
+
+          > div {
+            display: grid;
+            grid-template-columns: 76px minmax(0, 1fr);
+            gap: 8px;
+            padding: 10px 14px;
+
+            & + div {
+              border-top: 1px solid #e2e8f0;
+            }
+
+            > strong {
+              color: #172033;
+              font-size: 13px;
+            }
+
+            p {
+              margin: 0;
+            }
+          }
+
           p {
-            margin: 2px 0;
             color: #475569;
             font-size: 14px;
-            line-height: 1.8;
+            line-height: 1.7;
           }
         }
       }
@@ -514,6 +534,11 @@
     .homework-preview-document {
       min-height: 0;
       padding: 34px 24px 48px;
+    }
+
+    .homework-preview-document .homework-preview-options {
+      grid-template-columns: 1fr;
+      gap: 6px;
     }
   }
 }

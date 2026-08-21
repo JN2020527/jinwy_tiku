@@ -3,22 +3,11 @@ import type {
   PublishedQuestion,
 } from '@/services/resourceAssets';
 import {
-  ASSET_STATUS_LABELS,
   getAssetDetail,
   getHomeworkQuestions,
 } from '@/services/resourceAssets';
-import {
-  Alert,
-  Button,
-  Collapse,
-  Descriptions,
-  Skeleton,
-  Space,
-  Tag,
-  Typography,
-} from 'antd';
+import { Alert, Button, Collapse, Skeleton, Space, Typography } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
-import { SUBJECT_OPTIONS } from '../ContentCenter/TagManage/components/treeFilterConstants';
 
 interface PreviewProps {
   homeworkId: string;
@@ -29,20 +18,6 @@ type HomeworkQuestionEntry = {
   questionId: string;
   question?: PublishedQuestion;
 };
-
-const getSubjectLabel = (subject: string) =>
-  SUBJECT_OPTIONS.find((option) => option.value === subject)?.label || subject;
-
-const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-});
-const formatDate = (value: string) =>
-  DATE_TIME_FORMATTER.format(new Date(value)).replaceAll('/', '-');
 
 /**
  * 作业只读预览：连续成品文档式排版，不提供保存/排序等修改能力（AC-11）。
@@ -129,37 +104,10 @@ const Preview: React.FC<PreviewProps> = ({ homeworkId, subject }) => {
           <Typography.Title level={2} className="homework-preview-title">
             {detail.name}
           </Typography.Title>
-          <Descriptions
-            className="homework-preview-meta"
-            column={{ xs: 1, sm: 2, md: 4 }}
-            size="small"
-            items={[
-              {
-                key: 'subject',
-                label: '学科',
-                children: getSubjectLabel(subject),
-              },
-              {
-                key: 'status',
-                label: '状态',
-                children: (
-                  <Tag color="green">{ASSET_STATUS_LABELS[detail.status]}</Tag>
-                ),
-              },
-              {
-                key: 'count',
-                label: '试题数量',
-                children: `${entries.length} 道${
-                  missingCount ? `（其中缺失 ${missingCount} 道）` : ''
-                }`,
-              },
-              {
-                key: 'updatedAt',
-                label: '更新时间',
-                children: formatDate(detail.updatedAt),
-              },
-            ]}
-          />
+          <p className="homework-preview-student-line">
+            <span>班级：____________</span>
+            <span>姓名：____________</span>
+          </p>
         </header>
 
         {missingCount > 0 ? (
@@ -180,12 +128,10 @@ const Preview: React.FC<PreviewProps> = ({ homeworkId, subject }) => {
                 className="homework-preview-question"
                 key={entry.questionId}
               >
-                <div className="homework-preview-question-head">
-                  <Typography.Text strong>第 {index + 1} 题</Typography.Text>
-                </div>
                 {question ? (
                   <>
                     <Typography.Paragraph className="homework-preview-stem">
+                      <strong>{index + 1}．</strong>
                       {question.stem}
                     </Typography.Paragraph>
                     {question.options && question.options.length > 0 ? (
@@ -207,14 +153,14 @@ const Preview: React.FC<PreviewProps> = ({ homeworkId, subject }) => {
                           label: '答案解析',
                           children: (
                             <div className="homework-preview-answer">
-                              <p>
-                                <strong>答案：</strong>
-                                {question.answer || '—'}
-                              </p>
-                              <p>
-                                <strong>解析：</strong>
-                                {question.explanation || '—'}
-                              </p>
+                              <div>
+                                <strong>【答案】</strong>
+                                <p>{question.answer || '—'}</p>
+                              </div>
+                              <div>
+                                <strong>【解析】</strong>
+                                <p>{question.explanation || '—'}</p>
+                              </div>
                             </div>
                           ),
                         },
