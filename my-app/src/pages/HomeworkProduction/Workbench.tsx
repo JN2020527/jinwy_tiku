@@ -356,24 +356,29 @@ const Workbench: React.FC<WorkbenchProps> = ({
         </Card>
 
         <div className="homework-sort-search-bar">
-          <Space size={8}>
+          <div className="homework-sort-control">
+            <Typography.Text type="secondary" className="homework-sort-label">
+              排序
+            </Typography.Text>
             <Segmented
               size="small"
               value={sortKey}
               options={SORT_OPTIONS}
               onChange={(value) => setSortKey(value as SortKey)}
             />
-          </Space>
-          <Input.Search
-            allowClear
-            placeholder="在结果中搜索题干"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            className="homework-result-search"
-          />
-          <Typography.Text type="secondary" className="homework-result-count">
-            {formatQuestionCount(filteredQuestions.length)}
-          </Typography.Text>
+          </div>
+          <div className="homework-search-summary">
+            <Input.Search
+              allowClear
+              placeholder="在结果中搜索题干"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="homework-result-search"
+            />
+            <Typography.Text type="secondary" className="homework-result-count">
+              {formatQuestionCount(filteredQuestions.length)}
+            </Typography.Text>
+          </div>
         </div>
 
         {pageQuestions.length > 0 ? (
