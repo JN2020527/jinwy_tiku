@@ -146,6 +146,24 @@ export default [
         component: './ContentCenter/StudyGuideSplit',
         hideInMenu: true,
       },
+      {
+        path: '/preparation/asset-center/homework/new',
+        name: '新建作业',
+        component: './HomeworkProduction',
+        hideInMenu: true,
+      },
+      {
+        path: '/preparation/asset-center/homework/:homeworkId/edit',
+        name: '编辑作业',
+        component: './HomeworkProduction',
+        hideInMenu: true,
+      },
+      {
+        path: '/preparation/asset-center/homework/:homeworkId',
+        name: '作业预览',
+        component: './HomeworkProduction',
+        hideInMenu: true,
+      },
     ],
   },
   {

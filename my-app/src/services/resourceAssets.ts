@@ -87,6 +87,60 @@ export interface StudyGuideDetail extends AssetItem {
   autosaveState?: 'saved' | 'saving' | 'failed';
 }
 
+export interface HomeworkDetail extends AssetItem {
+  type: 'homework';
+  questionIds: string[];
+}
+
+export type QuestionStatus = 'published' | 'unpublished' | 'offline';
+export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface QuestionOption {
+  label: string;
+  text: string;
+}
+
+export interface PublishedQuestion {
+  id: string;
+  subject: string;
+  knowledgeNodeIds: string[];
+  status: QuestionStatus;
+  source: string;
+  type: string;
+  difficulty: QuestionDifficulty;
+  year: string;
+  stem: string;
+  options?: QuestionOption[];
+  answer: string;
+  explanation: string;
+  updatedAt: string;
+  popularity: number;
+}
+
+export interface HomeworkQuestionItem {
+  questionId: string;
+  question?: PublishedQuestion;
+}
+
+export interface PublishedQuestionPage {
+  list: PublishedQuestion[];
+  total: number;
+  current: number;
+  pageSize: number;
+}
+
+export interface PublishedQuestionQuery {
+  subject: string;
+  keyword?: string;
+  type?: string;
+  difficulty?: QuestionDifficulty;
+  year?: string;
+  knowledgeNodeId?: string;
+  sort?: 'latest' | 'popular';
+  current?: number;
+  pageSize?: number;
+}
+
 export interface KnowledgeBlock {
   id: string;
   subject: string;
@@ -125,7 +179,7 @@ export async function getAssetList(params: AssetListParams) {
 }
 
 export async function getAssetDetail(params: { id: string; subject: string }) {
-  return request<ApiResult<AssetItem | StudyGuideDetail>>(
+  return request<ApiResult<AssetItem | StudyGuideDetail | HomeworkDetail>>(
     '/api/resource-assets/detail',
     { method: 'GET', params },
   );
@@ -216,6 +270,35 @@ export async function deleteAsset(params: { id: string; subject: string }) {
   return request<ApiResult<void>>('/api/resource-assets', {
     method: 'DELETE',
     params,
+  });
+}
+
+export async function getPublishedQuestions(params: PublishedQuestionQuery) {
+  return request<ApiResult<PublishedQuestionPage>>(
+    '/api/resource-assets/questions',
+    { method: 'GET', params },
+  );
+}
+
+export async function getHomeworkQuestions(params: {
+  id: string;
+  subject: string;
+}) {
+  return request<ApiResult<HomeworkQuestionItem[]>>(
+    '/api/resource-assets/homework/questions',
+    { method: 'GET', params },
+  );
+}
+
+export async function saveHomework(data: {
+  id?: string;
+  subject: string;
+  name: string;
+  questionIds: string[];
+}) {
+  return request<ApiResult<HomeworkDetail>>('/api/resource-assets/homework', {
+    method: data.id ? 'PUT' : 'POST',
+    data,
   });
 }
 

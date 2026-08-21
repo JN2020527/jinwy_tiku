@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import type {
   AssetItem,
   AttachmentType,
+  HomeworkDetail,
   KnowledgeBlock,
   KnowledgeBlockType,
   StudyGuideContentBlock,
@@ -16,12 +17,15 @@ import {
   collectLeafIds,
   collectLeaves,
   findAsset,
+  homeworkStore,
   isNameTaken,
   knowledgeBlockStore,
   knowledgeTreesBySubject,
   nextId,
+  questionStore,
   studyGuideStore,
   touchAsset,
+  touchHomework,
 } from './resourceAssetsStore';
 import { getSubjectColumnsSnapshot } from './subjectColumns';
 
@@ -261,6 +265,55 @@ const refreshAssetFromDetail = (detail: StudyGuideDetail) => {
   else assetStore.unshift(summary);
 };
 
+const refreshAssetFromHomework = (homework: HomeworkDetail) => {
+  const summary: AssetItem = {
+    id: homework.id,
+    subject: homework.subject,
+    type: homework.type,
+    status: homework.status,
+    name: homework.name,
+    updatedAt: homework.updatedAt,
+    source: homework.source,
+    mountCount: homework.mountCount,
+    platformTemplateCount: homework.platformTemplateCount,
+    teacherTaskCount: homework.teacherTaskCount,
+  };
+  const index = assetStore.findIndex((asset) => asset.id === homework.id);
+  if (index >= 0) assetStore[index] = summary;
+  else assetStore.unshift(summary);
+};
+
+const validateHomeworkPayload = (
+  subject: string,
+  name: string,
+  questionIds: string[],
+  excludeId?: string,
+): string | null => {
+  if (!subject) return '保存作业的学科不可用';
+  if (!name) return '请输入作业名称';
+  if (!questionIds.length) return '至少加入 1 道题才能保存作业';
+  if (questionIds.length > 60) return '作业最多可添加 60 道题';
+  if (new Set(questionIds).size !== questionIds.length) {
+    return '同一试题在一份作业中不能重复';
+  }
+  if (isNameTaken(subject, 'homework', name, excludeId)) {
+    return '当前学科已存在同名作业';
+  }
+  const publishedIds = new Set(
+    questionStore
+      .filter((question) => question.subject === subject)
+      .filter((question) => question.status === 'published')
+      .map((question) => question.id),
+  );
+  const invalidCount = questionIds.filter(
+    (questionId) => !publishedIds.has(questionId),
+  ).length;
+  if (invalidCount) {
+    return `所选试题中存在 ${invalidCount} 道不属于当前学科或未发布的试题，请移除后保存`;
+  }
+  return null;
+};
+
 const hydrateStudyGuideReferences = (
   detail: StudyGuideDetail,
 ): StudyGuideDetail => {
@@ -374,6 +427,9 @@ export default {
     const { id, subject } = getAssetContext(req);
     const asset = findAsset(id, subject);
     if (!asset) return sendFailure(res, '资产不存在或不属于当前学科');
+    if (homeworkStore[id]) {
+      return sendSuccess(res, homeworkStore[id], '资产详情加载成功');
+    }
     sendSuccess(
       res,
       studyGuideStore[id]
@@ -736,6 +792,11 @@ export default {
     const detail = studyGuideStore[id];
     if (detail) detail.name = name;
     if (detail) syncKnowledgeBlockReferences(subject);
+    const homework = homeworkStore[id];
+    if (homework) {
+      homework.name = name;
+      homework.updatedAt = asset.updatedAt;
+    }
     sendSuccess(res, asset, '名称修改成功');
   },
 
@@ -773,8 +834,141 @@ export default {
     }
     assetStore.splice(index, 1);
     delete studyGuideStore[id];
+    delete homeworkStore[id];
     syncKnowledgeBlockReferences(subject);
     sendSuccess(res, undefined, '资产及所属原文件已彻底删除');
+  },
+
+  'GET /api/resource-assets/questions': (req: Request, res: Response) => {
+    const subject = queryValue(req.query.subject).trim();
+    if (!subject) return sendFailure(res, '请选择学科');
+    const keyword = queryValue(req.query.keyword).trim().toLowerCase();
+    const type = queryValue(req.query.type);
+    const difficulty = queryValue(req.query.difficulty);
+    const year = queryValue(req.query.year);
+    const knowledgeNodeId = queryValue(req.query.knowledgeNodeId);
+    const sort = queryValue(req.query.sort);
+    const current = Number(queryValue(req.query.current)) || 1;
+    const pageSize = Number(queryValue(req.query.pageSize)) || 0;
+    const leafIds = knowledgeNodeId
+      ? new Set(
+          collectLeafIds(
+            knowledgeTreesBySubject[subject] || [],
+            knowledgeNodeId,
+          ),
+        )
+      : null;
+    const filtered = questionStore
+      .filter((question) => question.subject === subject)
+      // AC-03：只返回已发布正式试题
+      .filter((question) => question.status === 'published')
+      .filter((question) => !type || question.type === type)
+      .filter((question) => !difficulty || question.difficulty === difficulty)
+      .filter((question) => !year || question.year === year)
+      .filter(
+        (question) =>
+          !keyword ||
+          question.stem.toLowerCase().includes(keyword) ||
+          question.source.toLowerCase().includes(keyword),
+      )
+      .filter(
+        (question) =>
+          !leafIds ||
+          question.knowledgeNodeIds.some((nodeId) => leafIds.has(nodeId)),
+      );
+    const list = [...filtered].sort((left, right) =>
+      sort === 'popular'
+        ? right.popularity - left.popularity
+        : right.updatedAt.localeCompare(left.updatedAt),
+    );
+    const total = list.length;
+    const paged =
+      pageSize > 0
+        ? list.slice((current - 1) * pageSize, current * pageSize)
+        : list;
+    sendSuccess(
+      res,
+      {
+        list: paged,
+        total,
+        current: pageSize > 0 ? current : 1,
+        pageSize: pageSize > 0 ? pageSize : total,
+      },
+      '已发布试题加载成功',
+    );
+  },
+
+  'GET /api/resource-assets/homework/questions': (
+    req: Request,
+    res: Response,
+  ) => {
+    const { id, subject } = getAssetContext(req);
+    const homework = homeworkStore[id];
+    if (!homework || homework.subject !== subject) {
+      return sendFailure(res, '作业不存在或不属于当前学科');
+    }
+    // 按作业顺序动态读取试题当前内容；缺失/非已发布保留占位
+    const items = homework.questionIds.map((questionId) => {
+      const question = questionStore.find(
+        (candidate) =>
+          candidate.id === questionId && candidate.status === 'published',
+      );
+      return question
+        ? { questionId, question }
+        : { questionId, question: undefined };
+    });
+    sendSuccess(res, items, '作业试题加载成功');
+  },
+
+  'POST /api/resource-assets/homework': (req: Request, res: Response) => {
+    const subject = String(req.body?.subject || '').trim();
+    const name = String(req.body?.name || '').trim();
+    const questionIds: string[] = Array.isArray(req.body?.questionIds)
+      ? req.body.questionIds.map(String)
+      : [];
+    const validationError = validateHomeworkPayload(subject, name, questionIds);
+    if (validationError) return sendFailure(res, validationError);
+    const homework: HomeworkDetail = {
+      id: nextId('asset-homework'),
+      subject,
+      type: 'homework',
+      status: 'formal',
+      name,
+      updatedAt: new Date().toISOString(),
+      source: 'upload',
+      mountCount: 0,
+      platformTemplateCount: 0,
+      teacherTaskCount: 0,
+      questionIds,
+    };
+    homeworkStore[homework.id] = homework;
+    refreshAssetFromHomework(homework);
+    sendSuccess(res, homework, '作业已保存为正式资产');
+  },
+
+  'PUT /api/resource-assets/homework': (req: Request, res: Response) => {
+    const id = String(req.body?.id || '').trim();
+    const subject = String(req.body?.subject || '').trim();
+    const name = String(req.body?.name || '').trim();
+    const questionIds: string[] = Array.isArray(req.body?.questionIds)
+      ? req.body.questionIds.map(String)
+      : [];
+    const homework = homeworkStore[id];
+    if (!homework || homework.subject !== subject) {
+      return sendFailure(res, '作业不存在或不属于当前学科');
+    }
+    const validationError = validateHomeworkPayload(
+      subject,
+      name,
+      questionIds,
+      id,
+    );
+    if (validationError) return sendFailure(res, validationError);
+    homework.name = name;
+    homework.questionIds = questionIds;
+    touchHomework(homework);
+    refreshAssetFromHomework(homework);
+    sendSuccess(res, homework, '作业已更新，同一 ID 继续生效');
   },
 
   'GET /api/resource-assets/knowledge-blocks': (

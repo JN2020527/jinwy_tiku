@@ -193,6 +193,11 @@ const AssetCenterPage: React.FC = () => {
     setReplacingAsset(null);
   };
 
+  const changeTypeFilter = (type: AssetType | '') => {
+    setTypeFilter(type);
+    if (type === 'homework' && statusFilter === 'draft') setStatusFilter('');
+  };
+
   const openUpload = (mode: UploadMode) => {
     uploadForm.resetFields();
     uploadForm.setFieldsValue({ fixture: 'valid', fileList: [] });
@@ -278,9 +283,9 @@ const AssetCenterPage: React.FC = () => {
     }
   };
 
-  const showComingSoon = (type: 'studyGuide' | 'homework') => {
+  const showComingSoon = () => {
     message.info(
-      `${ASSET_TYPE_LABELS[type]}从零加工将在“加工组合型资产”需求中提供，本期仅保留入口`,
+      `${ASSET_TYPE_LABELS.studyGuide}从零加工将在“加工组合型资产”需求中提供，本期仅保留入口`,
     );
   };
 
@@ -407,11 +412,13 @@ const AssetCenterPage: React.FC = () => {
               </span>
             </>
           );
-          if (asset.type !== 'studyGuide') {
+          if (!['studyGuide', 'homework'].includes(asset.type)) {
             return <div className="asset-name-cell">{content}</div>;
           }
           const href =
-            asset.status === 'draft'
+            asset.type === 'homework'
+              ? `/preparation/asset-center/homework/${asset.id}?subject=${selectedSubject}`
+              : asset.status === 'draft'
               ? `/preparation/asset-center/study-guide/${asset.id}/split?subject=${selectedSubject}`
               : `/combination-production/revision/${asset.id}?subject=${selectedSubject}&type=studyGuide&view=preview`;
           return (
@@ -510,14 +517,43 @@ const AssetCenterPage: React.FC = () => {
                   查看学案
                 </Button>
               )}
-              <Button
-                type="link"
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() => openRename(asset)}
-              >
-                改名
-              </Button>
+              {asset.type === 'homework' && (
+                <>
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() =>
+                      history.push(
+                        `/preparation/asset-center/homework/${asset.id}?subject=${selectedSubject}`,
+                      )
+                    }
+                  >
+                    查看作业
+                  </Button>
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={() =>
+                      history.push(
+                        `/preparation/asset-center/homework/${asset.id}/edit?subject=${selectedSubject}`,
+                      )
+                    }
+                  >
+                    编辑作业
+                  </Button>
+                </>
+              )}
+              {asset.type !== 'homework' && (
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => openRename(asset)}
+                >
+                  改名
+                </Button>
+              )}
               {isAttachment && (
                 <Button
                   type="link"
@@ -590,21 +626,20 @@ const AssetCenterPage: React.FC = () => {
               </Button>
             </Dropdown>
             <Tooltip title="本期仅保留入口，不创建草稿">
-              <Button
-                icon={<PlusOutlined />}
-                onClick={() => showComingSoon('studyGuide')}
-              >
+              <Button icon={<PlusOutlined />} onClick={showComingSoon}>
                 新建学案
               </Button>
             </Tooltip>
-            <Tooltip title="本期仅保留入口，不创建草稿">
-              <Button
-                icon={<PlusOutlined />}
-                onClick={() => showComingSoon('homework')}
-              >
-                新建作业
-              </Button>
-            </Tooltip>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() =>
+                history.push(
+                  `/preparation/asset-center/homework/new?subject=${selectedSubject}`,
+                )
+              }
+            >
+              新建作业
+            </Button>
           </Space>
         </div>
 
@@ -622,12 +657,18 @@ const AssetCenterPage: React.FC = () => {
           <Select
             value={typeFilter}
             options={TYPE_FILTER_OPTIONS}
-            onChange={setTypeFilter}
+            onChange={changeTypeFilter}
             aria-label="筛选资产类型"
           />
           <Select
             value={statusFilter}
-            options={STATUS_FILTER_OPTIONS}
+            options={
+              typeFilter === 'homework'
+                ? STATUS_FILTER_OPTIONS.filter(
+                    (option) => option.value !== 'draft',
+                  )
+                : STATUS_FILTER_OPTIONS
+            }
             onChange={setStatusFilter}
             aria-label="筛选资产状态"
           />
