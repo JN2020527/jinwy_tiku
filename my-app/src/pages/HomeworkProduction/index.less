@@ -316,8 +316,16 @@
   }
 
   // —— 预览页：连续成品文档式排版 ——
+  .homework-preview-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    align-items: start;
+    gap: 16px;
+  }
+
   .homework-preview-stage {
-    padding: 36px;
+    min-width: 0;
+    padding: 28px;
     border: 1px solid #dfe5ee;
     border-radius: 8px;
     background: #f1f3f5;
@@ -399,46 +407,72 @@
         }
       }
 
-      .homework-preview-answer-collapse {
-        .ant-collapse-header {
-          width: fit-content;
-          padding: 4px 0 !important;
-          color: #64748b;
-          font-size: 13px;
-        }
+      .homework-preview-answer {
+        overflow: hidden;
+        margin-top: 12px;
+        border-radius: 6px;
+        background: #f8fafc;
 
-        .homework-preview-answer {
-          overflow: hidden;
-          border-radius: 6px;
-          background: #f8fafc;
+        > div {
+          display: grid;
+          grid-template-columns: 76px minmax(0, 1fr);
+          gap: 8px;
+          padding: 10px 14px;
 
-          > div {
-            display: grid;
-            grid-template-columns: 76px minmax(0, 1fr);
-            gap: 8px;
-            padding: 10px 14px;
+          & + div {
+            border-top: 1px solid #e2e8f0;
+          }
 
-            & + div {
-              border-top: 1px solid #e2e8f0;
-            }
-
-            > strong {
-              color: #172033;
-              font-size: 13px;
-            }
-
-            p {
-              margin: 0;
-            }
+          > strong {
+            color: #172033;
+            font-size: 13px;
           }
 
           p {
-            color: #475569;
-            font-size: 14px;
-            line-height: 1.7;
+            margin: 0;
           }
         }
+
+        p {
+          color: #475569;
+          font-size: 14px;
+          line-height: 1.7;
+        }
       }
+    }
+  }
+
+  .homework-preview-settings {
+    position: sticky;
+    top: 16px;
+
+    .ant-card-head-title {
+      font-size: 14px;
+    }
+  }
+
+  .homework-preview-setting-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+
+    > div {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    strong {
+      color: #1e293b;
+      font-size: 13px;
+    }
+
+    span {
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.5;
     }
   }
 
@@ -503,6 +537,15 @@
         position: static;
         max-height: none;
       }
+    }
+
+    .homework-preview-workspace {
+      grid-template-columns: 1fr;
+    }
+
+    .homework-preview-settings {
+      position: static;
+      grid-row: 1;
     }
   }
 }
