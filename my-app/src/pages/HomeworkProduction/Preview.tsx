@@ -19,7 +19,6 @@ import {
 } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
 import { SUBJECT_OPTIONS } from '../ContentCenter/TagManage/components/treeFilterConstants';
-import { getDifficultyLabel } from './filtering';
 
 interface PreviewProps {
   homeworkId: string;
@@ -183,18 +182,6 @@ const Preview: React.FC<PreviewProps> = ({ homeworkId, subject }) => {
               >
                 <div className="homework-preview-question-head">
                   <Typography.Text strong>第 {index + 1} 题</Typography.Text>
-                  {question ? (
-                    <Space size={4} wrap>
-                      <Tag>来源：{question.source}</Tag>
-                      <Tag color="blue">题型：{question.type}</Tag>
-                      <Tag color="orange">
-                        难度：{getDifficultyLabel(question.difficulty)}
-                      </Tag>
-                      {question.year ? (
-                        <Tag color="geekblue">年份：{question.year}</Tag>
-                      ) : null}
-                    </Space>
-                  ) : null}
                 </div>
                 {question ? (
                   <>
