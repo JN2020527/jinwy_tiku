@@ -186,8 +186,6 @@
       .homework-question-card-header {
         display: flex;
         align-items: flex-start;
-        justify-content: space-between;
-        gap: 10px;
         margin-bottom: 8px;
 
         .homework-question-tags {
@@ -218,21 +216,29 @@
         }
       }
 
-      .homework-question-answer-collapse {
-        .ant-collapse-header {
-          padding-block: 4px !important;
-          color: #64748b;
-          font-size: 13px;
-        }
+      .homework-question-answer {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        background: #f8fafc;
 
-        .homework-question-answer {
-          p {
-            margin: 2px 0;
-            color: #475569;
-            font-size: 13px;
-            line-height: 1.7;
-          }
+        p {
+          margin: 2px 0;
+          color: #475569;
+          font-size: 13px;
+          line-height: 1.7;
         }
+      }
+
+      .homework-question-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #eef2f7;
       }
 
       .homework-question-empty {

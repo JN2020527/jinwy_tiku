@@ -8,13 +8,13 @@ import {
   CheckCircleOutlined,
   DeleteOutlined,
   PlusOutlined,
+  ReadOutlined,
   ReloadOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
 import {
   Button,
   Card,
-  Collapse,
   Empty,
   Input,
   List,
@@ -94,6 +94,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [treeSearch, setTreeSearch] = useState('');
+  const [expandedAnswerIds, setExpandedAnswerIds] = useState<string[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<string[]>(() =>
     getFirstLevelKeys(treeNodes),
   );
@@ -226,6 +227,14 @@ const Workbench: React.FC<WorkbenchProps> = ({
 
   const handleRemoveQuestion = (questionId: string) => {
     onSelectedIdsChange(removeQuestionId(selectedIds, questionId));
+  };
+
+  const toggleQuestionAnswer = (questionId: string) => {
+    setExpandedAnswerIds((current) =>
+      current.includes(questionId)
+        ? current.filter((id) => id !== questionId)
+        : [...current, questionId],
+    );
   };
 
   const handleMoveQuestion = (index: number, direction: -1 | 1) => {
@@ -389,6 +398,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
             pagination={false}
             renderItem={(question, index) => {
               const selected = selectedIds.includes(question.id);
+              const answerExpanded = expandedAnswerIds.includes(question.id);
               return (
                 <List.Item className="homework-question-item">
                   <Card size="small" className="homework-question-card">
@@ -403,6 +413,41 @@ const Workbench: React.FC<WorkbenchProps> = ({
                           <Tag color="geekblue">年份：{question.year}</Tag>
                         ) : null}
                       </div>
+                    </div>
+                    <Typography.Paragraph className="homework-question-stem">
+                      {pageStart + index + 1}. {question.stem}
+                    </Typography.Paragraph>
+                    {question.options && question.options.length > 0 ? (
+                      <ul className="homework-question-options">
+                        {question.options.map((option, optionIndex) => (
+                          <li key={optionIndex}>
+                            {option.label}. {option.text}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {answerExpanded ? (
+                      <div className="homework-question-answer">
+                        <p>
+                          <strong>答案：</strong>
+                          {question.answer || '—'}
+                        </p>
+                        <p>
+                          <strong>解析：</strong>
+                          {question.explanation || '—'}
+                        </p>
+                      </div>
+                    ) : null}
+                    <div className="homework-question-actions">
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<ReadOutlined />}
+                        aria-expanded={answerExpanded}
+                        onClick={() => toggleQuestionAnswer(question.id)}
+                      >
+                        {answerExpanded ? '收起解析' : '答案解析'}
+                      </Button>
                       {selected ? (
                         <Button
                           size="small"
@@ -422,41 +467,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
                         </Button>
                       )}
                     </div>
-                    <Typography.Paragraph className="homework-question-stem">
-                      {pageStart + index + 1}. {question.stem}
-                    </Typography.Paragraph>
-                    {question.options && question.options.length > 0 ? (
-                      <ul className="homework-question-options">
-                        {question.options.map((option, optionIndex) => (
-                          <li key={optionIndex}>
-                            {option.label}. {option.text}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    <Collapse
-                      ghost
-                      size="small"
-                      className="homework-question-answer-collapse"
-                      items={[
-                        {
-                          key: 'answer',
-                          label: '答案解析',
-                          children: (
-                            <div className="homework-question-answer">
-                              <p>
-                                <strong>答案：</strong>
-                                {question.answer || '—'}
-                              </p>
-                              <p>
-                                <strong>解析：</strong>
-                                {question.explanation || '—'}
-                              </p>
-                            </div>
-                          ),
-                        },
-                      ]}
-                    />
                   </Card>
                 </List.Item>
               );
