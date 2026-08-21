@@ -936,9 +936,7 @@ const CombinationProductionPage: React.FC = () => {
         <div className="study-guide-preview-stage">
           <article className="study-guide-document">
             <header className="study-guide-document-header">
-              <span>正式学案</span>
               <h1>{guide.name}</h1>
-              <p>{guide.originalFileName || '在线学案'}</p>
             </header>
             {structure.length ? (
               structure.map(renderPreviewNode)
