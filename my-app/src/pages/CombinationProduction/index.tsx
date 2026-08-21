@@ -732,6 +732,52 @@ const CombinationProductionPage: React.FC = () => {
     );
   };
 
+  const renderPreviewNode = (node: StudyGuideStructureNode) => {
+    const nodeBlocks = blocks.filter(
+      (block) => block.structureNodeId === node.id,
+    );
+    const heading =
+      node.level === 'level1' ? (
+        <h2>{node.label}</h2>
+      ) : node.level === 'level2' ? (
+        <h3>{node.label}</h3>
+      ) : node.level === 'level3' ? (
+        <h4>{node.label}</h4>
+      ) : (
+        <h5>{node.label}</h5>
+      );
+    return (
+      <section
+        key={node.id}
+        className={`study-guide-reading-section study-guide-reading-${node.level}`}
+      >
+        {heading}
+        {nodeBlocks.map((block) => (
+          <article key={block.id} className="study-guide-reading-block">
+            {block.kind !== 'columnContent' && (
+              <div className="study-guide-reading-meta">
+                <span>{KNOWLEDGE_BLOCK_TYPE_LABELS[block.kind]}</span>
+                {block.kind === 'comprehensive' && (
+                  <small>
+                    本次知识范围：
+                    {block.currentKnowledgeScope
+                      ?.map((id) => leafMap.get(id)?.title || id)
+                      .join('、') || '未设置'}
+                  </small>
+                )}
+              </div>
+            )}
+            <div
+              className="study-guide-reading-content rich-content"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.html) }}
+            />
+          </article>
+        ))}
+        {node.children.map(renderPreviewNode)}
+      </section>
+    );
+  };
+
   const structureLevel = structureDrawer?.level;
   const structureTargetNode = structureDrawer?.nodeId
     ? flatNodes.find((node) => node.id === structureDrawer.nodeId)
@@ -875,29 +921,46 @@ const CombinationProductionPage: React.FC = () => {
           ]}
         />
       </Card>
-      <div className="combination-editor-toolbar">
-        <div>
-          <strong>栏目结构</strong>
-          <span>编辑不修改注册栏目定义或源知识块本体</span>
+      {editing ? (
+        <>
+          <div className="combination-editor-toolbar">
+            <div>
+              <strong>栏目结构</strong>
+              <span>编辑不修改注册栏目定义或源知识块本体</span>
+            </div>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => openAddStructure('level1')}
+            >
+              添加一级栏目
+            </Button>
+          </div>
+          <div className="combination-structure">
+            {structure.length ? (
+              structure.map((node, index) =>
+                renderNode(node, index, structure.length),
+              )
+            ) : (
+              <Empty description="当前学案暂无栏目结构" />
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="study-guide-preview-stage">
+          <article className="study-guide-document">
+            <header className="study-guide-document-header">
+              <span>正式学案</span>
+              <h1>{guide.name}</h1>
+              <p>{guide.originalFileName || '在线学案'}</p>
+            </header>
+            {structure.length ? (
+              structure.map(renderPreviewNode)
+            ) : (
+              <Empty description="当前学案暂无正文内容" />
+            )}
+          </article>
         </div>
-        {editing && (
-          <Button
-            icon={<PlusOutlined />}
-            onClick={() => openAddStructure('level1')}
-          >
-            添加一级栏目
-          </Button>
-        )}
-      </div>
-      <div className="combination-structure">
-        {structure.length ? (
-          structure.map((node, index) =>
-            renderNode(node, index, structure.length),
-          )
-        ) : (
-          <Empty description="当前学案暂无栏目结构" />
-        )}
-      </div>
+      )}
 
       <Drawer
         title={
