@@ -9,12 +9,12 @@ const Settings: ProLayoutProps & {
 } = {
   navTheme: 'realDark',
   layout: 'side',
-  siderWidth: 180, // 收窄左侧菜单宽度（ProLayout 默认 208）
+  siderWidth: 180,
   contentWidth: 'Fluid',
   fixedHeader: false,
   fixSiderbar: true,
   colorWeak: false,
-  title: '晋文源试卷管理系统',
+  title: '资产中心',
   pwa: false,
   iconfontUrl: '',
   footerRender: false,

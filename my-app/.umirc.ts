@@ -43,7 +43,7 @@ export default defineConfig({
   initialState: {},
   request: {},
   layout: {
-    title: '晋文源试卷管理系统',
+    title: '资产中心',
     ...defaultSettings,
   },
   routes,

@@ -4,18 +4,21 @@ export default [
     name: '系统管理',
     icon: 'setting',
     component: './System',
+    hideInMenu: true,
   },
   {
     path: '/order',
     name: '订单管理',
     icon: 'shopping',
     component: './Order',
+    hideInMenu: true,
   },
   {
     path: '/customer',
     name: '客服管理',
     icon: 'customerService',
     component: './Customer',
+    hideInMenu: true,
   },
   {
     path: '/content',
@@ -150,6 +153,7 @@ export default [
     name: '业务统计',
     icon: 'barChart',
     component: './Statistics',
+    hideInMenu: true,
   },
   {
     path: '/question-bank',
