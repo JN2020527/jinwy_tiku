@@ -22,7 +22,6 @@ import {
   ArrowUpOutlined,
   DeleteOutlined,
   EditOutlined,
-  EyeOutlined,
   PlusOutlined,
   SaveOutlined,
   SwapOutlined,
@@ -884,15 +883,6 @@ const CombinationProductionPage: React.FC = () => {
         ),
       ]}
     >
-      {!editing && (
-        <Alert
-          type="info"
-          showIcon
-          icon={<EyeOutlined />}
-          message="当前为只读预览"
-          description="从知识块详情进入时不会直接修改正式学案；点击“编辑正式学案”后才进入维护状态。"
-        />
-      )}
       <Card variant="borderless" className="combination-summary">
         <Descriptions
           size="small"
