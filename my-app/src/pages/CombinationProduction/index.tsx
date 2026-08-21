@@ -754,19 +754,6 @@ const CombinationProductionPage: React.FC = () => {
         {heading}
         {nodeBlocks.map((block) => (
           <article key={block.id} className="study-guide-reading-block">
-            {block.kind !== 'columnContent' && (
-              <div className="study-guide-reading-meta">
-                <span>{KNOWLEDGE_BLOCK_TYPE_LABELS[block.kind]}</span>
-                {block.kind === 'comprehensive' && (
-                  <small>
-                    本次知识范围：
-                    {block.currentKnowledgeScope
-                      ?.map((id) => leafMap.get(id)?.title || id)
-                      .join('、') || '未设置'}
-                  </small>
-                )}
-              </div>
-            )}
             <div
               className="study-guide-reading-content rich-content"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.html) }}
