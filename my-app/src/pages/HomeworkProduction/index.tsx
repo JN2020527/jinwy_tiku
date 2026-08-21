@@ -13,17 +13,7 @@ import {
 import { EditOutlined, SaveOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { history, useLocation } from '@umijs/max';
-import {
-  Alert,
-  Button,
-  Input,
-  message,
-  Modal,
-  Skeleton,
-  Space,
-  Tag,
-  Typography,
-} from 'antd';
+import { Alert, Button, message, Modal, Skeleton, Space, Tag } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -77,7 +67,6 @@ const HomeworkProductionPage: React.FC = () => {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [savedQuestionIds, setSavedQuestionIds] = useState<string[]>([]);
-  const [nameInput, setNameInput] = useState('');
   const [savedName, setSavedName] = useState('');
 
   const [saveModalOpen, setSaveModalOpen] = useState(false);
@@ -134,12 +123,10 @@ const HomeworkProductionPage: React.FC = () => {
         );
         setSelectedIds(orderedIds);
         setSavedQuestionIds(orderedIds);
-        setNameInput(homeworkDetail.name);
         setSavedName(homeworkDetail.name);
       } else {
         setSelectedIds([]);
         setSavedQuestionIds([]);
-        setNameInput('');
         setSavedName('');
       }
       setLoadState('ready');
@@ -155,11 +142,10 @@ const HomeworkProductionPage: React.FC = () => {
     void loadWorkbench();
   }, [loadWorkbench, reloadKey]);
 
-  // —— 未保存变更（试题列表或名称相对已保存状态变化，AC-14）——
+  // —— 未保存变更（试题列表，或保存弹窗中的名称草稿，AC-14）——
   const dirty = useMemo(
-    () =>
-      !sameOrderedIds(selectedIds, savedQuestionIds) || nameInput !== savedName,
-    [nameInput, savedName, savedQuestionIds, selectedIds],
+    () => !sameOrderedIds(selectedIds, savedQuestionIds) || saveModalOpen,
+    [saveModalOpen, savedQuestionIds, selectedIds],
   );
   const dirtyRef = useRef(dirty);
   useEffect(() => {
@@ -289,7 +275,6 @@ const HomeworkProductionPage: React.FC = () => {
         return response.message || '保存失败';
       }
       setSavedName(name);
-      setNameInput(name);
       setSavedQuestionIds([...selectedIds]);
       message.success(response.message || '保存成功');
       setSaveModalOpen(false);
@@ -360,6 +345,7 @@ const HomeworkProductionPage: React.FC = () => {
   return (
     <PageContainer
       title={title}
+      subTitle={route.mode === 'edit' ? savedName : undefined}
       className="homework-production-page"
       extra={headerExtra}
     >
@@ -390,37 +376,18 @@ const HomeworkProductionPage: React.FC = () => {
           }
         />
       ) : (
-        <>
-          <div className="homework-name-bar">
-            <label className="homework-name-label" htmlFor="homework-name">
-              作业名称
-            </label>
-            <Input
-              id="homework-name"
-              className="homework-name-input"
-              value={nameInput}
-              onChange={(event) => setNameInput(event.target.value)}
-              placeholder="请输入作业名称"
-              maxLength={60}
-              allowClear
-            />
-            <Typography.Text type="secondary" className="homework-name-hint">
-              保存时按「同一学科 + 作业类型」校验名称唯一
-            </Typography.Text>
-          </div>
-          <Workbench
-            treeNodes={treeNodes}
-            questions={questions}
-            selectedIds={selectedIds}
-            questionMap={questionMap}
-            onSelectedIdsChange={setSelectedIds}
-          />
-        </>
+        <Workbench
+          treeNodes={treeNodes}
+          questions={questions}
+          selectedIds={selectedIds}
+          questionMap={questionMap}
+          onSelectedIdsChange={setSelectedIds}
+        />
       )}
 
       <SaveHomeworkModal
         open={saveModalOpen}
-        initialName={nameInput}
+        initialName={savedName}
         saving={saving}
         onCancel={() => setSaveModalOpen(false)}
         onConfirm={handleSaveConfirm}
