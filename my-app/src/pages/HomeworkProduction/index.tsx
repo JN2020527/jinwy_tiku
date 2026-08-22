@@ -10,7 +10,7 @@ import {
   getResourceAssetContext,
   saveHomework,
 } from '@/services/resourceAssets';
-import { EditOutlined, SaveOutlined } from '@ant-design/icons';
+import { EditOutlined, ReadOutlined, SaveOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { history, useLocation } from '@umijs/max';
 import { Alert, Button, message, Modal, Skeleton, Space, Tag } from 'antd';
@@ -71,6 +71,7 @@ const HomeworkProductionPage: React.FC = () => {
 
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showPreviewAnswers, setShowPreviewAnswers] = useState(false);
 
   const subject = route.valid ? route.subject : '';
   const assetCenterUrl = `/preparation/asset-center?subject=${subject}`;
@@ -312,6 +313,13 @@ const HomeworkProductionPage: React.FC = () => {
   const headerExtra =
     route.mode === 'preview' ? (
       <Space>
+        <Button
+          icon={<ReadOutlined />}
+          aria-pressed={showPreviewAnswers}
+          onClick={() => setShowPreviewAnswers((current) => !current)}
+        >
+          {showPreviewAnswers ? '隐藏答案解析' : '显示答案解析'}
+        </Button>
         <Button onClick={handleBack}>返回</Button>
         <Button
           type="primary"
@@ -350,7 +358,11 @@ const HomeworkProductionPage: React.FC = () => {
       extra={headerExtra}
     >
       {route.mode === 'preview' ? (
-        <Preview homeworkId={route.homeworkId} subject={route.subject} />
+        <Preview
+          homeworkId={route.homeworkId}
+          subject={route.subject}
+          showAnswers={showPreviewAnswers}
+        />
       ) : loadState === 'loading' ? (
         <div className="homework-loading">
           <Skeleton active paragraph={{ rows: 8 }} />
