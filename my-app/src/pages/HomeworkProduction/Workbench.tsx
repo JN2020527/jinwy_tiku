@@ -5,12 +5,14 @@ import type {
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
-  CheckCircleOutlined,
   DeleteOutlined,
+  LeftOutlined,
   PlusOutlined,
   ReadOutlined,
   ReloadOutlined,
+  RightOutlined,
   SearchOutlined,
+  ShoppingOutlined,
 } from '@ant-design/icons';
 import {
   Button,
@@ -32,9 +34,9 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  QUESTION_BASKET_EMPTY_MESSAGE,
-  QUESTION_BASKET_LIMIT_MESSAGE,
-  QUESTION_BASKET_MAX_COUNT,
+  HOMEWORK_BASKET_EMPTY_MESSAGE,
+  HOMEWORK_BASKET_LIMIT_MESSAGE,
+  HOMEWORK_BASKET_MAX_COUNT,
   addQuestionId,
   moveQuestionId,
   removeQuestionId,
@@ -95,6 +97,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [treeSearch, setTreeSearch] = useState('');
   const [expandedAnswerIds, setExpandedAnswerIds] = useState<string[]>([]);
+  const [basketExpanded, setBasketExpanded] = useState(false);
   const [expandedKeys, setExpandedKeys] = useState<string[]>(() =>
     getFirstLevelKeys(treeNodes),
   );
@@ -217,7 +220,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
   const handleAddQuestion = (questionId: string) => {
     const result = addQuestionId(selectedIds, questionId);
     if (result.limitReached) {
-      message.warning(QUESTION_BASKET_LIMIT_MESSAGE);
+      message.warning(HOMEWORK_BASKET_LIMIT_MESSAGE);
       return;
     }
     if (result.added) {
@@ -297,7 +300,13 @@ const Workbench: React.FC<WorkbenchProps> = ({
   };
 
   return (
-    <div className="homework-workbench">
+    <div
+      className={`homework-workbench ${
+        basketExpanded
+          ? 'homework-basket-expanded'
+          : 'homework-basket-collapsed'
+      }`}
+    >
       {/* 左栏：知识点树（单选，选父节点筛选全部后代叶子并展开） */}
       <Card
         className="homework-tree-panel"
@@ -490,104 +499,135 @@ const Workbench: React.FC<WorkbenchProps> = ({
         />
       </div>
 
-      {/* 右栏：已选作业面板（序号/上移/下移/移除/清空） */}
-      <Card
-        className="homework-selected-panel"
-        size="small"
-        title={
-          <span className="homework-panel-title homework-panel-title-purple">
-            <CheckCircleOutlined className="homework-selected-icon" />
-            已选作业
-            <Tag color="purple" className="homework-selected-count">
-              {selectedIds.length}/{QUESTION_BASKET_MAX_COUNT}
-            </Tag>
-          </span>
-        }
-        extra={
-          <Button
-            type="link"
-            size="small"
-            danger
-            disabled={selectedIds.length === 0}
-            onClick={handleClearSelected}
-          >
-            清空
-          </Button>
-        }
-      >
-        {selectedIds.length > 0 ? (
-          <List
-            className="homework-selected-list"
-            dataSource={selectedIds}
-            rowKey={(id) => id}
-            renderItem={(questionId, index) => {
-              const question = questionMap.get(questionId);
-              return (
-                <List.Item className="homework-selected-item">
-                  <span className="homework-selected-index">{index + 1}</span>
-                  <Tooltip
-                    title={question ? question.stem : '题目内容缺失'}
-                    placement="topLeft"
-                  >
-                    <Typography.Text
-                      ellipsis
-                      className={
-                        question
-                          ? 'homework-selected-stem'
-                          : 'homework-selected-stem homework-selected-missing'
-                      }
+      {/* 右栏：作业篮。收起时只显示数量，展开后维护作业明细。 */}
+      {basketExpanded ? (
+        <Card
+          className="homework-selected-panel"
+          size="small"
+          title={
+            <span className="homework-panel-title homework-panel-title-purple">
+              <ShoppingOutlined className="homework-selected-icon" />
+              作业篮
+              <Tag color="purple" className="homework-selected-count">
+                {selectedIds.length}/{HOMEWORK_BASKET_MAX_COUNT}
+              </Tag>
+            </span>
+          }
+          extra={
+            <Space size={2}>
+              <Button
+                type="link"
+                size="small"
+                danger
+                disabled={selectedIds.length === 0}
+                onClick={handleClearSelected}
+              >
+                清空
+              </Button>
+              <Tooltip title="收起作业篮">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<RightOutlined />}
+                  aria-label="收起作业篮"
+                  aria-expanded="true"
+                  onClick={() => setBasketExpanded(false)}
+                />
+              </Tooltip>
+            </Space>
+          }
+        >
+          {selectedIds.length > 0 ? (
+            <List
+              className="homework-selected-list"
+              dataSource={selectedIds}
+              rowKey={(id) => id}
+              renderItem={(questionId, index) => {
+                const question = questionMap.get(questionId);
+                return (
+                  <List.Item className="homework-selected-item">
+                    <span className="homework-selected-index">{index + 1}</span>
+                    <Tooltip
+                      title={question ? question.stem : '题目内容缺失'}
+                      placement="topLeft"
                     >
-                      {question
-                        ? question.stem
-                        : `题目内容缺失（${questionId}）`}
-                    </Typography.Text>
-                  </Tooltip>
-                  <Space size={2} className="homework-selected-actions">
-                    <Tooltip title="上移">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<ArrowUpOutlined />}
-                        aria-label={`上移第 ${index + 1} 题`}
-                        disabled={index === 0}
-                        onClick={() => handleMoveQuestion(index, -1)}
-                      />
+                      <Typography.Text
+                        ellipsis
+                        className={
+                          question
+                            ? 'homework-selected-stem'
+                            : 'homework-selected-stem homework-selected-missing'
+                        }
+                      >
+                        {question
+                          ? question.stem
+                          : `题目内容缺失（${questionId}）`}
+                      </Typography.Text>
                     </Tooltip>
-                    <Tooltip title="下移">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<ArrowDownOutlined />}
-                        aria-label={`下移第 ${index + 1} 题`}
-                        disabled={index === selectedIds.length - 1}
-                        onClick={() => handleMoveQuestion(index, 1)}
-                      />
-                    </Tooltip>
-                    <Tooltip title="移除">
-                      <Button
-                        type="text"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        aria-label={`移除第 ${index + 1} 题`}
-                        onClick={() => handleRemoveQuestion(questionId)}
-                      />
-                    </Tooltip>
-                  </Space>
-                </List.Item>
-              );
-            }}
-          />
-        ) : (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={QUESTION_BASKET_EMPTY_MESSAGE}
-          />
-        )}
-        <Typography.Text type="secondary" className="homework-selected-hint">
-          已选列表即作业本体，保存时按当前顺序生成作业
-        </Typography.Text>
-      </Card>
+                    <Space size={2} className="homework-selected-actions">
+                      <Tooltip title="上移">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<ArrowUpOutlined />}
+                          aria-label={`上移第 ${index + 1} 题`}
+                          disabled={index === 0}
+                          onClick={() => handleMoveQuestion(index, -1)}
+                        />
+                      </Tooltip>
+                      <Tooltip title="下移">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<ArrowDownOutlined />}
+                          aria-label={`下移第 ${index + 1} 题`}
+                          disabled={index === selectedIds.length - 1}
+                          onClick={() => handleMoveQuestion(index, 1)}
+                        />
+                      </Tooltip>
+                      <Tooltip title="移除">
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          aria-label={`移除第 ${index + 1} 题`}
+                          onClick={() => handleRemoveQuestion(questionId)}
+                        />
+                      </Tooltip>
+                    </Space>
+                  </List.Item>
+                );
+              }}
+            />
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={HOMEWORK_BASKET_EMPTY_MESSAGE}
+            />
+          )}
+          <Typography.Text type="secondary" className="homework-selected-hint">
+            作业篮即作业本体，保存时按当前顺序生成作业
+          </Typography.Text>
+        </Card>
+      ) : (
+        <aside className="homework-basket-rail" aria-label="作业篮">
+          <Tooltip title="展开查看作业明细" placement="left">
+            <Button
+              className="homework-basket-rail-button"
+              aria-label={`展开作业篮，当前已选 ${selectedIds.length} 道题`}
+              aria-expanded="false"
+              onClick={() => setBasketExpanded(true)}
+            >
+              <LeftOutlined />
+              <ShoppingOutlined className="homework-basket-rail-icon" />
+              <span>作业篮</span>
+              <strong>{selectedIds.length}</strong>
+              <small>/ {HOMEWORK_BASKET_MAX_COUNT}</small>
+            </Button>
+          </Tooltip>
+        </aside>
+      )}
     </div>
   );
 };

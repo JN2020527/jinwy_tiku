@@ -1,8 +1,8 @@
-export const QUESTION_BASKET_MAX_COUNT = 60;
+export const HOMEWORK_BASKET_MAX_COUNT = 60;
 
-export const QUESTION_BASKET_LIMIT_MESSAGE = `作业最多可添加 ${QUESTION_BASKET_MAX_COUNT} 道题`;
+export const HOMEWORK_BASKET_LIMIT_MESSAGE = `作业最多可添加 ${HOMEWORK_BASKET_MAX_COUNT} 道题`;
 
-export const QUESTION_BASKET_EMPTY_MESSAGE = '至少加入 1 道题';
+export const HOMEWORK_BASKET_EMPTY_MESSAGE = '作业篮暂无试题';
 
 export type AddResult = {
   added: boolean;
@@ -17,7 +17,7 @@ export function addQuestionId(
   if (currentIds.includes(questionId)) {
     return { added: false, limitReached: false };
   }
-  if (currentIds.length >= QUESTION_BASKET_MAX_COUNT) {
+  if (currentIds.length >= HOMEWORK_BASKET_MAX_COUNT) {
     return { added: false, limitReached: true };
   }
   return { added: true, limitReached: false };

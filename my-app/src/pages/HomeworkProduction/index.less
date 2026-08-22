@@ -10,6 +10,10 @@
     gap: 14px;
     align-items: start;
 
+    &.homework-basket-collapsed {
+      grid-template-columns: 236px minmax(0, 1fr) 84px;
+    }
+
     .homework-panel-title {
       font-size: 14px;
       font-weight: 600;
@@ -251,7 +255,7 @@
       }
     }
 
-    // 右栏：已选作业（紫色语义点缀）
+    // 右栏：作业篮（紫色语义点缀）
     .homework-selected-panel {
       position: sticky;
       top: 16px;
@@ -311,6 +315,62 @@
       .homework-selected-hint {
         font-size: 12px;
         text-align: center;
+      }
+    }
+
+    .homework-basket-rail {
+      position: sticky;
+      top: 16px;
+    }
+
+    .homework-basket-rail-button {
+      display: flex;
+      width: 100%;
+      min-height: 260px;
+      height: auto;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 9px;
+      padding: 12px 8px;
+      border-color: #e8d9f7;
+      color: #722ed1;
+      background: linear-gradient(180deg, #fff 0%, #fcf8ff 100%);
+
+      &:hover,
+      &:focus-visible {
+        border-color: #b37feb;
+        color: #531dab;
+        background: #faf5ff;
+      }
+
+      > .anticon:first-child {
+        align-self: flex-start;
+        color: #9254de;
+      }
+
+      .homework-basket-rail-icon {
+        margin-top: 8px;
+        font-size: 20px;
+      }
+
+      span {
+        font-weight: 600;
+        writing-mode: vertical-rl;
+        letter-spacing: 0.12em;
+      }
+
+      strong {
+        margin-top: auto;
+        font-size: 22px;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+
+      small {
+        color: #8b5fbf;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
       }
     }
   }
@@ -484,6 +544,10 @@
 @media (max-width: 1280px) {
   .homework-production-page .homework-workbench {
     grid-template-columns: 200px minmax(0, 1fr) 300px;
+
+    &.homework-basket-collapsed {
+      grid-template-columns: 200px minmax(0, 1fr) 76px;
+    }
   }
 }
 
@@ -492,9 +556,42 @@
     .homework-workbench {
       grid-template-columns: 1fr;
 
+      &.homework-basket-collapsed {
+        grid-template-columns: 1fr;
+      }
+
       .homework-selected-panel {
         position: static;
         max-height: none;
+      }
+
+      .homework-basket-rail {
+        position: static;
+      }
+
+      .homework-basket-rail-button {
+        min-height: 56px;
+        flex-direction: row;
+        justify-content: center;
+        padding: 10px 14px;
+
+        > .anticon:first-child {
+          align-self: center;
+        }
+
+        .homework-basket-rail-icon {
+          margin-top: 0;
+        }
+
+        span {
+          writing-mode: horizontal-tb;
+          letter-spacing: normal;
+        }
+
+        strong {
+          margin-top: 0;
+          margin-left: auto;
+        }
       }
     }
   }
