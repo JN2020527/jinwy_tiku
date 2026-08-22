@@ -6,13 +6,9 @@
   // —— 三栏工作台 ——
   .homework-workbench {
     display: grid;
-    grid-template-columns: 236px minmax(0, 1fr) 320px;
+    grid-template-columns: 236px minmax(0, 1fr) 84px;
     gap: 14px;
     align-items: start;
-
-    &.homework-basket-collapsed {
-      grid-template-columns: 236px minmax(0, 1fr) 84px;
-    }
 
     .homework-panel-title {
       font-size: 14px;
@@ -175,6 +171,7 @@
           display: block;
           width: 100%;
           padding-block: 8px;
+          border-block-end: 0;
 
           .homework-question-card {
             width: 100%;
@@ -190,12 +187,26 @@
       .homework-question-card-header {
         display: flex;
         align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
         margin-bottom: 8px;
 
         .homework-question-tags {
           display: flex;
           flex-wrap: wrap;
           gap: 4px;
+        }
+
+        .homework-question-selected-state {
+          display: inline-flex;
+          flex: none;
+          align-items: center;
+          gap: 4px;
+          padding-top: 2px;
+          color: #8b5cf6;
+          font-size: 12px;
+          font-weight: 500;
+          white-space: nowrap;
         }
       }
 
@@ -255,69 +266,6 @@
       }
     }
 
-    // 右栏：作业篮（紫色语义点缀）
-    .homework-selected-panel {
-      position: sticky;
-      top: 16px;
-      border-color: #e8d9f7;
-
-      .ant-card-body {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        max-height: calc(100vh - 280px);
-        min-height: 260px;
-        padding-bottom: 10px;
-      }
-
-      .homework-selected-list {
-        flex: 1;
-        overflow: auto;
-      }
-
-      .homework-selected-item {
-        padding: 6px 2px !important;
-        border-block-end: 1px solid #f3eef9 !important;
-        align-items: flex-start;
-        gap: 8px;
-
-        .homework-selected-index {
-          flex: none;
-          width: 22px;
-          height: 22px;
-          margin-top: 1px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 4px;
-          background: #f9f0ff;
-          color: #722ed1;
-          font-size: 12px;
-          font-weight: 600;
-        }
-
-        .homework-selected-stem {
-          flex: 1;
-          min-width: 0;
-          font-size: 13px;
-          color: #1e293b;
-
-          &.homework-selected-missing {
-            color: #fa8c16;
-          }
-        }
-
-        .homework-selected-actions {
-          flex: none;
-        }
-      }
-
-      .homework-selected-hint {
-        font-size: 12px;
-        text-align: center;
-      }
-    }
-
     .homework-basket-rail {
       position: sticky;
       top: 16px;
@@ -326,7 +274,7 @@
     .homework-basket-rail-button {
       display: flex;
       width: 100%;
-      min-height: 260px;
+      min-height: 190px;
       height: auto;
       flex-direction: column;
       align-items: center;
@@ -350,7 +298,7 @@
       }
 
       .homework-basket-rail-icon {
-        margin-top: 8px;
+        margin-top: 2px;
         font-size: 20px;
       }
 
@@ -421,6 +369,22 @@
     .homework-preview-questions {
       display: flex;
       flex-direction: column;
+    }
+
+    .homework-preview-group {
+      & + .homework-preview-group {
+        margin-top: 30px;
+      }
+
+      > h3 {
+        margin: 0 0 18px;
+        padding-bottom: 9px;
+        border-bottom: 1px solid #cbd5e1;
+        color: #172033;
+        font-size: 17px;
+        font-weight: 600;
+        line-height: 1.5;
+      }
     }
 
     .homework-preview-question {
@@ -540,14 +504,180 @@
   }
 }
 
+// Drawer 通过 Portal 渲染在页面根节点外，样式不能嵌套在页面容器内。
+.homework-basket-drawer {
+  .ant-drawer-header {
+    padding: 16px 22px;
+    border-bottom-color: #ede9f3;
+  }
+
+  .ant-drawer-body {
+    padding: 0 22px 24px;
+    background: #fbfafc;
+  }
+
+  .homework-basket-drawer-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #1e293b;
+    font-weight: 600;
+
+    > .anticon {
+      color: #722ed1;
+    }
+
+    .ant-typography {
+      margin-inline-start: 4px;
+      font-size: 13px;
+      font-weight: 400;
+    }
+  }
+
+  .homework-basket-summary {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 16px 0 14px;
+    border-bottom: 1px solid #ede9f3;
+    background: #fbfafc;
+
+    > div {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 5px;
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    strong {
+      color: #722ed1;
+      font-size: 24px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    > .ant-typography {
+      font-size: 13px;
+      text-align: right;
+    }
+  }
+
+  .homework-basket-groups {
+    padding-top: 4px;
+  }
+
+  .homework-basket-group {
+    & + .homework-basket-group {
+      margin-top: 18px;
+    }
+  }
+
+  .homework-basket-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 9px 12px;
+    border-left: 3px solid #9254de;
+    border-radius: 0 6px 6px 0;
+    color: #3b2457;
+    background: #f8f2ff;
+
+    strong {
+      font-size: 14px;
+    }
+
+    span {
+      color: #7c6693;
+      font-size: 12px;
+    }
+  }
+
+  .homework-basket-list {
+    .homework-basket-item {
+      display: block;
+      padding: 18px 0 !important;
+      border-bottom: 1px dashed #ded8e7 !important;
+    }
+  }
+
+  .homework-basket-item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .homework-basket-item-index {
+    display: inline-flex;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: #722ed1;
+    background: #f3e8ff;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .homework-basket-item-meta {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 4px;
+
+    .ant-tag {
+      margin: 0;
+    }
+  }
+
+  .homework-basket-item-actions {
+    flex: none;
+  }
+
+  .homework-basket-item-stem {
+    margin: 0 0 8px 34px;
+    color: #1e293b;
+    font-size: 14px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+
+    &.homework-basket-item-missing {
+      color: #d46b08;
+    }
+  }
+
+  .homework-basket-item-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 28px;
+    margin: 0 0 0 34px;
+    padding: 0;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.6;
+    list-style: none;
+  }
+
+  .homework-basket-empty {
+    padding: 72px 0;
+  }
+}
+
 // —— 响应式：窄屏堆叠 ——
 @media (max-width: 1280px) {
   .homework-production-page .homework-workbench {
-    grid-template-columns: 200px minmax(0, 1fr) 300px;
-
-    &.homework-basket-collapsed {
-      grid-template-columns: 200px minmax(0, 1fr) 76px;
-    }
+    grid-template-columns: 200px minmax(0, 1fr) 76px;
   }
 }
 
@@ -555,15 +685,6 @@
   .homework-production-page {
     .homework-workbench {
       grid-template-columns: 1fr;
-
-      &.homework-basket-collapsed {
-        grid-template-columns: 1fr;
-      }
-
-      .homework-selected-panel {
-        position: static;
-        max-height: none;
-      }
 
       .homework-basket-rail {
         position: static;
@@ -598,6 +719,26 @@
 }
 
 @media (max-width: 760px) {
+  .homework-basket-drawer {
+    .ant-drawer-content-wrapper {
+      width: calc(100vw - 16px) !important;
+    }
+
+    .homework-basket-summary {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 6px;
+
+      > .ant-typography {
+        text-align: left;
+      }
+    }
+
+    .homework-basket-item-options {
+      grid-template-columns: 1fr;
+    }
+  }
+
   .homework-production-page {
     .homework-workbench .homework-middle .homework-sort-search-bar {
       align-items: stretch;

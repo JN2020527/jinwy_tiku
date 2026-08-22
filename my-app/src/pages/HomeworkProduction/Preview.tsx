@@ -8,6 +8,7 @@ import {
 } from '@/services/resourceAssets';
 import { Alert, Button, Skeleton, Space, Typography } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
+import { getQuestionGroupHeading, groupByQuestionType } from './grouping';
 
 interface PreviewProps {
   homeworkId: string;
@@ -101,6 +102,7 @@ const Preview: React.FC<PreviewProps> = ({
   }
 
   const missingCount = entries.filter((entry) => !entry.question).length;
+  const previewGroups = groupByQuestionType(entries, (entry) => entry.question);
 
   return (
     <div className="homework-preview-stage">
@@ -126,52 +128,59 @@ const Preview: React.FC<PreviewProps> = ({
         ) : null}
 
         <div className="homework-preview-questions">
-          {entries.map((entry, index) => {
-            const question = entry.question;
-            return (
-              <section
-                className="homework-preview-question"
-                key={entry.questionId}
-              >
-                {question ? (
-                  <>
-                    <Typography.Paragraph className="homework-preview-stem">
-                      <strong>{index + 1}．</strong>
-                      {question.stem}
-                    </Typography.Paragraph>
-                    {question.options && question.options.length > 0 ? (
-                      <ul className="homework-preview-options">
-                        {question.options.map((option, optionIndex) => (
-                          <li key={optionIndex}>
-                            {option.label}. {option.text}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    {showAnswers ? (
-                      <div className="homework-preview-answer">
-                        <div>
-                          <strong>【答案】</strong>
-                          <p>{question.answer || '—'}</p>
-                        </div>
-                        <div>
-                          <strong>【解析】</strong>
-                          <p>{question.explanation || '—'}</p>
-                        </div>
-                      </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    message={`第 ${index + 1} 题内容缺失`}
-                    description={`题目 ID：${entry.questionId}。该试题可能已被删除，请通过编辑页核对处理。`}
-                  />
-                )}
-              </section>
-            );
-          })}
+          {previewGroups.map((group, groupIndex) => (
+            <section className="homework-preview-group" key={group.key}>
+              <h3>{getQuestionGroupHeading(groupIndex, group.label)}</h3>
+              {group.items.map((item, index) => {
+                const entry = item.value;
+                const question = entry.question;
+                const displayNumber = group.startIndex + index + 1;
+                return (
+                  <section
+                    className="homework-preview-question"
+                    key={entry.questionId}
+                  >
+                    {question ? (
+                      <>
+                        <Typography.Paragraph className="homework-preview-stem">
+                          <strong>{displayNumber}．</strong>
+                          {question.stem}
+                        </Typography.Paragraph>
+                        {question.options && question.options.length > 0 ? (
+                          <ul className="homework-preview-options">
+                            {question.options.map((option, optionIndex) => (
+                              <li key={optionIndex}>
+                                {option.label}. {option.text}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        {showAnswers ? (
+                          <div className="homework-preview-answer">
+                            <div>
+                              <strong>【答案】</strong>
+                              <p>{question.answer || '—'}</p>
+                            </div>
+                            <div>
+                              <strong>【解析】</strong>
+                              <p>{question.explanation || '—'}</p>
+                            </div>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        message={`第 ${displayNumber} 题内容缺失`}
+                        description={`题目 ID：${entry.questionId}。该试题可能已被删除，请通过编辑页核对处理。`}
+                      />
+                    )}
+                  </section>
+                );
+              })}
+            </section>
+          ))}
         </div>
       </article>
     </div>
