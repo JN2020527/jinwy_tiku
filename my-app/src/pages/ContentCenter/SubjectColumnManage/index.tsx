@@ -1,6 +1,8 @@
 import type {
   SaveSubjectColumnInput,
   SubjectColumn,
+  SubjectColumnCodeStyle,
+  SubjectColumnDataSource,
   SubjectColumnLevel,
   SubjectColumnType,
 } from '@/services/subjectColumns';
@@ -28,6 +30,7 @@ import {
   Input,
   message,
   Popconfirm,
+  Radio,
   Select,
   Space,
   Table,
@@ -49,23 +52,25 @@ import './index.less';
 interface SubjectColumnFormValues {
   name: string;
   level: SubjectColumnLevel;
-  parentId?: string;
   type: SubjectColumnType;
+  dataSource: SubjectColumnDataSource;
+  codeEnabled: boolean;
+  codeStyle: SubjectColumnCodeStyle | null;
 }
 
-interface SubjectColumnTreeNode extends SubjectColumn {
-  children?: SubjectColumnTreeNode[];
-}
-
-const LEVEL_OPTIONS = [
-  { label: '一级栏目', value: 1 },
-  { label: '四级栏目', value: 4 },
-];
+const LEVELS: SubjectColumnLevel[] = [1, 2, 3, 4];
 
 const LEVEL_LABELS: Record<SubjectColumnLevel, string> = {
   1: '一级',
+  2: '二级',
+  3: '三级',
   4: '四级',
 };
+
+const LEVEL_OPTIONS = LEVELS.map((level) => ({
+  label: `${LEVEL_LABELS[level]}栏目`,
+  value: level,
+}));
 
 const TYPE_OPTIONS = [
   { label: '知识型', value: 'knowledge' },
@@ -82,33 +87,41 @@ const TYPE_COLORS: Record<SubjectColumnType, string> = {
   question: 'purple',
 };
 
-const buildColumnTree = (columns: SubjectColumn[]): SubjectColumnTreeNode[] => {
-  const nodeMap = new Map<string, SubjectColumnTreeNode>();
-  columns.forEach((column) => nodeMap.set(column.id, { ...column }));
+const SOURCE_OPTIONS = [
+  { label: '自定义', value: 'custom' },
+  { label: '知识树', value: 'knowledgeTree' },
+];
 
-  const roots: SubjectColumnTreeNode[] = [];
-  nodeMap.forEach((node) => {
-    if (!node.parentId) {
-      roots.push(node);
-      return;
-    }
-    const parent = nodeMap.get(node.parentId);
-    if (parent) {
-      parent.children = [...(parent.children || []), node];
-    } else {
-      roots.push(node);
-    }
-  });
-
-  const sortTree = (nodes: SubjectColumnTreeNode[]) => {
-    nodes.sort((left, right) => left.sort - right.sort);
-    nodes.forEach((node) => {
-      if (node.children?.length) sortTree(node.children);
-    });
-  };
-  sortTree(roots);
-  return roots;
+const SOURCE_LABELS: Record<SubjectColumnDataSource, string> = {
+  custom: '自定义',
+  knowledgeTree: '知识树',
 };
+
+const CODE_STYLE_OPTIONS: Array<{
+  label: string;
+  shortLabel: string;
+  value: SubjectColumnCodeStyle;
+}> = [
+  {
+    label: '中文数字 + 顿号（示例：一、）',
+    shortLabel: '中文数字 + 顿号',
+    value: 'chineseDunhao',
+  },
+  {
+    label: '中文数字 + 圆括号（示例：（一））',
+    shortLabel: '中文数字 + 圆括号',
+    value: 'chineseParentheses',
+  },
+  {
+    label: '阿拉伯数字 + 英文句点（示例：1.）',
+    shortLabel: '阿拉伯数字 + 英文句点',
+    value: 'arabicPeriod',
+  },
+];
+
+const CODE_STYLE_LABELS = Object.fromEntries(
+  CODE_STYLE_OPTIONS.map((option) => [option.value, option.shortLabel]),
+) as Record<SubjectColumnCodeStyle, string>;
 
 const SubjectColumnManage: React.FC = () => {
   const [form] = Form.useForm<SubjectColumnFormValues>();
@@ -125,7 +138,8 @@ const SubjectColumnManage: React.FC = () => {
   const [deletingColumnId, setDeletingColumnId] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const selectedSubjectRef = useRef(selectedSubject);
-  const selectedLevel = Form.useWatch('level', form) || 1;
+  const selectedDataSource = Form.useWatch('dataSource', form) || 'custom';
+  const codeEnabled = Form.useWatch('codeEnabled', form) ?? false;
 
   const fetchColumns = useCallback(async (subject: string) => {
     const requestId = (requestIdRef.current += 1);
@@ -158,45 +172,30 @@ const SubjectColumnManage: React.FC = () => {
   const subjectLabel =
     SUBJECT_OPTIONS.find((option) => option.value === selectedSubject)?.label ||
     selectedSubject;
-  const treeData = useMemo(() => buildColumnTree(columns), [columns]);
   const mutationPending = Boolean(
     movingColumnId || deletingColumnId || submitting,
   );
-  const columnMap = useMemo(
-    () => new Map(columns.map((column) => [column.id, column])),
+
+  const sortedColumns = useMemo(
+    () =>
+      [...columns].sort(
+        (left, right) => left.level - right.level || left.sort - right.sort,
+      ),
     [columns],
   );
 
-  const siblingPositionMap = useMemo(() => {
+  const positionMap = useMemo(() => {
     const result = new Map<string, { index: number; total: number }>();
-    const groups = new Map<string, SubjectColumn[]>();
-    columns.forEach((column) => {
-      const key = column.parentId || '__root__';
-      groups.set(key, [...(groups.get(key) || []), column]);
-    });
-    groups.forEach((siblings) => {
-      siblings
-        .sort((left, right) => left.sort - right.sort)
-        .forEach((column, index) => {
-          result.set(column.id, { index, total: siblings.length });
-        });
+    LEVELS.forEach((level) => {
+      const levelColumns = sortedColumns.filter(
+        (column) => column.level === level,
+      );
+      levelColumns.forEach((column, index) => {
+        result.set(column.id, { index, total: levelColumns.length });
+      });
     });
     return result;
-  }, [columns]);
-
-  const parentOptions = useMemo(
-    () =>
-      columns
-        .filter((column) => column.level === 1)
-        .sort((left, right) => left.sort - right.sort)
-        .map((column) => ({
-          label: `${LEVEL_LABELS[column.level]} · ${column.name}`,
-          value: column.id,
-        })),
-    [columns],
-  );
-
-  const parentLocked = Boolean(editingColumn && editingColumn.usedCount > 0);
+  }, [sortedColumns]);
 
   const closeDrawer = () => {
     if (submitting) return;
@@ -210,8 +209,10 @@ const SubjectColumnManage: React.FC = () => {
     form.setFieldsValue({
       name: '',
       level: 1,
-      parentId: undefined,
       type: 'knowledge',
+      dataSource: 'custom',
+      codeEnabled: false,
+      codeStyle: null,
     });
     setDrawerOpen(true);
   };
@@ -221,8 +222,10 @@ const SubjectColumnManage: React.FC = () => {
     form.setFieldsValue({
       name: column.name,
       level: column.level,
-      parentId: column.parentId || undefined,
       type: column.type,
+      dataSource: column.dataSource,
+      codeEnabled: column.codeEnabled,
+      codeStyle: column.codeStyle,
     });
     setDrawerOpen(true);
   };
@@ -238,21 +241,33 @@ const SubjectColumnManage: React.FC = () => {
     setSelectedSubject(subject);
   };
 
-  const handleLevelChange = (level: SubjectColumnLevel) => {
-    if (level === 1) {
-      form.setFieldValue('parentId', undefined);
+  const handleDataSourceChange = (dataSource: SubjectColumnDataSource) => {
+    if (dataSource === 'knowledgeTree') {
+      form.setFieldValue('type', 'knowledge');
+      form.setFields([{ name: 'type', errors: [] }]);
+    }
+  };
+
+  const handleCodeEnabledChange = (enabled: boolean) => {
+    if (!enabled) {
+      form.setFieldValue('codeStyle', null);
+      form.setFields([{ name: 'codeStyle', errors: [] }]);
     }
   };
 
   const showSubmitError = (errorMessage: string) => {
     const fieldName = errorMessage.includes('同名')
       ? 'name'
+      : errorMessage.includes('数据来源') || errorMessage.includes('知识树来源')
+      ? 'dataSource'
       : errorMessage.includes('类型')
       ? 'type'
-      : errorMessage.includes('层级')
+      : errorMessage.includes('编码样式')
+      ? 'codeStyle'
+      : errorMessage.includes('编码')
+      ? 'codeEnabled'
+      : errorMessage.includes('层级') || errorMessage.includes('级已有')
       ? 'level'
-      : errorMessage.includes('归属') || errorMessage.includes('父栏目')
-      ? 'parentId'
       : undefined;
     if (fieldName) {
       form.setFields([{ name: fieldName, errors: [errorMessage] }]);
@@ -269,19 +284,25 @@ const SubjectColumnManage: React.FC = () => {
       return;
     }
 
-    const input: SaveSubjectColumnInput = {
-      subject: operationSubject,
-      name: values.name.trim(),
-      level: values.level,
-      parentId: values.level === 1 ? null : values.parentId || null,
-      type: values.type,
-    };
-
     setSubmitting(true);
     try {
       const response = editingColumn
-        ? await updateSubjectColumn({ ...input, id: editingColumn.id })
-        : await createSubjectColumn(input);
+        ? await updateSubjectColumn({
+            id: editingColumn.id,
+            subject: operationSubject,
+            name: values.name.trim(),
+            codeEnabled: values.codeEnabled,
+            codeStyle: values.codeEnabled ? values.codeStyle : null,
+          })
+        : await createSubjectColumn({
+            subject: operationSubject,
+            name: values.name.trim(),
+            level: values.level,
+            type: values.type,
+            dataSource: values.dataSource,
+            codeEnabled: values.codeEnabled,
+            codeStyle: values.codeEnabled ? values.codeStyle : null,
+          } satisfies SaveSubjectColumnInput);
       if (selectedSubjectRef.current !== operationSubject) return;
       if (!response.success) {
         showSubmitError(response.message || '栏目保存失败');
@@ -294,7 +315,7 @@ const SubjectColumnManage: React.FC = () => {
       form.resetFields();
     } catch {
       if (selectedSubjectRef.current === operationSubject) {
-        message.error('栏目保存失败，请保留当前输入后重试');
+        message.error('栏目保存失败，当前输入已保留，请重试');
       }
     } finally {
       setSubmitting(false);
@@ -331,10 +352,6 @@ const SubjectColumnManage: React.FC = () => {
 
   const handleDelete = async (column: SubjectColumn) => {
     const operationSubject = selectedSubject;
-    if (selectedSubjectRef.current !== operationSubject) {
-      message.warning('学科已切换，请在当前学科重新发起删除');
-      return;
-    }
     setDeletingColumnId(column.id);
     try {
       const response = await deleteSubjectColumn({
@@ -357,22 +374,11 @@ const SubjectColumnManage: React.FC = () => {
     }
   };
 
-  const getDeleteBlockReason = (column: SubjectColumn) => {
-    const childCount =
-      column.level === 1
-        ? columns.filter((candidate) => candidate.parentId === column.id).length
-        : 0;
-    if (childCount > 0) {
-      return `该一级栏目下还有 ${childCount} 个四级栏目，不能删除；请先处理后再删除`;
-    }
-    if (column.usedCount > 0) {
-      return `该栏目已被 ${column.usedCount} 处学案使用，不能删除`;
-    }
-    return null;
-  };
-
-  const renderDeleteAction = (column: SubjectColumnTreeNode) => {
-    const blockReason = getDeleteBlockReason(column);
+  const renderDeleteAction = (column: SubjectColumn) => {
+    const blockReason =
+      column.usedCount > 0
+        ? `该栏目已被 ${column.usedCount} 处学案引用，不能删除`
+        : null;
     const deleteButton = (
       <Button
         type="link"
@@ -395,7 +401,7 @@ const SubjectColumnManage: React.FC = () => {
     ) : (
       <Popconfirm
         title="确认删除栏目？"
-        description={`删除“${column.name}”后立即生效；有四级子栏目或已被学案使用时系统将阻止删除。`}
+        description={`删除“${column.name}”后立即生效，其他层级和学科不受影响。`}
         okText="确认删除"
         cancelText="取消"
         okButtonProps={{ danger: true }}
@@ -406,12 +412,23 @@ const SubjectColumnManage: React.FC = () => {
     );
   };
 
-  const tableColumns: ColumnsType<SubjectColumnTreeNode> = [
+  const tableColumns: ColumnsType<SubjectColumn> = [
+    {
+      title: '栏目层级',
+      dataIndex: 'level',
+      key: 'level',
+      width: 96,
+      render: (level: SubjectColumnLevel) => (
+        <Tag bordered={false} color="blue">
+          {LEVEL_LABELS[level]}
+        </Tag>
+      ),
+    },
     {
       title: '栏目名称',
       dataIndex: 'name',
       key: 'name',
-      width: 300,
+      width: 180,
       render: (name: string) => (
         <Typography.Text strong className="subject-column-name">
           {name}
@@ -419,44 +436,41 @@ const SubjectColumnManage: React.FC = () => {
       ),
     },
     {
-      title: '栏目层级',
-      dataIndex: 'level',
-      key: 'level',
-      width: 120,
-      render: (level: SubjectColumnLevel) => LEVEL_LABELS[level],
-    },
-    {
-      title: '归属一级',
-      dataIndex: 'parentId',
-      key: 'parentId',
-      width: 220,
-      render: (parentId: string | null) =>
-        parentId ? columnMap.get(parentId)?.name || '归属一级不可用' : '—',
-    },
-    {
       title: '栏目类型',
       dataIndex: 'type',
       key: 'type',
-      width: 120,
+      width: 104,
       render: (type: SubjectColumnType) => (
         <Tag color={TYPE_COLORS[type]}>{TYPE_LABELS[type]}</Tag>
       ),
     },
     {
-      title: '使用情况',
-      dataIndex: 'usedCount',
-      key: 'usedCount',
-      width: 130,
-      render: (usedCount: number) =>
-        usedCount > 0 ? <Tag color="orange">已使用 {usedCount} 处</Tag> : '—',
+      title: '数据来源',
+      dataIndex: 'dataSource',
+      key: 'dataSource',
+      width: 104,
+      render: (dataSource: SubjectColumnDataSource) => (
+        <Tag color={dataSource === 'knowledgeTree' ? 'cyan' : undefined}>
+          {SOURCE_LABELS[dataSource]}
+        </Tag>
+      ),
+    },
+    {
+      title: '编码方式',
+      key: 'codeStyle',
+      width: 220,
+      render: (_, column) =>
+        column.codeEnabled && column.codeStyle
+          ? CODE_STYLE_LABELS[column.codeStyle]
+          : '无需编码',
     },
     {
       title: '操作',
       key: 'actions',
-      width: 300,
+      width: 260,
       fixed: 'right',
       render: (_, column) => {
-        const position = siblingPositionMap.get(column.id);
+        const position = positionMap.get(column.id);
         const isMoving = movingColumnId === column.id;
         return (
           <Space size={4} className="subject-column-actions">
@@ -504,7 +518,10 @@ const SubjectColumnManage: React.FC = () => {
   ];
 
   return (
-    <PageContainer>
+    <PageContainer
+      title="栏目维护"
+      subTitle="按学科维护可在学案在线创建时选择的注册栏目"
+    >
       <Card className="subject-column-panel" variant="borderless">
         <div className="subject-column-toolbar">
           <div className="subject-column-context">
@@ -518,55 +535,55 @@ const SubjectColumnManage: React.FC = () => {
               className="subject-column-subject-select"
             />
             <span className="subject-column-context-tip">
-              保存后立即同步到{subjectLabel}已有学案
+              栏目名称在{subjectLabel}全部层级内唯一
             </span>
           </div>
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={openCreateDrawer}
+            onClick={() => openCreateDrawer()}
             disabled={mutationPending}
           >
             新增栏目
           </Button>
         </div>
 
-        <Table<SubjectColumnTreeNode>
-          key={`${selectedSubject}-${columns.length}`}
-          rowKey="id"
-          columns={tableColumns}
-          dataSource={treeData}
-          loading={loading}
-          pagination={false}
-          defaultExpandAllRows
-          scroll={{ x: 1190 }}
-          className="subject-column-table"
-          locale={{
-            emptyText: loading ? null : loadError ? (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={loadError}
-              >
-                <Button onClick={() => void fetchColumns(selectedSubject)}>
-                  重新加载
-                </Button>
-              </Empty>
-            ) : (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={`当前${subjectLabel}暂无栏目`}
-              >
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={openCreateDrawer}
-                >
-                  新增第一个栏目
-                </Button>
-              </Empty>
-            ),
-          }}
-        />
+        {loadError ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={loadError}>
+            <Button onClick={() => void fetchColumns(selectedSubject)}>
+              重新加载
+            </Button>
+          </Empty>
+        ) : (
+          <div className="subject-column-table-wrap">
+            <Table<SubjectColumn>
+              rowKey="id"
+              columns={tableColumns}
+              dataSource={sortedColumns}
+              loading={loading}
+              pagination={false}
+              size="middle"
+              scroll={{ x: 964 }}
+              className="subject-column-table"
+              locale={{
+                emptyText: loading ? null : (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="当前学科暂无注册栏目"
+                  >
+                    <Button
+                      type="link"
+                      icon={<PlusOutlined />}
+                      onClick={openCreateDrawer}
+                    >
+                      新增栏目
+                    </Button>
+                  </Empty>
+                ),
+              }}
+            />
+          </div>
+        )}
       </Card>
 
       <Drawer
@@ -589,7 +606,7 @@ const SubjectColumnManage: React.FC = () => {
       >
         <div className="subject-column-drawer-intro">
           当前维护 <strong>{subjectLabel}</strong>{' '}
-          栏目；同一学科内栏目名称全局唯一，四级栏目必须归属同学科一级栏目。
+          栏目；名称须在当前学科全部层级内保持唯一。
         </div>
         <Form form={form} layout="vertical" className="subject-column-form">
           <Form.Item
@@ -619,56 +636,68 @@ const SubjectColumnManage: React.FC = () => {
             name="level"
             label="栏目层级"
             rules={[{ required: true, message: '请选择栏目层级' }]}
-            extra={
-              editingColumn
-                ? '学科和层级创建后不可修改。'
-                : '本页只注册一级、四级栏目。'
-            }
+            extra="栏目层级创建后不可修改。"
           >
-            <Select
-              options={LEVEL_OPTIONS}
-              onChange={handleLevelChange}
-              disabled={Boolean(editingColumn)}
-            />
+            <Select options={LEVEL_OPTIONS} disabled={Boolean(editingColumn)} />
           </Form.Item>
-
-          {selectedLevel === 4 ? (
-            <Form.Item
-              name="parentId"
-              label="归属一级"
-              rules={[{ required: true, message: '请选择归属一级栏目' }]}
-              extra={
-                parentLocked
-                  ? `该四级栏目已被 ${editingColumn?.usedCount} 处学案使用，不能调整归属一级；请先解除使用关系。`
-                  : '未被使用的四级栏目可调整归属一级，保存后排到新一级的四级组末尾。'
-              }
-            >
-              <Select
-                showSearch
-                optionFilterProp="label"
-                options={parentOptions}
-                placeholder="请选择同学科一级栏目"
-                notFoundContent="当前学科暂无一级栏目，请先新增"
-                disabled={parentLocked}
-              />
-            </Form.Item>
-          ) : null}
 
           <Form.Item
             name="type"
             label="栏目类型"
             rules={[{ required: true, message: '请选择栏目类型' }]}
             extra={
-              editingColumn && editingColumn.usedCount > 0
-                ? `该栏目已被 ${editingColumn.usedCount} 处学案使用，栏目类型不能修改；仍可改名和排序。`
-                : '类型只作用于当前栏目。'
+              selectedDataSource === 'knowledgeTree'
+                ? '知识树来源只能为知识型。'
+                : '栏目类型创建后不可修改；具体内容规则不在本页定义。'
             }
           >
             <Select
               options={TYPE_OPTIONS}
-              disabled={Boolean(editingColumn && editingColumn.usedCount > 0)}
+              disabled={
+                Boolean(editingColumn) || selectedDataSource === 'knowledgeTree'
+              }
             />
           </Form.Item>
+
+          <Form.Item
+            name="dataSource"
+            label="数据来源"
+            rules={[{ required: true, message: '请选择数据来源' }]}
+            extra="同一学科、同一层级最多有一个知识树来源栏目。"
+          >
+            <Select
+              options={SOURCE_OPTIONS}
+              disabled={Boolean(editingColumn)}
+              onChange={handleDataSourceChange}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="codeEnabled"
+            label="是否需要编码"
+            rules={[{ required: true, message: '请选择是否需要编码' }]}
+          >
+            <Radio.Group
+              options={[
+                { label: '否', value: false },
+                { label: '是', value: true },
+              ]}
+              onChange={(event) => handleCodeEnabledChange(event.target.value)}
+            />
+          </Form.Item>
+
+          {codeEnabled && (
+            <Form.Item
+              name="codeStyle"
+              label="编码样式"
+              rules={[{ required: true, message: '请选择编码样式' }]}
+            >
+              <Select
+                options={CODE_STYLE_OPTIONS}
+                placeholder="请选择编码样式"
+              />
+            </Form.Item>
+          )}
         </Form>
       </Drawer>
     </PageContainer>

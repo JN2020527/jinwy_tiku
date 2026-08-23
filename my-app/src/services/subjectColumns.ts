@@ -1,7 +1,12 @@
 import { request } from '@umijs/max';
 
-export type SubjectColumnLevel = 1 | 4;
+export type SubjectColumnLevel = 1 | 2 | 3 | 4;
 export type SubjectColumnType = 'knowledge' | 'question';
+export type SubjectColumnDataSource = 'custom' | 'knowledgeTree';
+export type SubjectColumnCodeStyle =
+  | 'chineseDunhao'
+  | 'chineseParentheses'
+  | 'arabicPeriod';
 export type SubjectColumnMoveDirection = 'up' | 'down';
 
 export interface SubjectColumn {
@@ -9,8 +14,10 @@ export interface SubjectColumn {
   subject: string;
   name: string;
   level: SubjectColumnLevel;
-  parentId: string | null;
   type: SubjectColumnType;
+  dataSource: SubjectColumnDataSource;
+  codeEnabled: boolean;
+  codeStyle: SubjectColumnCodeStyle | null;
   sort: number;
   usedCount: number;
 }
@@ -25,8 +32,18 @@ export interface SaveSubjectColumnInput {
   subject: string;
   name: string;
   level: SubjectColumnLevel;
-  parentId: string | null;
   type: SubjectColumnType;
+  dataSource: SubjectColumnDataSource;
+  codeEnabled: boolean;
+  codeStyle: SubjectColumnCodeStyle | null;
+}
+
+export interface UpdateSubjectColumnInput {
+  id: string;
+  subject: string;
+  name: string;
+  codeEnabled: boolean;
+  codeStyle: SubjectColumnCodeStyle | null;
 }
 
 export async function getSubjectColumns(params: { subject: string }) {
@@ -49,9 +66,7 @@ export async function createSubjectColumn(data: SaveSubjectColumnInput) {
   );
 }
 
-export async function updateSubjectColumn(
-  data: SaveSubjectColumnInput & { id: string },
-) {
+export async function updateSubjectColumn(data: UpdateSubjectColumnInput) {
   return request<SubjectColumnResponse<SubjectColumn[]>>(
     '/api/subject-columns',
     {

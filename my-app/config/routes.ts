@@ -141,12 +141,6 @@ export default [
         component: './ContentCenter/AssetCenter',
       },
       {
-        path: '/preparation/asset-center/study-guide/:draftId/split',
-        name: '学案拆分结果',
-        component: './ContentCenter/StudyGuideSplit',
-        hideInMenu: true,
-      },
-      {
         path: '/preparation/asset-center/homework/new',
         name: '新建作业',
         component: './HomeworkProduction',

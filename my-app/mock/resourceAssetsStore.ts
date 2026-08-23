@@ -93,13 +93,15 @@ const mathStructure: StudyGuideStructureNode[] = [
       {
         id: 'sg-node-l2-base',
         level: 'level2',
-        label: '基础梳理',
+        label: '概念与方法',
+        referenceId: 'column-math-concept',
         children: [
           {
             id: 'sg-node-l3-rational',
             level: 'level3',
             label: '有理数的概念',
-            referenceId: 'kp-1-1-1-knowledge-tree-math',
+            referenceId: 'column-math-knowledge',
+            knowledgeNodeId: 'kp-1-1-1-knowledge-tree-math',
             children: [
               {
                 id: 'sg-node-l4-summary',
@@ -114,7 +116,8 @@ const mathStructure: StudyGuideStructureNode[] = [
             id: 'sg-node-l3-axis',
             level: 'level3',
             label: '数轴与相反数',
-            referenceId: 'kp-1-1-2-knowledge-tree-math',
+            referenceId: 'column-math-knowledge',
+            knowledgeNodeId: 'kp-1-1-2-knowledge-tree-math',
             children: [],
           },
         ],
@@ -170,15 +173,14 @@ const seededStudyGuide: StudyGuideDetail = {
   type: 'studyGuide',
   status: 'formal',
   name: '有理数单元学案',
-  originalFileName: '有理数单元学案.docx',
   updatedAt: '2026-08-20T09:30:00.000Z',
-  source: 'upload',
+  source: 'online',
   mountCount: 2,
   platformTemplateCount: 1,
   teacherTaskCount: 3,
   structure: structuredClone(mathStructure),
   contentBlocks: structuredClone(mathContentBlocks),
-  skippedColumns: ['巩固练习'],
+  skippedColumns: [],
 };
 
 const seededAssets: AssetItem[] = [
@@ -189,9 +191,8 @@ const seededAssets: AssetItem[] = [
     type: 'studyGuide',
     status: 'draft',
     name: '整式复习学案',
-    originalFileName: '整式复习学案.docx',
     updatedAt: '2026-08-20T08:10:00.000Z',
-    source: 'upload',
+    source: 'online',
     mountCount: 0,
     platformTemplateCount: 0,
     teacherTaskCount: 0,
@@ -257,7 +258,6 @@ export const studyGuideStore: Record<string, StudyGuideDetail> = {
     id: 'asset-math-study-guide-draft',
     status: 'draft',
     name: '整式复习学案',
-    originalFileName: '整式复习学案.docx',
     updatedAt: '2026-08-20T08:10:00.000Z',
     structure: [
       {
@@ -269,13 +269,15 @@ export const studyGuideStore: Record<string, StudyGuideDetail> = {
           {
             id: 'sg-draft-l2-algebra',
             level: 'level2',
-            label: '整式梳理',
+            label: '概念与方法',
+            referenceId: 'column-math-concept',
             children: [
               {
                 id: 'sg-draft-l3-polynomial',
                 level: 'level3',
                 label: '整式的加减',
-                referenceId: 'kp-1-2-1-knowledge-tree-math',
+                referenceId: 'column-math-knowledge',
+                knowledgeNodeId: 'kp-1-2-1-knowledge-tree-math',
                 children: [],
               },
             ],
@@ -1196,10 +1198,7 @@ export const getRegisteredColumnUsageCounts = (subject: string) => {
     .filter((guide) => guide.subject === subject)
     .flatMap((guide) => guide.structure)
     .forEach(function visit(node) {
-      if (
-        (node.level === 'level1' || node.level === 'level4') &&
-        node.referenceId
-      ) {
+      if (node.referenceId) {
         counts[node.referenceId] = (counts[node.referenceId] || 0) + 1;
       }
       node.children.forEach(visit);
@@ -1332,8 +1331,8 @@ export const getStudyGuideReferenceCounts = (subject: string) => {
     .filter((guide) => guide.subject === subject)
     .flatMap((guide) => guide.structure)
     .forEach(function visit(node) {
-      if (node.level === 'level3' && node.referenceId) {
-        counts[node.referenceId] = (counts[node.referenceId] || 0) + 1;
+      if (node.knowledgeNodeId) {
+        counts[node.knowledgeNodeId] = (counts[node.knowledgeNodeId] || 0) + 1;
       }
       node.children.forEach(visit);
     });

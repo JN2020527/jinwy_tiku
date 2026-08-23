@@ -465,8 +465,13 @@ const KnowledgeBlocksPage: React.FC = () => {
               { required: true, message: '请选择末级知识点' },
               {
                 validator: (_, values?: string[]) =>
-                  selectedType === 'comprehensive' ||
-                  (values?.length || 0) === 1
+                  selectedType === 'comprehensive'
+                    ? (values?.length || 0) >= 2
+                      ? Promise.resolve()
+                      : Promise.reject(
+                          new Error('综合类知识至少关联两个末级节点'),
+                        )
+                    : (values?.length || 0) === 1
                     ? Promise.resolve()
                     : Promise.reject(
                         new Error('单一、方法、例题类只能关联一个末级节点'),
@@ -475,7 +480,7 @@ const KnowledgeBlocksPage: React.FC = () => {
             ]}
             extra={
               selectedType === 'comprehensive'
-                ? '综合类至少关联一个，可关联多个'
+                ? '综合类至少关联两个末级节点，可继续多选'
                 : '当前类型必须且只能关联一个末级节点'
             }
           >

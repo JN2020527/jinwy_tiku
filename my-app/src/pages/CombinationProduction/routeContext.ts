@@ -16,14 +16,7 @@ export type CombinationProductionRouteContext =
     }
   | { valid: false; mode: CombinationProductionMode; error: string };
 
-const SUBJECTS = new Set([
-  'math',
-  'chinese',
-  'english',
-  'physics',
-  'chemistry',
-  'biology',
-]);
+const SUBJECTS = new Set(SUBJECT_OPTIONS.map((option) => option.value));
 
 export const parseCombinationProductionRouteContext = (input: {
   mode: CombinationProductionMode;
@@ -46,7 +39,7 @@ export const parseCombinationProductionRouteContext = (input: {
     return {
       valid: false,
       mode: input.mode,
-      error: '本期组合编辑器只维护正式学案，作业不进入编辑器',
+      error: '学案在线编辑器不处理作业',
     };
   }
   const resourceId = input.resourceId?.trim() || '';
@@ -61,3 +54,4 @@ export const parseCombinationProductionRouteContext = (input: {
     resourceId,
   };
 };
+import { SUBJECT_OPTIONS } from '../ContentCenter/TagManage/components/treeFilterConstants';

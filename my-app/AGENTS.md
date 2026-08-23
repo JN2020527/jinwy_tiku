@@ -23,6 +23,16 @@ Use TypeScript and React function components. Follow the feature-first structure
 
 Because no test framework is configured, verify changes with `npm run build` and targeted browser checks. Keep data files paired: `tagSystem.ts`, `paperUpload.ts`, and `questionBankTask.ts` each have matching files under both `src/services/` and `mock/`. Some pages use local mock data, such as `QuestionTagging/mockData.ts`. If tests are introduced later, colocate them near the feature and add a package script.
 
+## Cross-Repository Product Requirements
+
+Formal data-asset-center requirements are maintained in `/Users/jinwenyuan/my-repo/juwk/3-数据资产中心`. For cross-repository development, also read `/Users/jinwenyuan/my-repo/juwk/docs/跨仓需求与开发协作协议.md` and the requirement baseline identified by its exact `juwk` branch, full commit, relative path, title, and version.
+
+- The frozen `juwk` requirement commit is the sole source for product goals, scope, business rules, and acceptance criteria. This repository is the source for code, UI behavior, engineering configuration, verification results, and implementation knowledge.
+- Development tasks treat `juwk` as read-only. Local notes, code, mocks, and module documentation cannot redefine the frozen requirement. Return product ambiguities to the originating `juwk` product task; resolve engineering choices in this repository.
+- Codex development tasks use a worktree by default unless the handoff explicitly selects the local checkout. The handoff must name the starting commit, delivery ref, and integration method. Before product acceptance, create a delivery branch or hand the task to Local and integrate the implementation into the agreed ref. A detached worktree commit is not a completed delivery, and work must not be described as present on `main` unless that commit is reachable from `main`.
+- Do not stash, reset, overwrite, or absorb unrelated local changes to prepare a worktree or integration. Stop and report conflicts that prevent safe integration.
+- The implementation receipt must include the frozen product baseline, repository path, workspace type, delivery ref, full implementation commit, integration status, `npm run build` result, targeted browser evidence, incomplete items, product deviations, a separate assumptions and open confirmations section, and the destination product or acceptance task.
+
 ## Commit & Pull Request Guidelines
 
 Recent history uses Conventional Commit style, for example `feat(tagging): add doubtful marker filter`, `fix(tag-system): preserve selected tree node`, and `style(answer-manage): format drawer layout`. Keep commits scoped and imperative. Pull requests should include a short summary, affected routes or pages, manual verification steps, linked issues when relevant, and screenshots for visible UI changes.

@@ -1,6 +1,12 @@
 import RichTextEditor from '@/components/RichTextEditor';
+import {
+  getKnowledgeNodeSelectionError,
+  getSelectedKnowledgeNodeIds,
+  isKnowledgeContentKind,
+} from '@/features/study-guide/contentType';
+import { STRUCTURE_LEVEL_NUMBERS } from '@/features/study-guide/structureModel';
 import type {
-  KnowledgeBlock,
+  ContentBlockKind,
   KnowledgeLeaf,
   RegisteredColumn,
   StructureLevel,
@@ -9,31 +15,23 @@ import type {
   StudyGuideStructureNode,
 } from '@/services/resourceAssets';
 import {
+  createOnlineStudyGuide,
   getAssetDetail,
-  getKnowledgeBlocks,
   getResourceAssetContext,
-  KNOWLEDGE_BLOCK_TYPE_LABELS,
+  saveKnowledgeBlock,
   updateFormalStudyGuide,
+  updateOnlineStudyGuideDraft,
 } from '@/services/resourceAssets';
-import { sanitizeHtml } from '@/utils/sanitize';
 import {
-  ArrowDownOutlined,
   ArrowLeftOutlined,
-  ArrowUpOutlined,
-  DeleteOutlined,
   EditOutlined,
-  PlusOutlined,
   SaveOutlined,
-  SwapOutlined,
 } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { history, useLocation, useParams, useSearchParams } from '@umijs/max';
 import {
-  Alert,
   Button,
   Card,
-  Checkbox,
-  Descriptions,
   Drawer,
   Empty,
   Form,
@@ -42,56 +40,55 @@ import {
   Modal,
   Select,
   Skeleton,
-  Space,
   Tag,
 } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
+import FlatColumnPrototype, {
+  isFlatColumnPrototypeVariant,
+} from './FlatColumnPrototype';
+import StudyGuideContinuousEditor from './StudyGuideContinuousEditor';
 import './index.less';
 import { parseCombinationProductionRouteContext } from './routeContext';
 
 interface StructureFormValues {
-  label: string;
+  label?: string;
   referenceId?: string;
+  knowledgeNodeId?: string;
+  temporaryName?: string;
   parentId?: string;
 }
 
-interface BlockFormValues {
-  knowledgeBlockId?: string;
-  html?: string;
-  currentKnowledgeScope?: string[];
+interface ContentFormValues {
+  kind: ContentBlockKind;
+  knowledgeNodeId?: string;
+  knowledgeNodeIds?: string[];
+  html: string;
 }
 
 const LEVEL_LABELS: Record<StructureLevel, string> = {
   level1: '一级栏目',
-  level2: '二级分组',
-  level3: '三级考点',
+  level2: '二级栏目',
+  level3: '三级栏目',
   level4: '四级栏目',
 };
-const LEVEL_COLORS: Record<StructureLevel, string> = {
-  level1: 'blue',
-  level2: 'cyan',
-  level3: 'purple',
-  level4: 'geekblue',
-};
-const NEXT_LEVEL: Partial<Record<StructureLevel, StructureLevel>> = {
-  level1: 'level2',
-  level2: 'level3',
-  level3: 'level4',
-};
+const CONTENT_KIND_OPTIONS: Array<{
+  value: ContentBlockKind;
+  label: string;
+}> = [
+  { value: 'columnContent', label: '栏目内容' },
+  { value: 'single', label: '单一类知识' },
+  { value: 'method', label: '方法类知识' },
+  { value: 'example', label: '例题类知识' },
+  { value: 'comprehensive', label: '综合类知识' },
+];
+const CONTENT_KIND_LABELS = Object.fromEntries(
+  CONTENT_KIND_OPTIONS.map((item) => [item.value, item.label]),
+) as Record<ContentBlockKind, string>;
 let localSequence = 0;
 const localId = (prefix: string) => {
   localSequence += 1;
   return `${prefix}-local-${Date.now()}-${localSequence}`;
 };
-
-const flattenStructure = (
-  nodes: StudyGuideStructureNode[],
-  parentId?: string,
-): Array<StudyGuideStructureNode & { parentId?: string }> =>
-  nodes.flatMap((node) => [
-    { ...node, parentId },
-    ...flattenStructure(node.children, node.id),
-  ]);
 
 const mapNodes = (
   nodes: StudyGuideStructureNode[],
@@ -135,23 +132,39 @@ const findNode = (
   return undefined;
 };
 
-const moveSibling = (
+type ColumnDropPosition = 'before' | 'after' | 'inside';
+
+const insertNodeRelative = (
   nodes: StudyGuideStructureNode[],
-  nodeId: string,
-  direction: 'up' | 'down',
+  targetId: string,
+  movingNode: StudyGuideStructureNode,
+  position: Exclude<ColumnDropPosition, 'inside'>,
 ): StudyGuideStructureNode[] => {
-  const index = nodes.findIndex((node) => node.id === nodeId);
+  const index = nodes.findIndex((node) => node.id === targetId);
   if (index >= 0) {
-    const target = direction === 'up' ? index - 1 : index + 1;
-    if (target < 0 || target >= nodes.length) return nodes;
     const next = [...nodes];
-    [next[index], next[target]] = [next[target], next[index]];
+    next.splice(position === 'before' ? index : index + 1, 0, movingNode);
     return next;
   }
   return nodes.map((node) => ({
     ...node,
-    children: moveSibling(node.children, nodeId, direction),
+    children: insertNodeRelative(node.children, targetId, movingNode, position),
   }));
+};
+
+const moveStructureNode = (
+  nodes: StudyGuideStructureNode[],
+  nodeId: string,
+  targetId: string,
+  position: ColumnDropPosition,
+): StudyGuideStructureNode[] => {
+  if (nodeId === targetId) return nodes;
+  const movingNode = findNode(nodes, nodeId);
+  if (!movingNode) return nodes;
+  const withoutMovingNode = removeNode(nodes, nodeId);
+  return position === 'inside'
+    ? appendNode(withoutMovingNode, targetId, movingNode)
+    : insertNodeRelative(withoutMovingNode, targetId, movingNode, position);
 };
 
 const collectSubtreeIds = (node: StudyGuideStructureNode): string[] => [
@@ -176,132 +189,113 @@ const CombinationProductionPage: React.FC = () => {
   );
   const subject = routeContext.valid ? routeContext.subject : '';
   const [guide, setGuide] = useState<StudyGuideDetail | null>(null);
+  const [guideName, setGuideName] = useState('');
   const [structure, setStructure] = useState<StudyGuideStructureNode[]>([]);
   const [blocks, setBlocks] = useState<StudyGuideContentBlock[]>([]);
   const [columns, setColumns] = useState<RegisteredColumn[]>([]);
   const [knowledgeLeaves, setKnowledgeLeaves] = useState<KnowledgeLeaf[]>([]);
-  const [knowledgeBlocks, setKnowledgeBlocks] = useState<KnowledgeBlock[]>([]);
-  const [loading, setLoading] = useState(mode === 'revision');
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [editing, setEditing] = useState(searchParams.get('view') === 'edit');
+  const [editing, setEditing] = useState(
+    mode === 'new' || searchParams.get('view') === 'edit',
+  );
 
   const [structureDrawer, setStructureDrawer] = useState<{
-    mode: 'add' | 'edit' | 'move';
+    mode: 'add' | 'edit';
     level: StructureLevel;
     nodeId?: string;
     parentId?: string;
   } | null>(null);
-  const [blockDrawer, setBlockDrawer] = useState<{
-    mode: 'add' | 'edit';
-    block?: StudyGuideContentBlock;
-    structureNodeId: string;
-  } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [addingContent, setAddingContent] = useState(false);
   const [structureForm] = Form.useForm<StructureFormValues>();
-  const [blockForm] = Form.useForm<BlockFormValues>();
-  const selectedKnowledgeBlockId = Form.useWatch('knowledgeBlockId', blockForm);
+  const [contentForm] = Form.useForm<ContentFormValues>();
+  const [contentNode, setContentNode] =
+    useState<StudyGuideStructureNode | null>(null);
+  const [editingContentBlock, setEditingContentBlock] =
+    useState<StudyGuideContentBlock | null>(null);
+  const selectedStructureReferenceId = Form.useWatch(
+    'referenceId',
+    structureForm,
+  );
+  const selectedContentKind =
+    Form.useWatch('kind', contentForm) || 'columnContent';
+  const contentEditorLabel =
+    selectedContentKind === 'columnContent'
+      ? '栏目内容'
+      : `${CONTENT_KIND_LABELS[selectedContentKind]}内容`;
 
   useEffect(() => {
-    if (!routeContext.valid || routeContext.mode !== 'revision') {
+    if (!routeContext.valid) {
+      setLoading(false);
+      return;
+    }
+    if (routeContext.resourceType !== 'studyGuide') {
+      setLoadError('作业请使用加工作业页面创建');
       setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
+    setLoadError('');
+    const contextPromise = getResourceAssetContext({
+      subject: routeContext.subject,
+    });
+    if (routeContext.mode === 'new') {
+      void contextPromise
+        .then((contextResponse) => {
+          if (cancelled) return;
+          if (!contextResponse.success) {
+            setLoadError(contextResponse.message || '学案上下文加载失败');
+            return;
+          }
+          setColumns(contextResponse.data.columns);
+          setKnowledgeLeaves(contextResponse.data.knowledgeLeaves);
+          setGuideName('');
+          setStructure([]);
+          setBlocks([]);
+          setEditing(true);
+        })
+        .catch(() => setLoadError('学案上下文加载失败'))
+        .finally(() => !cancelled && setLoading(false));
+      return () => {
+        cancelled = true;
+      };
+    }
     void Promise.all([
       getAssetDetail({
         id: routeContext.resourceId,
         subject: routeContext.subject,
       }),
-      getResourceAssetContext({ subject: routeContext.subject }),
-      getKnowledgeBlocks({ subject: routeContext.subject }),
+      contextPromise,
     ])
-      .then(([assetResponse, contextResponse, blocksResponse]) => {
+      .then(([assetResponse, contextResponse]) => {
         if (cancelled) return;
         if (
           !assetResponse.success ||
-          assetResponse.data.type !== 'studyGuide' ||
-          assetResponse.data.status !== 'formal'
+          assetResponse.data.type !== 'studyGuide'
         ) {
-          setLoadError('正式学案不存在，或该资产不属于当前学科');
+          setLoadError('学案不存在，或该资产不属于当前学科');
           return;
         }
         const detail = assetResponse.data as StudyGuideDetail;
         setGuide(detail);
+        setGuideName(detail.name);
         setStructure(detail.structure);
         setBlocks(detail.contentBlocks);
+        if (detail.status === 'draft') setEditing(true);
 
         if (contextResponse.success) {
           setColumns(contextResponse.data.columns);
           setKnowledgeLeaves(contextResponse.data.knowledgeLeaves);
         }
-        if (blocksResponse.success) setKnowledgeBlocks(blocksResponse.data);
       })
-      .catch(() => setLoadError('正式学案加载失败'))
+      .catch(() => setLoadError('学案加载失败'))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
   }, [routeContext]);
-
-  const flatNodes = useMemo(() => flattenStructure(structure), [structure]);
-  const nodeMap = useMemo(
-    () => new Map(flatNodes.map((node) => [node.id, node])),
-    [flatNodes],
-  );
-  const leafMap = useMemo(
-    () => new Map(knowledgeLeaves.map((leaf) => [leaf.id, leaf])),
-    [knowledgeLeaves],
-  );
-  const guideKnowledgeIds = useMemo(
-    () =>
-      new Set(
-        flatNodes
-          .filter((node) => node.level === 'level3' && node.referenceId)
-          .map((node) => node.referenceId as string),
-      ),
-    [flatNodes],
-  );
-
-  useEffect(() => {
-    if (!editing) return;
-    setBlocks((current) => {
-      let changed = false;
-      const next = current.map((block) => {
-        if (block.kind !== 'comprehensive') return block;
-        const source = knowledgeBlocks.find(
-          (item) => item.id === block.knowledgeBlockId,
-        );
-        const validIntersection = (
-          source?.knowledgeNodeIds || block.knowledgeNodeIds
-        ).filter((nodeId) => guideKnowledgeIds.has(nodeId));
-        const nextScope = (block.currentKnowledgeScope || []).filter((nodeId) =>
-          validIntersection.includes(nodeId),
-        );
-        if (
-          validIntersection.join('|') === block.knowledgeNodeIds.join('|') &&
-          nextScope.join('|') === (block.currentKnowledgeScope || []).join('|')
-        ) {
-          return block;
-        }
-        changed = true;
-        return {
-          ...block,
-          knowledgeNodeIds: validIntersection,
-          currentKnowledgeScope: nextScope,
-        };
-      });
-      return changed ? next : current;
-    });
-  }, [editing, guideKnowledgeIds, knowledgeBlocks]);
-
-  const selectedKnowledgeBlock = knowledgeBlocks.find(
-    (item) => item.id === selectedKnowledgeBlockId,
-  );
-  const comprehensiveIntersection =
-    selectedKnowledgeBlock?.knowledgeNodeIds.filter((nodeId) =>
-      guideKnowledgeIds.has(nodeId),
-    );
 
   const enterEdit = () => {
     setEditing(true);
@@ -327,40 +321,55 @@ const CombinationProductionPage: React.FC = () => {
   };
 
   const openEditStructure = (node: StudyGuideStructureNode) => {
+    structureForm.resetFields();
     structureForm.setFieldsValue({
       label: node.label,
       referenceId: node.referenceId,
+      knowledgeNodeId: node.knowledgeNodeId,
+      temporaryName: node.temporaryName,
     });
     setStructureDrawer({ mode: 'edit', level: node.level, nodeId: node.id });
-  };
-
-  const openMoveStructure = (node: StudyGuideStructureNode) => {
-    const parentId = flatNodes.find(
-      (candidate) => candidate.id === node.id,
-    )?.parentId;
-    structureForm.setFieldsValue({ parentId });
-    setStructureDrawer({ mode: 'move', level: node.level, nodeId: node.id });
   };
 
   const saveStructureDrawer = async () => {
     if (!structureDrawer) return;
     const values = await structureForm.validateFields();
-    if (structureDrawer.mode === 'move' && structureDrawer.nodeId) {
-      const moving = findNode(structure, structureDrawer.nodeId);
-      if (!moving) return;
-      const removed = removeNode(structure, moving.id);
-      setStructure(appendNode(removed, values.parentId, moving));
-      setStructureDrawer(null);
-      return;
-    }
+    const levelColumns = columns.filter(
+      (column) =>
+        column.level === STRUCTURE_LEVEL_NUMBERS[structureDrawer.level],
+    );
+    const selectedColumn = levelColumns.find(
+      (column) => column.id === values.referenceId,
+    );
+    const selectedLeaf = knowledgeLeaves.find(
+      (leaf) => leaf.id === values.knowledgeNodeId,
+    );
+    const selection = levelColumns.length
+      ? {
+          label:
+            selectedColumn?.dataSource === 'knowledgeTree'
+              ? selectedLeaf?.title || ''
+              : selectedColumn?.name || '',
+          referenceId: values.referenceId,
+          knowledgeNodeId:
+            selectedColumn?.dataSource === 'knowledgeTree'
+              ? values.knowledgeNodeId
+              : undefined,
+          temporaryName: undefined,
+        }
+      : {
+          label: (values.temporaryName || '').trim(),
+          referenceId: undefined,
+          knowledgeNodeId: undefined,
+          temporaryName: (values.temporaryName || '').trim(),
+        };
     if (structureDrawer.mode === 'edit' && structureDrawer.nodeId) {
       setStructure(
         mapNodes(structure, (node) =>
           node.id === structureDrawer.nodeId
             ? {
                 ...node,
-                label: values.label,
-                referenceId: values.referenceId,
+                ...selection,
               }
             : node,
         ),
@@ -371,8 +380,7 @@ const CombinationProductionPage: React.FC = () => {
     const newNode: StudyGuideStructureNode = {
       id: localId('sg-node'),
       level: structureDrawer.level,
-      label: values.label,
-      referenceId: values.referenceId,
+      ...selection,
       children: [],
     };
     setStructure(appendNode(structure, structureDrawer.parentId, newNode));
@@ -398,98 +406,202 @@ const CombinationProductionPage: React.FC = () => {
     });
   };
 
-  const openAddBlock = (structureNodeId: string) => {
-    blockForm.resetFields();
-    setBlockDrawer({ mode: 'add', structureNodeId });
+  const openAddContent = (node: StudyGuideStructureNode) => {
+    contentForm.resetFields();
+    contentForm.setFieldsValue({ kind: 'columnContent' });
+    setEditingContentBlock(null);
+    setContentNode(node);
   };
 
-  const openEditBlock = (block: StudyGuideContentBlock) => {
-    blockForm.setFieldsValue({
-      knowledgeBlockId: block.knowledgeBlockId,
+  const openEditContent = (
+    node: StudyGuideStructureNode,
+    block: StudyGuideContentBlock,
+  ) => {
+    contentForm.resetFields();
+    contentForm.setFieldsValue({
+      kind: block.kind,
+      knowledgeNodeId:
+        block.kind !== 'columnContent' && block.kind !== 'comprehensive'
+          ? block.knowledgeNodeIds[0]
+          : undefined,
+      knowledgeNodeIds:
+        block.kind === 'comprehensive'
+          ? block.currentKnowledgeScope || block.knowledgeNodeIds
+          : undefined,
       html: block.html,
-      currentKnowledgeScope: block.currentKnowledgeScope,
     });
-    setBlockDrawer({
-      mode: 'edit',
-      block,
-      structureNodeId: block.structureNodeId,
-    });
+    setEditingContentBlock(block);
+    setContentNode(node);
   };
 
-  useEffect(() => {
-    if (selectedKnowledgeBlock?.type === 'comprehensive') {
-      blockForm.setFieldValue(
-        'currentKnowledgeScope',
-        comprehensiveIntersection || [],
-      );
-    }
-  }, [blockForm, comprehensiveIntersection, selectedKnowledgeBlock]);
+  const closeContentEditor = () => {
+    setContentNode(null);
+    setEditingContentBlock(null);
+  };
 
-  const saveBlockDrawer = async () => {
-    if (!blockDrawer) return;
-    const values = await blockForm.validateFields();
-    const source = knowledgeBlocks.find(
-      (item) => item.id === values.knowledgeBlockId,
+  const saveContent = async () => {
+    if (!contentNode) return;
+    const values = await contentForm.validateFields();
+    const knowledgeNodeIds = getSelectedKnowledgeNodeIds(
+      values.kind,
+      values.knowledgeNodeId,
+      values.knowledgeNodeIds,
     );
-    let nextBlock: StudyGuideContentBlock;
-    if (blockDrawer.block?.kind === 'columnContent') {
-      nextBlock = { ...blockDrawer.block, html: values.html || '' };
-    } else {
-      if (!source) return;
-      nextBlock = {
-        id: blockDrawer.block?.id || localId('sg-block'),
-        kind: source.type,
-        structureNodeId: blockDrawer.structureNodeId,
-        knowledgeBlockId: source.id,
-        html: source.html,
-        knowledgeNodeIds: source.knowledgeNodeIds,
+    const selectionError = getKnowledgeNodeSelectionError(
+      values.kind,
+      knowledgeNodeIds,
+    );
+    if (selectionError) {
+      message.error(selectionError);
+      return;
+    }
+    setAddingContent(true);
+    try {
+      const knowledgeBlockResponse = isKnowledgeContentKind(values.kind)
+        ? await saveKnowledgeBlock({
+            id: editingContentBlock?.knowledgeBlockId,
+            subject,
+            type: values.kind,
+            html: values.html,
+            knowledgeNodeIds,
+          })
+        : null;
+      if (knowledgeBlockResponse && !knowledgeBlockResponse.success) {
+        message.error(knowledgeBlockResponse.message);
+        return;
+      }
+      const knowledgeBlock = knowledgeBlockResponse?.data;
+      const nextBlock: StudyGuideContentBlock = {
+        id: editingContentBlock?.id || localId('sg-block'),
+        kind: knowledgeBlock?.type || 'columnContent',
+        structureNodeId: contentNode.id,
+        html: knowledgeBlock?.html || values.html,
+        knowledgeNodeIds: knowledgeBlock?.knowledgeNodeIds || [],
+        knowledgeBlockId: knowledgeBlock?.id,
         currentKnowledgeScope:
-          source.type === 'comprehensive'
-            ? values.currentKnowledgeScope
+          knowledgeBlock?.type === 'comprehensive'
+            ? knowledgeBlock.knowledgeNodeIds
             : undefined,
       };
+      setBlocks((current) =>
+        editingContentBlock
+          ? current.map((block) =>
+              block.id === editingContentBlock.id ? nextBlock : block,
+            )
+          : [...current, nextBlock],
+      );
+      closeContentEditor();
+      if (editingContentBlock) {
+        message.success(
+          knowledgeBlock
+            ? `${CONTENT_KIND_LABELS[knowledgeBlock.type]}已更新`
+            : '栏目内容已更新，请保存学案后生效',
+        );
+      } else {
+        message.success(
+          knowledgeBlock
+            ? `${
+                CONTENT_KIND_LABELS[knowledgeBlock.type]
+              }已关联知识树并添加到当前栏目`
+            : '栏目内容已添加到本次编辑，请保存学案后生效',
+        );
+      }
+    } catch {
+      message.error(
+        editingContentBlock
+          ? '内容更新失败，请稍后重试'
+          : '内容添加失败，请稍后重试',
+      );
+    } finally {
+      setAddingContent(false);
     }
-    setBlocks((current) =>
-      blockDrawer.mode === 'edit'
-        ? current.map((block) =>
-            block.id === nextBlock.id ? nextBlock : block,
-          )
-        : [...current, nextBlock],
-    );
-    setBlockDrawer(null);
   };
 
-  const saveFormal = async () => {
-    if (!guide) return;
-    const impactTotal =
-      guide.mountCount + guide.platformTemplateCount + guide.teacherTaskCount;
+  const deleteContent = (block: StudyGuideContentBlock) => {
+    Modal.confirm({
+      title: '删除这项内容？',
+      content:
+        block.kind === 'columnContent'
+          ? '该栏目内容将从本次编辑中移除。'
+          : '该引用项将从本次学案中移除，源知识块不会被删除。',
+      okText: '确认删除',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        setBlocks((current) =>
+          current.filter((currentBlock) => currentBlock.id !== block.id),
+        );
+      },
+    });
+  };
+
+  const saveGuide = async () => {
+    const normalizedName = guideName.trim();
+    if (!normalizedName) {
+      message.error('请输入学案名称');
+      return;
+    }
     const execute = async () => {
       setSaving(true);
       try {
-        const response = await updateFormalStudyGuide({
-          id: guide.id,
-          subject,
-          structure,
-          contentBlocks: blocks,
-        });
+        const response =
+          routeContext.valid && routeContext.mode === 'new'
+            ? await createOnlineStudyGuide({
+                subject,
+                name: normalizedName,
+                structure,
+                contentBlocks: blocks,
+              })
+            : guide?.status === 'draft'
+            ? await updateOnlineStudyGuideDraft({
+                id: guide.id,
+                subject,
+                name: normalizedName,
+                structure,
+                contentBlocks: blocks,
+              })
+            : guide
+            ? await updateFormalStudyGuide({
+                id: guide.id,
+                subject,
+                structure,
+                contentBlocks: blocks,
+              })
+            : null;
+        if (!response) return;
         if (!response.success) {
           message.error(response.message);
           return;
         }
         setGuide(response.data);
+        setGuideName(response.data.name);
         setStructure(response.data.structure);
         setBlocks(response.data.contentBlocks);
-        setEditing(false);
         message.success(response.message);
+        if (response.data.status === 'draft') {
+          setEditing(true);
+          if (routeContext.valid && routeContext.mode === 'new') {
+            history.replace(
+              `/combination-production/revision/${response.data.id}?subject=${subject}&type=studyGuide&view=edit`,
+            );
+          }
+          return;
+        }
+        setEditing(false);
         const params = new URLSearchParams(searchParams);
         params.set('view', 'preview');
         history.replace(`${location.pathname}?${params.toString()}`);
       } catch {
-        message.error('保存失败，修改前正式内容保持不变，本次编辑仍保留在页面');
+        message.error('保存失败，当前输入和结构仍保留在页面');
       } finally {
         setSaving(false);
       }
     };
+    if (!guide || guide.status === 'draft') {
+      await execute();
+      return;
+    }
+    const impactTotal =
+      guide.mountCount + guide.platformTemplateCount + guide.teacherTaskCount;
     if (impactTotal) {
       Modal.confirm({
         title: '保存将影响正在使用的正式学案',
@@ -532,36 +644,9 @@ const CombinationProductionPage: React.FC = () => {
     );
   }
 
-  if (routeContext.mode === 'new') {
-    const typeLabel =
-      routeContext.resourceType === 'studyGuide' ? '学案' : '作业';
-    return (
-      <PageContainer title={`新建${typeLabel}`} subTitle="加工组合型资产入口">
-        <Card className="combination-entry-card">
-          <Alert
-            type="info"
-            showIcon
-            message={`“新建${typeLabel}”本期仅保留可见入口`}
-            description="点击入口不会创建草稿、不会回流资产中心，也不会进入从零加工流程。完整能力由“加工组合型资产”需求后续承接。"
-          />
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() =>
-              history.push(
-                `/preparation/asset-center?subject=${routeContext.subject}`,
-              )
-            }
-          >
-            返回资产中心
-          </Button>
-        </Card>
-      </PageContainer>
-    );
-  }
-
   if (loading) {
     return (
-      <PageContainer title="正式学案">
+      <PageContainer title="学案在线编辑">
         <Card>
           <Skeleton active paragraph={{ rows: 12 }} />
         </Card>
@@ -569,282 +654,59 @@ const CombinationProductionPage: React.FC = () => {
     );
   }
 
-  if (!guide || loadError) {
+  if (loadError || (routeContext.mode === 'revision' && !guide)) {
     return (
-      <PageContainer title="正式学案">
+      <PageContainer title="学案在线编辑">
         <Card>
-          <Empty description={loadError || '正式学案不存在'} />
+          <Empty description={loadError || '学案不存在'} />
         </Card>
       </PageContainer>
     );
   }
 
-  const renderNode = (
-    node: StudyGuideStructureNode,
-    index: number,
-    total: number,
-  ) => {
-    const nodeBlocks = blocks.filter(
-      (block) => block.structureNodeId === node.id,
-    );
-    const nextLevel = NEXT_LEVEL[node.level];
-    return (
-      <article
-        key={node.id}
-        className={`combination-node combination-node-${node.level}`}
-      >
-        <header>
-          <div>
-            <Tag color={LEVEL_COLORS[node.level]}>
-              {LEVEL_LABELS[node.level]}
-            </Tag>
-            <strong>{node.label}</strong>
-          </div>
-          {editing && (
-            <Space size={2} wrap>
-              <Button
-                type="text"
-                size="small"
-                icon={<ArrowUpOutlined />}
-                disabled={index === 0}
-                onClick={() =>
-                  setStructure(moveSibling(structure, node.id, 'up'))
-                }
-                aria-label={`上移${node.label}`}
-              />
-              <Button
-                type="text"
-                size="small"
-                icon={<ArrowDownOutlined />}
-                disabled={index === total - 1}
-                onClick={() =>
-                  setStructure(moveSibling(structure, node.id, 'down'))
-                }
-                aria-label={`下移${node.label}`}
-              />
-              <Button
-                type="link"
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() => openEditStructure(node)}
-              >
-                编辑
-              </Button>
-              {node.level !== 'level1' && (
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<SwapOutlined />}
-                  onClick={() => openMoveStructure(node)}
-                >
-                  移动
-                </Button>
-              )}
-              {nextLevel && (
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<PlusOutlined />}
-                  onClick={() => openAddStructure(nextLevel, node.id)}
-                >
-                  添加{LEVEL_LABELS[nextLevel]}
-                </Button>
-              )}
-              {(node.level === 'level2' ||
-                node.level === 'level3' ||
-                node.level === 'level4') && (
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<PlusOutlined />}
-                  onClick={() => openAddBlock(node.id)}
-                >
-                  引用知识块
-                </Button>
-              )}
-              <Button
-                type="link"
-                size="small"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => deleteStructure(node)}
-              >
-                删除
-              </Button>
-            </Space>
-          )}
-        </header>
-        {nodeBlocks.map((block) => (
-          <section key={block.id} className="combination-block">
-            <div className="combination-block-heading">
-              <Tag bordered={false}>
-                {block.kind === 'columnContent'
-                  ? '栏目内容'
-                  : KNOWLEDGE_BLOCK_TYPE_LABELS[block.kind]}
-              </Tag>
-              {block.kind === 'comprehensive' && (
-                <span>
-                  本次知识范围：
-                  {block.currentKnowledgeScope
-                    ?.map((id) => leafMap.get(id)?.title || id)
-                    .join('、') || '未设置'}
-                </span>
-              )}
-              {editing && (
-                <Space size={2}>
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => openEditBlock(block)}
-                  >
-                    {block.kind === 'columnContent' ? '编辑内容' : '更换引用'}
-                  </Button>
-                  <Button
-                    type="link"
-                    size="small"
-                    danger
-                    onClick={() =>
-                      setBlocks((current) =>
-                        current.filter((item) => item.id !== block.id),
-                      )
-                    }
-                  >
-                    移除
-                  </Button>
-                </Space>
-              )}
-            </div>
-            <div
-              className="rich-content"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.html) }}
-            />
-          </section>
-        ))}
-        {node.children.length > 0 && (
-          <div className="combination-children">
-            {node.children.map((child, childIndex) =>
-              renderNode(child, childIndex, node.children.length),
-            )}
-          </div>
-        )}
-      </article>
-    );
-  };
-
-  const renderPreviewNode = (node: StudyGuideStructureNode) => {
-    const nodeBlocks = blocks.filter(
-      (block) => block.structureNodeId === node.id,
-    );
-    const heading =
-      node.level === 'level1' ? (
-        <h2>{node.label}</h2>
-      ) : node.level === 'level2' ? (
-        <h3>{node.label}</h3>
-      ) : node.level === 'level3' ? (
-        <h4>{node.label}</h4>
-      ) : (
-        <h5>{node.label}</h5>
-      );
-    return (
-      <section
-        key={node.id}
-        className={`study-guide-reading-section study-guide-reading-${node.level}`}
-      >
-        {heading}
-        {nodeBlocks.map((block) => (
-          <article key={block.id} className="study-guide-reading-block">
-            <div
-              className="study-guide-reading-content rich-content"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.html) }}
-            />
-          </article>
-        ))}
-        {node.children.map(renderPreviewNode)}
-      </section>
-    );
-  };
-
   const structureLevel = structureDrawer?.level;
-  const structureTargetNode = structureDrawer?.nodeId
-    ? flatNodes.find((node) => node.id === structureDrawer.nodeId)
-    : undefined;
-  const structureParentId =
-    structureDrawer?.parentId || structureTargetNode?.parentId;
-  let ancestorLevel1Id = structureParentId;
-  while (ancestorLevel1Id) {
-    const ancestor = nodeMap.get(ancestorLevel1Id);
-    if (!ancestor || ancestor.level === 'level1') break;
-    ancestorLevel1Id = ancestor.parentId;
-  }
-  const ancestorLevel1ReferenceId = ancestorLevel1Id
-    ? flatNodes.find((node) => node.id === ancestorLevel1Id)?.referenceId
-    : undefined;
-  const referenceOptions =
-    structureLevel === 'level1'
-      ? columns.filter((column) => column.level === 1)
-      : structureLevel === 'level4'
-      ? columns.filter(
-          (column) =>
-            column.level === 4 && column.parentId === ancestorLevel1ReferenceId,
-        )
-      : structureLevel === 'level3'
-      ? knowledgeLeaves
-      : [];
-  const parentLevel: Partial<Record<StructureLevel, StructureLevel>> = {
-    level2: 'level1',
-    level3: 'level2',
-    level4: 'level3',
-  };
-  const getLevel1ReferenceForNode = (nodeId: string) => {
-    let current = nodeMap.get(nodeId);
-    while (current && current.level !== 'level1' && current.parentId) {
-      current = nodeMap.get(current.parentId);
-    }
-    return current?.level === 'level1' ? current.referenceId : undefined;
-  };
-  const unfilteredMoveParentOptions = structureLevel
-    ? flatNodes.filter((node) => node.level === parentLevel[structureLevel])
-    : [];
-  const movingLevel4ColumnParentId =
-    structureLevel === 'level4' && structureTargetNode?.referenceId
-      ? columns.find((column) => column.id === structureTargetNode.referenceId)
-          ?.parentId
-      : undefined;
-  const moveParentOptions = movingLevel4ColumnParentId
-    ? unfilteredMoveParentOptions.filter(
-        (node) =>
-          getLevel1ReferenceForNode(node.id) === movingLevel4ColumnParentId,
+  const referenceOptions = structureLevel
+    ? columns.filter(
+        (column) => column.level === STRUCTURE_LEVEL_NUMBERS[structureLevel],
       )
-    : unfilteredMoveParentOptions;
-  const selectedStructureNode = blockDrawer
-    ? nodeMap.get(blockDrawer.structureNodeId)
-    : undefined;
-  let enclosingLevel3ReferenceId =
-    selectedStructureNode?.level === 'level3'
-      ? selectedStructureNode.referenceId
-      : undefined;
-  let enclosingNode = selectedStructureNode;
-  while (!enclosingLevel3ReferenceId && enclosingNode?.parentId) {
-    enclosingNode = nodeMap.get(enclosingNode.parentId);
-    if (enclosingNode?.level === 'level3') {
-      enclosingLevel3ReferenceId = enclosingNode.referenceId;
-    }
-  }
-  const allowedKnowledgeBlocks = knowledgeBlocks.filter((block) => {
-    if (!selectedStructureNode) return false;
-    return selectedStructureNode.level === 'level2'
-      ? block.type === 'comprehensive'
-      : ['single', 'method', 'example'].includes(block.type) &&
-          Boolean(
-            enclosingLevel3ReferenceId &&
-              block.knowledgeNodeIds.includes(enclosingLevel3ReferenceId),
-          );
-  });
+    : [];
+  const selectedStructureColumn = columns.find(
+    (column) => column.id === selectedStructureReferenceId,
+  );
+  const isDraftEditor =
+    routeContext.mode === 'new' || guide?.status === 'draft';
+  const requestedPrototypeVariant = searchParams.get('variant')?.toUpperCase();
+  const prototypeVariant =
+    process.env.NODE_ENV !== 'production' &&
+    isFlatColumnPrototypeVariant(requestedPrototypeVariant)
+      ? requestedPrototypeVariant
+      : null;
 
   return (
     <PageContainer
-      title={guide.name}
-      subTitle={editing ? '正式学案编辑' : '正式学案只读预览'}
+      title={
+        isDraftEditor ? (
+          <Input
+            className="combination-title-input"
+            value={guideName}
+            onChange={(event) => setGuideName(event.target.value)}
+            placeholder="请输入学案名称"
+            maxLength={60}
+            variant="borderless"
+            aria-label="学案名称"
+          />
+        ) : (
+          guideName
+        )
+      }
+      subTitle={
+        <Tag
+          className="combination-status-tag"
+          color={isDraftEditor ? 'gold' : 'green'}
+        >
+          {isDraftEditor ? '草稿' : '正式'}
+        </Tag>
+      }
       className="combination-production-page"
       extra={[
         <Button
@@ -856,20 +718,24 @@ const CombinationProductionPage: React.FC = () => {
         >
           返回资产中心
         </Button>,
-        editing ? (
+        editing && !isDraftEditor && !prototypeVariant ? (
           <Button key="cancel" onClick={cancelEdit}>
             放弃本次修改
           </Button>
         ) : null,
-        editing ? (
+        prototypeVariant ? (
+          <Button key="prototype" disabled>
+            原型只读
+          </Button>
+        ) : editing ? (
           <Button
             key="save"
             type="primary"
             icon={<SaveOutlined />}
             loading={saving}
-            onClick={() => void saveFormal()}
+            onClick={() => void saveGuide()}
           >
-            保存正式学案
+            {isDraftEditor ? '保存学案草稿' : '保存正式学案'}
           </Button>
         ) : (
           <Button
@@ -883,230 +749,233 @@ const CombinationProductionPage: React.FC = () => {
         ),
       ]}
     >
-      <Card variant="borderless" className="combination-summary">
-        <Descriptions
-          size="small"
-          column={4}
-          items={[
-            { label: '状态', children: <Tag color="green">正式</Tag> },
-            {
-              label: '原文件',
-              children: guide.originalFileName || '无原始文件',
-            },
-            { label: '结构位置', children: flatNodes.length },
-            { label: '栏目项', children: blocks.length },
-          ]}
+      {editing && prototypeVariant ? (
+        <FlatColumnPrototype
+          variant={prototypeVariant}
+          structure={structure}
+          blocks={blocks}
+          registeredColumns={columns}
         />
-      </Card>
-      {editing ? (
-        <>
-          <div className="combination-editor-toolbar">
-            <div>
-              <strong>栏目结构</strong>
-              <span>编辑不修改注册栏目定义或源知识块本体</span>
-            </div>
-            <Button
-              icon={<PlusOutlined />}
-              onClick={() => openAddStructure('level1')}
-            >
-              添加一级栏目
-            </Button>
-          </div>
-          <div className="combination-structure">
-            {structure.length ? (
-              structure.map((node, index) =>
-                renderNode(node, index, structure.length),
-              )
-            ) : (
-              <Empty description="当前学案暂无栏目结构" />
-            )}
-          </div>
-        </>
       ) : (
-        <div className="study-guide-preview-stage">
-          <article className="study-guide-document">
-            <header className="study-guide-document-header">
-              <h1>{guide.name}</h1>
-            </header>
-            {structure.length ? (
-              structure.map(renderPreviewNode)
-            ) : (
-              <Empty description="当前学案暂无正文内容" />
-            )}
-          </article>
-        </div>
+        <StudyGuideContinuousEditor
+          readOnly={!editing}
+          structure={structure}
+          blocks={blocks}
+          registeredColumns={columns}
+          knowledgeLeaves={knowledgeLeaves}
+          onAdd={openAddStructure}
+          onEdit={openEditStructure}
+          onDelete={deleteStructure}
+          onDragMove={(nodeId, targetId, position) =>
+            setStructure((current) =>
+              moveStructureNode(current, nodeId, targetId, position),
+            )
+          }
+          onAddContent={openAddContent}
+          onEditContent={openEditContent}
+          onDeleteContent={deleteContent}
+        />
       )}
 
       <Drawer
         title={
-          structureDrawer
-            ? `${
-                structureDrawer.mode === 'add'
-                  ? '添加'
-                  : structureDrawer.mode === 'edit'
-                  ? '编辑'
-                  : '移动'
-              }${LEVEL_LABELS[structureDrawer.level]}`
-            : '编辑结构'
+          contentNode
+            ? `${editingContentBlock ? '编辑内容' : '添加内容'} · ${
+                contentNode.label
+              }`
+            : '内容编辑'
         }
-        open={Boolean(structureDrawer)}
-        width={520}
-        onClose={() => setStructureDrawer(null)}
+        open={Boolean(contentNode)}
+        width={680}
+        onClose={closeContentEditor}
         extra={
-          <Button type="primary" onClick={() => void saveStructureDrawer()}>
-            应用到本次编辑
+          <Button
+            type="primary"
+            loading={addingContent}
+            onClick={() => void saveContent()}
+          >
+            {editingContentBlock ? '保存修改' : '添加到栏目'}
           </Button>
         }
         destroyOnClose
       >
-        {structureDrawer && (
-          <Form form={structureForm} layout="vertical">
-            {structureDrawer.mode === 'move' ? (
+        <Form form={contentForm} layout="vertical">
+          <Form.Item
+            name="kind"
+            label="内容类型"
+            rules={[{ required: true, message: '请选择内容类型' }]}
+          >
+            <Select
+              options={CONTENT_KIND_OPTIONS}
+              onChange={() => {
+                contentForm.setFieldsValue({
+                  knowledgeNodeId: undefined,
+                  knowledgeNodeIds: undefined,
+                });
+              }}
+            />
+          </Form.Item>
+
+          {isKnowledgeContentKind(selectedContentKind) ? (
+            selectedContentKind === 'comprehensive' ? (
               <Form.Item
-                name="parentId"
-                label="新的上级结构"
+                name="knowledgeNodeIds"
+                label="关联知识树末级节点"
+                extra="综合类知识是一对多关系，至少选择两个末级节点。"
                 rules={[
                   {
-                    required: structureDrawer.level !== 'level1',
-                    message: '请选择新的上级结构',
+                    validator: (_, values?: string[]) => {
+                      const error = getKnowledgeNodeSelectionError(
+                        selectedContentKind,
+                        values || [],
+                      );
+                      return error
+                        ? Promise.reject(new Error(error))
+                        : Promise.resolve();
+                    },
                   },
                 ]}
               >
                 <Select
-                  options={moveParentOptions.map((node) => ({
-                    value: node.id,
-                    label: `${LEVEL_LABELS[node.level]} · ${node.label}`,
+                  mode="multiple"
+                  showSearch
+                  optionFilterProp="label"
+                  maxTagCount="responsive"
+                  placeholder="请选择两个或以上末级节点"
+                  options={knowledgeLeaves.map((leaf) => ({
+                    value: leaf.id,
+                    label: leaf.path.join(' / '),
                   }))}
+                  notFoundContent="当前学科暂无知识树末级节点"
                 />
               </Form.Item>
-            ) : structureDrawer.level === 'level2' ? (
-              <Form.Item
-                name="label"
-                label="分组名称"
-                rules={[
-                  {
-                    required: true,
-                    whitespace: true,
-                    message: '请输入二级分组名称',
-                  },
-                ]}
-              >
-                <Input placeholder="二级分组属于当前学案，可重复命名" />
-              </Form.Item>
             ) : (
+              <Form.Item
+                name="knowledgeNodeId"
+                label="关联知识树末级节点"
+                extra={`${CONTENT_KIND_LABELS[selectedContentKind]}只能关联一个末级节点。`}
+                rules={[{ required: true, message: '请选择一个末级节点' }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="请选择末级节点"
+                  options={knowledgeLeaves.map((leaf) => ({
+                    value: leaf.id,
+                    label: leaf.path.join(' / '),
+                  }))}
+                  notFoundContent="当前学科暂无知识树末级节点"
+                />
+              </Form.Item>
+            )
+          ) : null}
+
+          <Form.Item
+            name="html"
+            label={contentEditorLabel}
+            validateTrigger={[]}
+            rules={[
+              {
+                validator: (_, value?: string) => {
+                  const text = (value || '')
+                    .replace(/<[^>]+>/g, '')
+                    .replace(/&nbsp;/g, ' ')
+                    .trim();
+                  const hasNonTextContent = /<(img|table|math)\b/i.test(
+                    value || '',
+                  );
+                  return text || hasNonTextContent
+                    ? Promise.resolve()
+                    : Promise.reject(new Error(`请输入${contentEditorLabel}`));
+                },
+              },
+            ]}
+          >
+            <RichTextEditor
+              key={selectedContentKind}
+              placeholder={`输入${contentEditorLabel}…`}
+            />
+          </Form.Item>
+        </Form>
+      </Drawer>
+
+      <Modal
+        title={
+          structureDrawer
+            ? `${structureDrawer.mode === 'add' ? '添加' : '更换'}${
+                LEVEL_LABELS[structureDrawer.level]
+              }`
+            : '栏目操作'
+        }
+        open={Boolean(structureDrawer)}
+        width={520}
+        okText={structureDrawer?.mode === 'add' ? '确认添加' : '确认更换'}
+        cancelText="取消"
+        onOk={() => void saveStructureDrawer()}
+        onCancel={() => setStructureDrawer(null)}
+        destroyOnClose
+      >
+        {structureDrawer && (
+          <Form form={structureForm} layout="vertical">
+            {referenceOptions.length ? (
               <>
                 <Form.Item
                   name="referenceId"
                   label={LEVEL_LABELS[structureDrawer.level]}
-                  rules={[{ required: true, message: '请选择结构对象' }]}
+                  rules={[{ required: true, message: '请选择注册栏目' }]}
                 >
                   <Select
                     showSearch
                     optionFilterProp="label"
                     options={referenceOptions.map((item) => ({
                       value: item.id,
-                      label: 'name' in item ? item.name : item.path.join(' / '),
+                      label: item.name,
                     }))}
-                    onChange={(value) => {
-                      const option = referenceOptions.find(
-                        (item) => item.id === value,
-                      );
-                      structureForm.setFieldValue(
-                        'label',
-                        option
-                          ? 'name' in option
-                            ? option.name
-                            : option.title
-                          : '',
-                      );
+                    onChange={() => {
+                      structureForm.setFieldValue('knowledgeNodeId', undefined);
                     }}
                   />
                 </Form.Item>
-                <Form.Item name="label" hidden>
-                  <Input />
-                </Form.Item>
+                {selectedStructureColumn?.dataSource === 'knowledgeTree' && (
+                  <Form.Item
+                    name="knowledgeNodeId"
+                    label="知识树末级节点"
+                    rules={[
+                      { required: true, message: '请选择知识树末级节点' },
+                    ]}
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="请选择末级节点"
+                      options={knowledgeLeaves.map((leaf) => ({
+                        value: leaf.id,
+                        label: leaf.path.join(' / '),
+                      }))}
+                      notFoundContent="当前学科暂无知识树末级节点"
+                    />
+                  </Form.Item>
+                )}
               </>
-            )}
-          </Form>
-        )}
-      </Drawer>
-
-      <Drawer
-        title={
-          blockDrawer?.mode === 'add'
-            ? '引用知识块'
-            : blockDrawer?.block?.kind === 'columnContent'
-            ? '编辑栏目内容'
-            : '更换知识块引用'
-        }
-        open={Boolean(blockDrawer)}
-        width={700}
-        onClose={() => setBlockDrawer(null)}
-        extra={
-          <Button type="primary" onClick={() => void saveBlockDrawer()}>
-            应用到本次编辑
-          </Button>
-        }
-        destroyOnClose
-      >
-        {blockDrawer?.block?.kind === 'columnContent' ? (
-          <Form form={blockForm} layout="vertical">
-            <Form.Item
-              name="html"
-              label="栏目原生内容"
-              rules={[
-                { required: true, whitespace: true, message: '请输入内容' },
-              ]}
-            >
-              <RichTextEditor />
-            </Form.Item>
-          </Form>
-        ) : (
-          <Form form={blockForm} layout="vertical">
-            <Form.Item
-              name="knowledgeBlockId"
-              label="知识块"
-              rules={[{ required: true, message: '请选择知识块' }]}
-            >
-              <Select
-                showSearch
-                optionFilterProp="label"
-                options={allowedKnowledgeBlocks.map((block) => ({
-                  value: block.id,
-                  label: `${
-                    KNOWLEDGE_BLOCK_TYPE_LABELS[block.type]
-                  } · ${block.html.replace(/<[^>]+>/g, '').slice(0, 42)}`,
-                }))}
-              />
-            </Form.Item>
-            {selectedKnowledgeBlock?.type === 'comprehensive' && (
+            ) : (
               <Form.Item
-                name="currentKnowledgeScope"
-                label="本次知识范围"
-                rules={[{ required: true, message: '至少选择一个本次知识点' }]}
-                extra="只显示“源知识块关联且本学案实际涉及的三级考点”交集，默认全选"
+                name="temporaryName"
+                label={`${LEVEL_LABELS[structureDrawer.level]}名称`}
+                rules={[
+                  {
+                    required: true,
+                    whitespace: true,
+                    message: '请输入临时栏目名称',
+                  },
+                ]}
+                extra="当前层级没有注册栏目，可填写仅属于当前学案的临时栏目；不会自动注册到后台。"
               >
-                <Checkbox.Group
-                  options={(comprehensiveIntersection || []).map((id) => ({
-                    value: id,
-                    label: leafMap.get(id)?.title || id,
-                  }))}
-                />
+                <Input placeholder="请输入临时栏目名称" />
               </Form.Item>
             )}
-            {selectedKnowledgeBlock && (
-              <Card size="small" title="源知识块当前内容">
-                <div
-                  className="rich-content"
-                  dangerouslySetInnerHTML={{
-                    __html: sanitizeHtml(selectedKnowledgeBlock.html),
-                  }}
-                />
-              </Card>
-            )}
           </Form>
         )}
-      </Drawer>
+      </Modal>
     </PageContainer>
   );
 };

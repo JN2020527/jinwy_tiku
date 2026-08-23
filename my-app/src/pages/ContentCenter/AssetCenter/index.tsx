@@ -13,14 +13,11 @@ import {
   getAttachmentType,
   getNameWithoutExtension,
   replaceAttachment,
-  STUDY_GUIDE_ACCEPT,
   updateAssetName,
-  uploadStudyGuide,
 } from '@/services/resourceAssets';
 import {
   DeleteOutlined,
   EditOutlined,
-  FileAddOutlined,
   FileDoneOutlined,
   FileTextOutlined,
   PlayCircleOutlined,
@@ -35,7 +32,6 @@ import {
   Alert,
   Button,
   Card,
-  Dropdown,
   Empty,
   Form,
   Input,
@@ -45,7 +41,6 @@ import {
   Space,
   Table,
   Tag,
-  Tooltip,
   Upload,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -60,13 +55,9 @@ import React, {
 import { SUBJECT_OPTIONS } from '../TagManage/components/treeFilterConstants';
 import './index.less';
 
-type UploadMode = 'studyGuide' | 'attachment';
-type UploadFixture = 'valid' | 'invalid' | 'questionOnly' | 'emptyKnowledge';
-
 interface UploadValues {
   name: string;
   fileList: UploadFile[];
-  fixture: UploadFixture;
 }
 
 interface RenameValues {
@@ -129,7 +120,7 @@ const AssetCenterPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<AssetStatus | ''>('');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [uploadMode, setUploadMode] = useState<UploadMode | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [replacingAsset, setReplacingAsset] = useState<AssetItem | null>(null);
@@ -188,7 +179,7 @@ const AssetCenterPage: React.FC = () => {
     setKeyword('');
     setTypeFilter('');
     setStatusFilter('');
-    setUploadMode(null);
+    setUploadOpen(false);
     setEditingAsset(null);
     setReplacingAsset(null);
   };
@@ -198,10 +189,10 @@ const AssetCenterPage: React.FC = () => {
     if (type === 'homework' && statusFilter === 'draft') setStatusFilter('');
   };
 
-  const openUpload = (mode: UploadMode) => {
+  const openUpload = () => {
     uploadForm.resetFields();
-    uploadForm.setFieldsValue({ fixture: 'valid', fileList: [] });
-    setUploadMode(mode);
+    uploadForm.setFieldsValue({ fileList: [] });
+    setUploadOpen(true);
   };
 
   const selectedUploadFile = Form.useWatch('fileList', uploadForm)?.[0];
@@ -218,75 +209,26 @@ const AssetCenterPage: React.FC = () => {
       return;
     }
     const fileName = values.fileList[0]?.name;
-    if (!fileName || !uploadMode) return;
+    if (!fileName) return;
     setUploading(true);
     try {
-      if (uploadMode === 'studyGuide') {
-        const response = await uploadStudyGuide({
-          subject: selectedSubject,
-          name: values.name.trim(),
-          originalFileName: fileName,
-          fixture: values.fixture,
-        });
-        if (!response.success) {
-          message.error(response.message || '成品学案上传失败');
-          return;
-        }
-        if (response.data.issues.length) {
-          Modal.error({
-            title: `发现 ${response.data.issues.length} 处问题，未创建草稿`,
-            width: 720,
-            content: (
-              <div className="asset-upload-issues">
-                <p>系统一次列出全部可识别问题，不会自动纠正：</p>
-                {response.data.issues.map((issue, index) => (
-                  <div key={`${issue.location}-${index}`}>
-                    <strong>{issue.location}</strong>
-                    <code>{issue.marker}</code>
-                    <span>{issue.reason}</span>
-                  </div>
-                ))}
-              </div>
-            ),
-          });
-          return;
-        }
-        if (response.data.draft) {
-          setUploadMode(null);
-          message.success(response.message);
-          history.push(
-            `/preparation/asset-center/study-guide/${encodeURIComponent(
-              response.data.draft.id,
-            )}/split?subject=${selectedSubject}`,
-          );
-        }
-      } else {
-        const response = await createAttachment({
-          subject: selectedSubject,
-          name: values.name.trim(),
-          originalFileName: fileName,
-        });
-        if (!response.success) {
-          message.error(response.message || '附件上传失败');
-          return;
-        }
-        setUploadMode(null);
-        message.success(response.message);
-        await loadAssets();
+      const response = await createAttachment({
+        subject: selectedSubject,
+        name: values.name.trim(),
+        originalFileName: fileName,
+      });
+      if (!response.success) {
+        message.error(response.message || '附件上传失败');
+        return;
       }
+      setUploadOpen(false);
+      message.success(response.message);
+      await loadAssets();
     } catch {
-      message.error(
-        uploadMode === 'studyGuide' ? '成品学案上传失败' : '附件上传失败',
-      );
+      message.error('附件上传失败');
     } finally {
       setUploading(false);
     }
-  };
-
-  const showComingSoon = () => {
-    message.info(
-      `${ASSET_TYPE_LABELS.studyGuide}从零加工将在“加工组合型资产”需求中提供，本期仅保留入口`,
-    );
   };
 
   const openRename = (asset: AssetItem) => {
@@ -372,7 +314,7 @@ const AssetCenterPage: React.FC = () => {
       title: `确认删除“${asset.name}”？`,
       content:
         asset.type === 'studyGuide'
-          ? '学案、栏目项、栏目原生内容和原始 .docx 将一起删除；引用的知识块本体保留。删除后不进入回收站。'
+          ? '学案结构与栏目内容将一起删除；引用的知识块本体保留。删除后不进入回收站。'
           : asset.type === 'homework'
           ? '作业资产将被彻底删除；系统不自动解除关系或保留不可用占位。删除后不进入回收站。'
           : '附件及原始文件将一起删除，删除后不进入回收站。',
@@ -418,9 +360,11 @@ const AssetCenterPage: React.FC = () => {
           const href =
             asset.type === 'homework'
               ? `/preparation/asset-center/homework/${asset.id}?subject=${selectedSubject}`
-              : asset.status === 'draft'
-              ? `/preparation/asset-center/study-guide/${asset.id}/split?subject=${selectedSubject}`
-              : `/combination-production/revision/${asset.id}?subject=${selectedSubject}&type=studyGuide&view=preview`;
+              : `/combination-production/revision/${
+                  asset.id
+                }?subject=${selectedSubject}&type=studyGuide&view=${
+                  asset.status === 'draft' ? 'edit' : 'preview'
+                }`;
           return (
             <a
               className="asset-name-cell"
@@ -484,7 +428,7 @@ const AssetCenterPage: React.FC = () => {
                   icon={<PlayCircleOutlined />}
                   onClick={() =>
                     history.push(
-                      `/preparation/asset-center/study-guide/${asset.id}/split?subject=${selectedSubject}`,
+                      `/combination-production/revision/${asset.id}?subject=${selectedSubject}&type=studyGuide&view=edit`,
                     )
                   }
                 >
@@ -600,36 +544,26 @@ const AssetCenterPage: React.FC = () => {
               onChange={changeSubject}
               aria-label="选择资产学科"
             />
-            <small>上传时锁定当前学科，资产创建后不可修改</small>
+            <small>创建或上传时锁定当前学科，资产创建后不可修改</small>
           </div>
           <Space wrap>
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: 'studyGuide',
-                    label: '成品学案（.docx）',
-                    icon: <FileDoneOutlined />,
-                    onClick: () => openUpload('studyGuide'),
-                  },
-                  {
-                    key: 'attachment',
-                    label: '附件',
-                    icon: <FileAddOutlined />,
-                    onClick: () => openUpload('attachment'),
-                  },
-                ],
-              }}
+            <Button
+              type="primary"
+              icon={<UploadOutlined />}
+              onClick={openUpload}
             >
-              <Button type="primary" icon={<UploadOutlined />}>
-                上传资源
-              </Button>
-            </Dropdown>
-            <Tooltip title="本期仅保留入口，不创建草稿">
-              <Button icon={<PlusOutlined />} onClick={showComingSoon}>
-                新建学案
-              </Button>
-            </Tooltip>
+              上传附件
+            </Button>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() =>
+                history.push(
+                  `/combination-production/new?subject=${selectedSubject}&type=studyGuide`,
+                )
+              }
+            >
+              新建学案
+            </Button>
             <Button
               icon={<PlusOutlined />}
               onClick={() =>
@@ -702,11 +636,11 @@ const AssetCenterPage: React.FC = () => {
       </Card>
 
       <Modal
-        title={uploadMode === 'studyGuide' ? '上传成品学案' : '上传附件'}
-        open={Boolean(uploadMode)}
-        onCancel={() => setUploadMode(null)}
+        title="上传附件"
+        open={uploadOpen}
+        onCancel={() => setUploadOpen(false)}
         onOk={submitUpload}
-        okText={uploadMode === 'studyGuide' ? '校验并拆分' : '保存为正式附件'}
+        okText="保存为正式附件"
         confirmLoading={uploading}
         width={680}
         destroyOnClose
@@ -718,11 +652,7 @@ const AssetCenterPage: React.FC = () => {
             SUBJECT_OPTIONS.find((item) => item.value === selectedSubject)
               ?.label
           }`}
-          description={
-            uploadMode === 'studyGuide'
-              ? '原型以解析场景 fixture 模拟 Word 标记校验；真实 .docx 解析与富文本兼容性待技术验证。'
-              : '系统根据扩展名自动识别 Word、PPT、音频或视频，不提供手动修改类型。'
-          }
+          description="系统根据扩展名自动识别 Word、PPT、音频或视频，不提供手动修改类型；附件不会转换为学案。"
         />
         <Form form={uploadForm} layout="vertical" className="asset-upload-form">
           <Form.Item
@@ -731,18 +661,10 @@ const AssetCenterPage: React.FC = () => {
             valuePropName="fileList"
             getValueFromEvent={normalizeUpload}
             rules={[{ required: true, message: '请选择一个文件' }]}
-            extra={
-              uploadMode === 'studyGuide'
-                ? '仅支持 .docx；文件大小上限以系统配置为准'
-                : '支持 .docx、.ppt、.pptx、.mp3、.wav、.mp4；文件大小上限以系统配置为准'
-            }
+            extra="支持 .docx、.ppt、.pptx、.mp3、.wav、.mp4；文件大小上限以系统配置为准"
           >
             <Upload.Dragger
-              accept={
-                uploadMode === 'studyGuide'
-                  ? STUDY_GUIDE_ACCEPT
-                  : ATTACHMENT_ACCEPT
-              }
+              accept={ATTACHMENT_ACCEPT}
               maxCount={1}
               multiple={false}
               beforeUpload={handleFileSelected}
@@ -763,33 +685,7 @@ const AssetCenterPage: React.FC = () => {
           >
             <Input placeholder="选择文件后自动带入…" maxLength={60} showCount />
           </Form.Item>
-          {uploadMode === 'studyGuide' && (
-            <Form.Item
-              name="fixture"
-              label="原型解析场景"
-              rules={[{ required: true }]}
-            >
-              <Select
-                options={[
-                  {
-                    value: 'valid',
-                    label: '有效样例：保留富文本、忽略页眉页脚并跳过试题型栏目',
-                  },
-                  { value: 'invalid', label: '错误样例：一次返回全部格式问题' },
-                  {
-                    value: 'questionOnly',
-                    label: '边界样例：跳过后无保留内容',
-                  },
-                  {
-                    value: 'emptyKnowledge',
-                    label: '边界样例：综合类无三级考点',
-                  },
-                ]}
-              />
-            </Form.Item>
-          )}
-          {uploadMode === 'attachment' &&
-            selectedUploadFile &&
+          {selectedUploadFile &&
             !getAttachmentType(selectedUploadFile.name) && (
               <Alert type="error" showIcon message="不支持该附件格式" />
             )}

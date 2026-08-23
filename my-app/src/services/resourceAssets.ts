@@ -1,4 +1,5 @@
 import { request } from '@umijs/max';
+import type { SubjectColumnCodeStyle } from './subjectColumns';
 
 export type AssetType =
   | 'studyGuide'
@@ -38,7 +39,7 @@ export interface AssetItem extends ImpactCounts {
   name: string;
   originalFileName?: string;
   updatedAt: string;
-  source: 'upload' | 'seed';
+  source: 'upload' | 'online' | 'seed';
 }
 
 export interface KnowledgeLeaf {
@@ -57,8 +58,10 @@ export interface RegisteredColumn {
   id: string;
   name: string;
   type: 'knowledge' | 'question';
-  level: 1 | 4;
-  parentId: string | null;
+  level: 1 | 2 | 3 | 4;
+  dataSource: 'custom' | 'knowledgeTree';
+  codeEnabled: boolean;
+  codeStyle: SubjectColumnCodeStyle | null;
 }
 
 export interface StudyGuideStructureNode {
@@ -66,6 +69,8 @@ export interface StudyGuideStructureNode {
   level: StructureLevel;
   label: string;
   referenceId?: string;
+  temporaryName?: string;
+  knowledgeNodeId?: string;
   children: StudyGuideStructureNode[];
 }
 
@@ -152,18 +157,6 @@ export interface KnowledgeBlock {
   updatedAt: string;
 }
 
-export interface UploadValidationIssue {
-  location: string;
-  marker: string;
-  reason: string;
-}
-
-export interface StudyGuideUploadResult {
-  draft?: StudyGuideDetail;
-  issues: UploadValidationIssue[];
-  skippedColumns: string[];
-}
-
 export interface AssetListParams {
   subject: string;
   keyword?: string;
@@ -185,37 +178,27 @@ export async function getAssetDetail(params: { id: string; subject: string }) {
   );
 }
 
-export async function uploadStudyGuide(data: {
+export async function createOnlineStudyGuide(data: {
   subject: string;
   name: string;
-  originalFileName: string;
-  fixture?: 'valid' | 'invalid' | 'questionOnly' | 'emptyKnowledge';
+  structure: StudyGuideStructureNode[];
+  contentBlocks: StudyGuideContentBlock[];
 }) {
-  return request<ApiResult<StudyGuideUploadResult>>(
-    '/api/resource-assets/study-guide/upload',
+  return request<ApiResult<StudyGuideDetail>>(
+    '/api/resource-assets/study-guide/online',
     { method: 'POST', data },
   );
 }
 
-export async function updateStudyGuideDraft(data: {
+export async function updateOnlineStudyGuideDraft(data: {
   id: string;
   subject: string;
+  name: string;
+  structure: StudyGuideStructureNode[];
   contentBlocks: StudyGuideContentBlock[];
-  simulateFailure?: boolean;
 }) {
   return request<ApiResult<StudyGuideDetail>>(
-    '/api/resource-assets/study-guide/draft',
-    { method: 'PUT', data },
-  );
-}
-
-export async function finalizeStudyGuideDraft(data: {
-  id: string;
-  subject: string;
-  simulateFailure?: boolean;
-}) {
-  return request<ApiResult<StudyGuideDetail>>(
-    '/api/resource-assets/study-guide/finalize',
+    '/api/resource-assets/study-guide/online',
     { method: 'PUT', data },
   );
 }
@@ -375,8 +358,6 @@ export const KNOWLEDGE_BLOCK_TYPE_LABELS: Record<KnowledgeBlockType, string> = {
 };
 
 export const ATTACHMENT_ACCEPT = '.docx,.ppt,.pptx,.mp3,.wav,.mp4';
-export const STUDY_GUIDE_ACCEPT = '.docx';
-
 export const getAttachmentType = (fileName: string): AttachmentType | null => {
   const extension = fileName.toLowerCase().match(/\.[^.]+$/)?.[0];
   if (extension === '.docx') return 'word';
