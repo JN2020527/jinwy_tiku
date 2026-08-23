@@ -34,6 +34,7 @@ interface OutlineNode {
 }
 
 type ColumnDropPosition = 'before' | 'after' | 'inside';
+type ContentDropPosition = 'before' | 'after' | 'append';
 
 interface StudyGuideContinuousEditorProps {
   readOnly?: boolean;
@@ -48,6 +49,12 @@ interface StudyGuideContinuousEditorProps {
     nodeId: string,
     targetId: string,
     position: ColumnDropPosition,
+  ) => void;
+  onDragMoveContent: (
+    blockId: string,
+    targetNodeId: string,
+    targetBlockId: string | undefined,
+    position: ContentDropPosition,
   ) => void;
   onAddContent: (node: StudyGuideStructureNode) => void;
   onEditContent: (
@@ -86,6 +93,7 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
   onEdit,
   onDelete,
   onDragMove,
+  onDragMoveContent,
   onAddContent,
   onEditContent,
   onDeleteContent,
@@ -117,7 +125,15 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
     id: string;
     position: ColumnDropPosition;
   }>();
+  const [draggedContentId, setDraggedContentId] = useState<string>();
+  const [contentDropTarget, setContentDropTarget] = useState<{
+    nodeId: string;
+    blockId?: string;
+    position: ContentDropPosition;
+  }>();
   const draggedIdRef = useRef<string>();
+  const draggedContentIdRef = useRef<string>();
+  const contentDragPreviewRef = useRef<HTMLElement>();
   const documentRef = useRef<HTMLDivElement>(null);
   const suppressScrollSyncUntilRef = useRef(0);
 
@@ -210,6 +226,36 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
     draggedIdRef.current = undefined;
     setDraggedId(undefined);
     setDropTarget(undefined);
+  };
+
+  const finishContentDragging = () => {
+    contentDragPreviewRef.current?.remove();
+    contentDragPreviewRef.current = undefined;
+    draggedContentIdRef.current = undefined;
+    setDraggedContentId(undefined);
+    setContentDropTarget(undefined);
+  };
+
+  const createContentDragPreview = (source: HTMLElement) => {
+    contentDragPreviewRef.current?.remove();
+    const preview = source.cloneNode(true) as HTMLElement;
+    preview.className = 'combination-content-drag-preview';
+    preview.setAttribute('aria-hidden', 'true');
+    preview.querySelector('.combination-continuous-block-actions')?.remove();
+    preview.style.width = `${Math.min(
+      Math.max(source.getBoundingClientRect().width * 0.56, 360),
+      560,
+    )}px`;
+    document.body.appendChild(preview);
+    contentDragPreviewRef.current = preview;
+    return preview;
+  };
+
+  const resolveContentDropPosition = (
+    event: React.DragEvent<HTMLDivElement>,
+  ): Exclude<ContentDropPosition, 'append'> => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    return event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
   };
 
   const getLinkedKnowledgePointNames = (block: StudyGuideContentBlock) => {
@@ -438,8 +484,44 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
                     className={`combination-continuous-section combination-continuous-depth-${Math.min(
                       item.depth,
                       3,
-                    )} ${nodeBlocks.length ? 'has-content' : ''}`}
+                    )} ${nodeBlocks.length ? 'has-content' : ''} ${
+                      contentDropTarget?.nodeId === item.node.id &&
+                      contentDropTarget.position === 'append'
+                        ? 'is-content-drop-append'
+                        : ''
+                    }`}
                     data-column-id={item.node.id}
+                    onDragOver={(event) => {
+                      if (!draggedContentIdRef.current) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      setContentDropTarget({
+                        nodeId: item.node.id,
+                        position: 'append',
+                      });
+                    }}
+                    onDragLeave={(event) => {
+                      if (
+                        !event.currentTarget.contains(
+                          event.relatedTarget as Node | null,
+                        ) &&
+                        contentDropTarget?.nodeId === item.node.id
+                      ) {
+                        setContentDropTarget(undefined);
+                      }
+                    }}
+                    onDrop={(event) => {
+                      if (!draggedContentIdRef.current) return;
+                      event.preventDefault();
+                      onDragMoveContent(
+                        draggedContentIdRef.current,
+                        item.node.id,
+                        undefined,
+                        'append',
+                      );
+                      setSelectedId(item.node.id);
+                      finishContentDragging();
+                    }}
                   >
                     <header>
                       <h3>
@@ -467,10 +549,84 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
                     {nodeBlocks.map((block, blockIndex) => (
                       <div
                         key={block.id}
-                        className="combination-continuous-block"
+                        className={`combination-continuous-block ${
+                          draggedContentId === block.id ? 'is-dragging' : ''
+                        } ${
+                          contentDropTarget?.blockId === block.id
+                            ? `is-content-drop-${contentDropTarget.position}`
+                            : ''
+                        }`}
+                        onDragOver={(event) => {
+                          if (
+                            !draggedContentIdRef.current ||
+                            draggedContentIdRef.current === block.id
+                          ) {
+                            return;
+                          }
+                          event.preventDefault();
+                          event.stopPropagation();
+                          event.dataTransfer.dropEffect = 'move';
+                          setContentDropTarget({
+                            nodeId: item.node.id,
+                            blockId: block.id,
+                            position: resolveContentDropPosition(event),
+                          });
+                        }}
+                        onDrop={(event) => {
+                          if (
+                            !draggedContentIdRef.current ||
+                            draggedContentIdRef.current === block.id
+                          ) {
+                            return;
+                          }
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const position = resolveContentDropPosition(event);
+                          onDragMoveContent(
+                            draggedContentIdRef.current,
+                            item.node.id,
+                            block.id,
+                            position,
+                          );
+                          setSelectedId(item.node.id);
+                          finishContentDragging();
+                        }}
                       >
                         <div className="combination-continuous-block-heading">
-                          <div>
+                          <div className="combination-continuous-block-meta">
+                            {!readOnly ? (
+                              <button
+                                type="button"
+                                draggable
+                                className="combination-continuous-block-drag-handle"
+                                aria-label={`拖拽移动${item.node.label}中的第${
+                                  blockIndex + 1
+                                }项内容`}
+                                title="拖拽移动内容"
+                                onDragStart={(event) => {
+                                  event.dataTransfer.effectAllowed = 'move';
+                                  event.dataTransfer.setData(
+                                    'text/plain',
+                                    block.id,
+                                  );
+                                  const source = event.currentTarget.closest(
+                                    '.combination-continuous-block',
+                                  );
+                                  if (source instanceof HTMLElement) {
+                                    event.dataTransfer.setDragImage(
+                                      createContentDragPreview(source),
+                                      28,
+                                      22,
+                                    );
+                                  }
+                                  draggedContentIdRef.current = block.id;
+                                  setDraggedContentId(block.id);
+                                }}
+                                onDragEnd={finishContentDragging}
+                              >
+                                <HolderOutlined />
+                              </button>
+                            ) : null}
                             <Tag bordered={false}>
                               {block.kind === 'columnContent'
                                 ? '栏目内容'
@@ -524,7 +680,32 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
                     ))}
 
                     {!nodeBlocks.length ? (
-                      <div className="combination-continuous-section-empty">
+                      <div
+                        className="combination-continuous-section-empty"
+                        onDragOver={(event) => {
+                          if (!draggedContentIdRef.current) return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          event.dataTransfer.dropEffect = 'move';
+                          setContentDropTarget({
+                            nodeId: item.node.id,
+                            position: 'append',
+                          });
+                        }}
+                        onDrop={(event) => {
+                          if (!draggedContentIdRef.current) return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onDragMoveContent(
+                            draggedContentIdRef.current,
+                            item.node.id,
+                            undefined,
+                            'append',
+                          );
+                          setSelectedId(item.node.id);
+                          finishContentDragging();
+                        }}
+                      >
                         当前栏目暂无内容
                       </div>
                     ) : null}

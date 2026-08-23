@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define -- 单文件 Mock 路由与共享 store 按业务域分段，初始化函数会引用后置声明。 */
 import { Request, Response } from 'express';
+import type { KnowledgeTreeNode } from '../src/services/resourceAssets';
 import type {
   ResourceOperationAction,
   ResourceOperationChange,
@@ -31,9 +32,12 @@ import type {
 import { RESOURCE_REFERENCE_ERROR_CODES } from '../src/services/resourceReferenceModel';
 
 import {
+  getPreparationKnowledgeTree,
+  replacePreparationKnowledgeTree,
+} from './preparationKnowledgeTreeStore';
+import {
   getStudyGuideReferenceCounts,
   knowledgeBlockStore,
-  knowledgeTreesBySubject,
 } from './resourceAssetsStore';
 import { countTeacherTeachingTaskReferences } from './teacherTeachingTaskReferenceRegistry';
 import { countTeachingPlanTaskReferences } from './teachingPlanReferenceRegistry';
@@ -1022,8 +1026,9 @@ const getKnowledgeTreeByContext = (context: KnowledgeContext) => {
   const storeKey = getKnowledgeStoreKey(context);
   if (!knowledgeTreeStore[storeKey]) {
     if (context.targetType === 'knowledgeTree') {
-      const sharedTree = (knowledgeTreesBySubject[context.subject] ||
-        []) as unknown as MockKnowledgeNode[];
+      const sharedTree = getPreparationKnowledgeTree(
+        context.subject,
+      ) as unknown as MockKnowledgeNode[];
       const applySubject = (nodes: MockKnowledgeNode[]) => {
         nodes.forEach((node) => {
           node.subject = context.subject;
@@ -2969,6 +2974,12 @@ export default {
     );
 
     knowledgeTreeStore[storeKey] = nextTree;
+    if (context.targetType === 'knowledgeTree') {
+      replacePreparationKnowledgeTree(
+        context.subject,
+        nextTree as unknown as KnowledgeTreeNode[],
+      );
+    }
     res.send({
       success: true,
       message: '导入成功',

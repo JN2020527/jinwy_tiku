@@ -51,6 +51,7 @@ export interface KnowledgeLeaf {
 export interface KnowledgeTreeNode {
   key: string;
   title: string;
+  description?: string;
   children?: KnowledgeTreeNode[];
 }
 

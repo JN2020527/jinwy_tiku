@@ -14,6 +14,7 @@ import type {
   StudyGuideStructureNode,
 } from '../src/services/resourceAssets';
 import { getAttachmentType } from '../src/services/resourceAssets';
+import { getPreparationKnowledgeTree } from './preparationKnowledgeTreeStore';
 import {
   assetStore,
   clone,
@@ -23,7 +24,6 @@ import {
   homeworkStore,
   isNameTaken,
   knowledgeBlockStore,
-  knowledgeTreesBySubject,
   nextId,
   questionStore,
   studyGuideStore,
@@ -130,7 +130,7 @@ const hydrateStudyGuideReferences = (
   const hydrated = clone(detail);
   const columns = getSubjectColumnsSnapshot(detail.subject);
   const knowledgeLeaves = collectLeaves(
-    knowledgeTreesBySubject[detail.subject] || [],
+    getPreparationKnowledgeTree(detail.subject),
   );
   hydrated.structure = hydrateStudyGuideStructureLabels(
     hydrated.structure,
@@ -176,7 +176,7 @@ const prepareStudyGuideStructure = (
   structure: StudyGuideStructureNode[],
 ) => {
   const columns = getSubjectColumnsSnapshot(subject);
-  const knowledgeLeaves = collectLeaves(knowledgeTreesBySubject[subject] || []);
+  const knowledgeLeaves = collectLeaves(getPreparationKnowledgeTree(subject));
   const error = getStudyGuideStructureError(
     structure,
     columns,
@@ -465,10 +465,7 @@ export default {
     const pageSize = Number(queryValue(req.query.pageSize)) || 0;
     const leafIds = knowledgeNodeId
       ? new Set(
-          collectLeafIds(
-            knowledgeTreesBySubject[subject] || [],
-            knowledgeNodeId,
-          ),
+          collectLeafIds(getPreparationKnowledgeTree(subject), knowledgeNodeId),
         )
       : null;
     const filtered = questionStore
@@ -594,10 +591,7 @@ export default {
     const knowledgeNodeId = queryValue(req.query.knowledgeNodeId);
     const leafIds = knowledgeNodeId
       ? new Set(
-          collectLeafIds(
-            knowledgeTreesBySubject[subject] || [],
-            knowledgeNodeId,
-          ),
+          collectLeafIds(getPreparationKnowledgeTree(subject), knowledgeNodeId),
         )
       : null;
     const result = knowledgeBlockStore
@@ -626,7 +620,7 @@ export default {
       return sendFailure(res, '请完整填写知识块内容和末级知识点');
     }
     const validLeafIds = new Set(
-      collectLeaves(knowledgeTreesBySubject[subject] || []).map(
+      collectLeaves(getPreparationKnowledgeTree(subject)).map(
         (leaf) => leaf.id,
       ),
     );
@@ -669,7 +663,7 @@ export default {
       return sendFailure(res, '请完整填写知识块内容和末级知识点');
     }
     const validLeafIds = new Set(
-      collectLeaves(knowledgeTreesBySubject[subject] || []).map(
+      collectLeaves(getPreparationKnowledgeTree(subject)).map(
         (leaf) => leaf.id,
       ),
     );
@@ -757,7 +751,7 @@ export default {
 
   'GET /api/resource-assets/context': (req: Request, res: Response) => {
     const subject = queryValue(req.query.subject).trim();
-    const knowledgeTree = knowledgeTreesBySubject[subject] || [];
+    const knowledgeTree = getPreparationKnowledgeTree(subject);
     sendSuccess(
       res,
       {

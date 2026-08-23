@@ -286,6 +286,11 @@
 .combination-continuous-section {
   padding: 22px 24px 26px;
 
+  &.is-content-drop-append {
+    background: #f5f9ff;
+    box-shadow: inset 0 0 0 2px rgba(36, 104, 229, 48%);
+  }
+
   + .combination-continuous-section {
     border-top: 1px solid #e3e8ef;
   }
@@ -347,6 +352,18 @@
   border-radius: 7px;
   background: #fff;
 
+  &.is-dragging {
+    opacity: 0.42;
+  }
+
+  &.is-content-drop-before {
+    box-shadow: 0 -4px 0 var(--continuous-blue);
+  }
+
+  &.is-content-drop-after {
+    box-shadow: 0 4px 0 var(--continuous-blue);
+  }
+
   + .combination-continuous-block {
     margin-top: 10px;
   }
@@ -356,6 +373,36 @@
     color: #2f3b4d;
     font-size: 14px;
     line-height: 1.75;
+
+    // 粘贴或导入的富文本可能携带固定宽度、浮动等排版属性。
+    // 学案正文采用连续文稿布局，文本类块级元素应始终跟随内容区宽度流动。
+    :where(
+        p,
+        div,
+        section,
+        article,
+        blockquote,
+        pre,
+        ol,
+        ul,
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6
+      ) {
+      position: static !important;
+      box-sizing: border-box;
+      width: auto !important;
+      max-width: 100% !important;
+      float: none !important;
+    }
+
+    img,
+    table {
+      max-width: 100%;
+    }
 
     > :first-child {
       margin-top: 0;
@@ -387,6 +434,35 @@
   }
 }
 
+.combination-continuous-block-meta {
+  flex: 1;
+}
+
+.combination-continuous-block-drag-handle {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: #7b899c;
+  background: transparent;
+  cursor: grab;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--continuous-blue);
+    background: #dfeaff;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
 .combination-continuous-block-knowledge {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -396,6 +472,64 @@
 .combination-continuous-block-actions {
   flex: none;
   gap: 2px !important;
+}
+
+.combination-content-drag-preview {
+  position: fixed;
+  top: -10000px;
+  left: 0;
+  z-index: 9999;
+  box-sizing: border-box;
+  max-height: 132px;
+  overflow: hidden;
+  border: 1px solid #8fb2f5;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(36, 72, 128, 24%);
+  opacity: 0.96;
+  pointer-events: none;
+
+  .combination-continuous-block-heading {
+    min-height: 36px;
+    border-bottom-color: #dfe8f7;
+    background: #f4f8ff;
+  }
+
+  .combination-continuous-block-drag-handle {
+    color: var(--continuous-blue, #2468e5);
+    background: #e3edff;
+  }
+
+  .rich-content {
+    position: relative;
+    max-height: 82px;
+    overflow: hidden;
+    padding: 10px 14px 16px;
+    color: #40506a;
+    font-size: 13px;
+    line-height: 1.6;
+
+    img,
+    table {
+      max-height: 58px;
+    }
+
+    img {
+      width: auto;
+      max-width: 100%;
+      object-fit: contain;
+    }
+  }
+
+  &::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 24px;
+    background: linear-gradient(transparent, #fff);
+    content: '';
+  }
 }
 
 .combination-continuous-section-empty {

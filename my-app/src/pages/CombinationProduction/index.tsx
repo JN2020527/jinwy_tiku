@@ -22,6 +22,8 @@ import {
   updateFormalStudyGuide,
   updateOnlineStudyGuideDraft,
 } from '@/services/resourceAssets';
+import type { KnowledgeNode } from '@/services/tagSystem';
+import { getKnowledgeTree } from '@/services/tagSystem';
 import {
   ArrowLeftOutlined,
   EditOutlined,
@@ -42,7 +44,7 @@ import {
   Skeleton,
   Tag,
 } from 'antd';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import FlatColumnPrototype, {
   isFlatColumnPrototypeVariant,
 } from './FlatColumnPrototype';
@@ -90,6 +92,17 @@ const localId = (prefix: string) => {
   return `${prefix}-local-${Date.now()}-${localSequence}`;
 };
 
+const collectKnowledgeLeaves = (
+  nodes: KnowledgeNode[],
+  parentPath: string[] = [],
+): KnowledgeLeaf[] =>
+  nodes.flatMap((node) => {
+    const path = [...parentPath, node.title];
+    return node.children?.length
+      ? collectKnowledgeLeaves(node.children, path)
+      : [{ id: node.key, title: node.title, path }];
+  });
+
 const mapNodes = (
   nodes: StudyGuideStructureNode[],
   updater: (node: StudyGuideStructureNode) => StudyGuideStructureNode,
@@ -133,6 +146,7 @@ const findNode = (
 };
 
 type ColumnDropPosition = 'before' | 'after' | 'inside';
+type ContentDropPosition = 'before' | 'after' | 'append';
 
 const insertNodeRelative = (
   nodes: StudyGuideStructureNode[],
@@ -165,6 +179,43 @@ const moveStructureNode = (
   return position === 'inside'
     ? appendNode(withoutMovingNode, targetId, movingNode)
     : insertNodeRelative(withoutMovingNode, targetId, movingNode, position);
+};
+
+const moveContentBlock = (
+  blocks: StudyGuideContentBlock[],
+  blockId: string,
+  targetNodeId: string,
+  targetBlockId: string | undefined,
+  position: ContentDropPosition,
+): StudyGuideContentBlock[] => {
+  const movingBlock = blocks.find((block) => block.id === blockId);
+  if (!movingBlock) return blocks;
+  const nextMovingBlock = {
+    ...movingBlock,
+    structureNodeId: targetNodeId,
+  };
+  const withoutMovingBlock = blocks.filter((block) => block.id !== blockId);
+  if (targetBlockId && position !== 'append') {
+    const targetIndex = withoutMovingBlock.findIndex(
+      (block) => block.id === targetBlockId,
+    );
+    if (targetIndex >= 0) {
+      const next = [...withoutMovingBlock];
+      next.splice(
+        position === 'before' ? targetIndex : targetIndex + 1,
+        0,
+        nextMovingBlock,
+      );
+      return next;
+    }
+  }
+  let lastTargetIndex = -1;
+  withoutMovingBlock.forEach((block, index) => {
+    if (block.structureNodeId === targetNodeId) lastTargetIndex = index;
+  });
+  const next = [...withoutMovingBlock];
+  next.splice(lastTargetIndex + 1, 0, nextMovingBlock);
+  return next;
 };
 
 const collectSubtreeIds = (node: StudyGuideStructureNode): string[] => [
@@ -224,6 +275,28 @@ const CombinationProductionPage: React.FC = () => {
     selectedContentKind === 'columnContent'
       ? '栏目内容'
       : `${CONTENT_KIND_LABELS[selectedContentKind]}内容`;
+
+  const refreshKnowledgeLeaves = useCallback(async () => {
+    if (!subject) return;
+    try {
+      const response = await getKnowledgeTree({
+        subject,
+        targetType: 'knowledgeTree',
+      });
+      if (!response.success) {
+        message.error(response.message || '知识树加载失败');
+        return;
+      }
+      setKnowledgeLeaves(collectKnowledgeLeaves(response.data));
+    } catch {
+      message.error('知识树加载失败');
+    }
+  }, [subject]);
+
+  useEffect(() => {
+    if (!structureDrawer && !contentNode) return;
+    void refreshKnowledgeLeaves();
+  }, [contentNode, refreshKnowledgeLeaves, structureDrawer]);
 
   useEffect(() => {
     if (!routeContext.valid) {
@@ -769,6 +842,17 @@ const CombinationProductionPage: React.FC = () => {
           onDragMove={(nodeId, targetId, position) =>
             setStructure((current) =>
               moveStructureNode(current, nodeId, targetId, position),
+            )
+          }
+          onDragMoveContent={(blockId, targetNodeId, targetBlockId, position) =>
+            setBlocks((current) =>
+              moveContentBlock(
+                current,
+                blockId,
+                targetNodeId,
+                targetBlockId,
+                position,
+              ),
             )
           }
           onAddContent={openAddContent}

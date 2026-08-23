@@ -9,6 +9,7 @@ import type {
   StudyGuideDetail,
   StudyGuideStructureNode,
 } from '../src/services/resourceAssets';
+import { historyKnowledgeTree } from './historyKnowledgeTree.generated';
 
 const now = () => new Date().toISOString();
 
@@ -79,6 +80,7 @@ export const knowledgeTreesBySubject: Record<string, KnowledgeTreeNode[]> = {
       ],
     },
   ],
+  history: historyKnowledgeTree,
   english: [],
   biology: [],
 };
