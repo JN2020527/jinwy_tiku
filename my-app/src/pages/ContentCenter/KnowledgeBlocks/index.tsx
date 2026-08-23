@@ -18,6 +18,7 @@ import {
   EditOutlined,
   EyeOutlined,
   PlusOutlined,
+  ReloadOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
@@ -33,10 +34,12 @@ import {
   Input,
   message,
   Modal,
+  Pagination,
   Select,
   Space,
   Spin,
   Tag,
+  Tree,
   TreeSelect,
 } from 'antd';
 import React, {
@@ -93,6 +96,37 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
 const formatDate = (value: string) =>
   DATE_TIME_FORMATTER.format(new Date(value)).replaceAll('/', '-');
 
+const KNOWLEDGE_BLOCK_PAGE_SIZE = 10;
+
+const collectExpandableKeys = (nodes: KnowledgeTreeNode[]): string[] =>
+  nodes.flatMap((node) =>
+    node.children?.length
+      ? [node.key, ...collectExpandableKeys(node.children)]
+      : [],
+  );
+
+const filterKnowledgeTree = (
+  nodes: KnowledgeTreeNode[],
+  keyword: string,
+): KnowledgeTreeNode[] => {
+  const normalizedKeyword = keyword.trim().toLocaleLowerCase();
+  if (!normalizedKeyword) return nodes;
+
+  return nodes.reduce<KnowledgeTreeNode[]>((result, node) => {
+    const children = node.children
+      ? filterKnowledgeTree(node.children, normalizedKeyword)
+      : [];
+    const matched = node.title.toLocaleLowerCase().includes(normalizedKeyword);
+    if (!matched && !children.length) return result;
+
+    result.push({
+      ...node,
+      children: matched ? node.children : children,
+    });
+    return result;
+  }, []);
+};
+
 const KnowledgeBlocksPage: React.FC = () => {
   const [form] = Form.useForm<KnowledgeBlockFormValues>();
   const [selectedSubject, setSelectedSubject] = useState('math');
@@ -102,6 +136,9 @@ const KnowledgeBlocksPage: React.FC = () => {
   const [keyword, setKeyword] = useState('');
   const [typeFilter, setTypeFilter] = useState<KnowledgeBlockType | ''>('');
   const [nodeFilter, setNodeFilter] = useState<string>();
+  const [treeKeyword, setTreeKeyword] = useState('');
+  const [expandedNodeKeys, setExpandedNodeKeys] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<KnowledgeBlock | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -116,6 +153,7 @@ const KnowledgeBlocksPage: React.FC = () => {
     if (subject !== subjectRef.current || !response.success) return;
     setKnowledgeTree(response.data.knowledgeTree);
     setKnowledgeLeaves(response.data.knowledgeLeaves);
+    setExpandedNodeKeys(collectExpandableKeys(response.data.knowledgeTree));
   }, []);
 
   const loadBlocks = useCallback(async () => {
@@ -151,6 +189,18 @@ const KnowledgeBlocksPage: React.FC = () => {
     void loadBlocks();
   }, [loadBlocks]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, nodeFilter, selectedSubject, typeFilter]);
+
+  useEffect(() => {
+    const lastPage = Math.max(
+      1,
+      Math.ceil(blocks.length / KNOWLEDGE_BLOCK_PAGE_SIZE),
+    );
+    setCurrentPage((page) => Math.min(page, lastPage));
+  }, [blocks.length]);
+
   const leafMap = useMemo(
     () => new Map(knowledgeLeaves.map((leaf) => [leaf.id, leaf])),
     [knowledgeLeaves],
@@ -166,6 +216,18 @@ const KnowledgeBlocksPage: React.FC = () => {
       }));
     return disableParents(toTreeSelectData(knowledgeTree));
   }, [knowledgeTree]);
+  const visibleKnowledgeTree = useMemo(
+    () => filterKnowledgeTree(knowledgeTree, treeKeyword),
+    [knowledgeTree, treeKeyword],
+  );
+  const visibleExpandedKeys = useMemo(
+    () => collectExpandableKeys(visibleKnowledgeTree),
+    [visibleKnowledgeTree],
+  );
+  const paginatedBlocks = useMemo(() => {
+    const start = (currentPage - 1) * KNOWLEDGE_BLOCK_PAGE_SIZE;
+    return blocks.slice(start, start + KNOWLEDGE_BLOCK_PAGE_SIZE);
+  }, [blocks, currentPage]);
 
   const changeSubject = (subject: string) => {
     requestIdRef.current += 1;
@@ -174,11 +236,20 @@ const KnowledgeBlocksPage: React.FC = () => {
     setKeyword('');
     setTypeFilter('');
     setNodeFilter(undefined);
+    setTreeKeyword('');
+    setExpandedNodeKeys([]);
     setBlocks([]);
     setKnowledgeTree([]);
     setKnowledgeLeaves([]);
     setFormOpen(false);
     setDetail(null);
+  };
+
+  const resetFilters = () => {
+    setKeyword('');
+    setTypeFilter('');
+    setNodeFilter(undefined);
+    setTreeKeyword('');
   };
 
   const openCreate = () => {
@@ -306,114 +377,183 @@ const KnowledgeBlocksPage: React.FC = () => {
       }
     >
       <Card variant="borderless" className="knowledge-blocks-card">
-        <div className="knowledge-blocks-context">
-          <div>
-            <span>当前学科</span>
+        <div className="knowledge-blocks-workspace">
+          <aside className="knowledge-blocks-tree-panel">
             <Select
               value={selectedSubject}
               options={SUBJECT_OPTIONS}
               onChange={changeSubject}
               aria-label="选择知识块学科"
             />
-            <small>新建知识块继承并锁定当前学科</small>
-          </div>
-          <div className="knowledge-blocks-filters">
             <Input
               allowClear
               prefix={<SearchOutlined />}
-              name="knowledgeBlockKeyword"
-              autoComplete="off"
-              aria-label="搜索知识块完整内容"
-              placeholder="搜索完整富文本内容…"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
+              aria-label="搜索知识树节点"
+              placeholder="搜索知识点"
+              value={treeKeyword}
+              onChange={(event) => setTreeKeyword(event.target.value)}
             />
-            <Select
-              value={typeFilter}
-              onChange={setTypeFilter}
-              aria-label="筛选知识块类型"
-              options={[
-                { value: '', label: '全部类型' },
-                ...Object.entries(KNOWLEDGE_BLOCK_TYPE_LABELS).map(
-                  ([value, label]) => ({ value, label }),
-                ),
-              ]}
-            />
-            <TreeSelect
-              allowClear
-              showSearch
-              aria-label="按知识树节点筛选知识块"
-              treeNodeFilterProp="title"
-              value={nodeFilter}
-              onChange={setNodeFilter}
-              treeData={toTreeSelectData(knowledgeTree)}
-              treeDefaultExpandAll
-              placeholder="全部知识树节点…"
-            />
-          </div>
-        </div>
-
-        <Spin spinning={loading}>
-          {blocks.length ? (
-            <div className="knowledge-block-list">
-              {blocks.map((block) => (
-                <article key={block.id} className="knowledge-block-row">
-                  <div className="knowledge-block-meta">
-                    <Tag color={TYPE_COLORS[block.type]}>
-                      {KNOWLEDGE_BLOCK_TYPE_LABELS[block.type]}
-                    </Tag>
-                    <span>
-                      {block.knowledgeNodeIds
-                        .map((id) => leafMap.get(id)?.title || id)
-                        .join('、')}
-                    </span>
-                    <span>{block.referenceStudyGuides.length} 份学案引用</span>
-                    <time>{formatDate(block.updatedAt)}</time>
-                  </div>
-                  <div
-                    className="knowledge-block-rich rich-content"
-                    dangerouslySetInnerHTML={{
-                      __html: sanitizeHtml(block.html),
-                    }}
-                  />
-                  <div className="knowledge-block-actions">
-                    <Button
-                      type="link"
-                      size="small"
-                      icon={<EyeOutlined />}
-                      onClick={() => setDetail(block)}
-                    >
-                      详情
-                    </Button>
-                    <Button
-                      type="link"
-                      size="small"
-                      icon={<EditOutlined />}
-                      onClick={() => openEdit(block)}
-                    >
-                      编辑
-                    </Button>
-                    <Button
-                      type="link"
-                      size="small"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => remove(block)}
-                    >
-                      删除
-                    </Button>
-                  </div>
-                </article>
-              ))}
+            <button
+              type="button"
+              className={`knowledge-blocks-all-node${
+                nodeFilter ? '' : ' is-selected'
+              }`}
+              aria-pressed={!nodeFilter}
+              onClick={() => setNodeFilter(undefined)}
+            >
+              <span>全部知识点</span>
+              <small>{knowledgeLeaves.length}</small>
+            </button>
+            <div className="knowledge-blocks-tree-scroll">
+              {visibleKnowledgeTree.length ? (
+                <Tree
+                  blockNode
+                  showLine={{ showLeafIcon: false }}
+                  treeData={visibleKnowledgeTree}
+                  selectedKeys={nodeFilter ? [nodeFilter] : []}
+                  expandedKeys={
+                    treeKeyword.trim() ? visibleExpandedKeys : expandedNodeKeys
+                  }
+                  autoExpandParent={Boolean(treeKeyword.trim())}
+                  onExpand={(keys) => {
+                    if (!treeKeyword.trim()) {
+                      setExpandedNodeKeys(keys.map(String));
+                    }
+                  }}
+                  onSelect={(keys) =>
+                    setNodeFilter(keys.length ? String(keys[0]) : undefined)
+                  }
+                />
+              ) : (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="未找到知识点"
+                />
+              )}
             </div>
-          ) : (
-            <Empty description="当前筛选条件下暂无知识块">
-              <Button type="primary" onClick={openCreate}>
-                新建知识块
-              </Button>
-            </Empty>
-          )}
-        </Spin>
+          </aside>
+
+          <main className="knowledge-blocks-main">
+            <section className="knowledge-blocks-filter-panel">
+              <div className="knowledge-blocks-filters">
+                <Select
+                  value={typeFilter}
+                  onChange={setTypeFilter}
+                  aria-label="筛选知识块类型"
+                  options={[
+                    { value: '', label: '全部类型' },
+                    ...Object.entries(KNOWLEDGE_BLOCK_TYPE_LABELS).map(
+                      ([value, label]) => ({ value, label }),
+                    ),
+                  ]}
+                />
+                <Input
+                  allowClear
+                  prefix={<SearchOutlined />}
+                  name="knowledgeBlockKeyword"
+                  autoComplete="off"
+                  aria-label="按关键字搜索知识块内容"
+                  placeholder="输入关键字搜索知识块内容"
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                />
+                <Button
+                  icon={<ReloadOutlined />}
+                  disabled={
+                    !keyword && !typeFilter && !nodeFilter && !treeKeyword
+                  }
+                  onClick={resetFilters}
+                >
+                  重置筛选
+                </Button>
+              </div>
+            </section>
+
+            <section className="knowledge-blocks-results">
+              <div className="knowledge-blocks-results-heading">
+                <strong>知识块列表</strong>
+                <span>{loading ? '正在加载…' : `共 ${blocks.length} 个`}</span>
+              </div>
+              <Spin spinning={loading}>
+                {blocks.length ? (
+                  <>
+                    <div className="knowledge-block-list">
+                      {paginatedBlocks.map((block) => (
+                        <article key={block.id} className="knowledge-block-row">
+                          <div className="knowledge-block-meta">
+                            <Tag color={TYPE_COLORS[block.type]}>
+                              {KNOWLEDGE_BLOCK_TYPE_LABELS[block.type]}
+                            </Tag>
+                            <span className="knowledge-block-node-binding">
+                              <span>知识点</span>
+                              <strong>
+                                {block.knowledgeNodeIds
+                                  .map((id) => leafMap.get(id)?.title || id)
+                                  .join('、')}
+                              </strong>
+                            </span>
+                            <time>{formatDate(block.updatedAt)}</time>
+                          </div>
+                          <div
+                            className="knowledge-block-rich rich-content"
+                            dangerouslySetInnerHTML={{
+                              __html: sanitizeHtml(block.html),
+                            }}
+                          />
+                          <div className="knowledge-block-actions">
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<EyeOutlined />}
+                              onClick={() => setDetail(block)}
+                            >
+                              详情
+                            </Button>
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<EditOutlined />}
+                              onClick={() => openEdit(block)}
+                            >
+                              编辑
+                            </Button>
+                            <Button
+                              type="link"
+                              size="small"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => remove(block)}
+                            >
+                              删除
+                            </Button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    <div className="knowledge-blocks-pagination">
+                      <Pagination
+                        current={currentPage}
+                        pageSize={KNOWLEDGE_BLOCK_PAGE_SIZE}
+                        total={blocks.length}
+                        showSizeChanger={false}
+                        showTotal={(total) => `共 ${total} 个知识块`}
+                        onChange={setCurrentPage}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="knowledge-blocks-empty">
+                    <Empty description="当前筛选条件下暂无知识块">
+                      <Button type="primary" onClick={openCreate}>
+                        新建知识块
+                      </Button>
+                    </Empty>
+                  </div>
+                )}
+              </Spin>
+            </section>
+          </main>
+        </div>
       </Card>
 
       <Drawer
@@ -536,11 +676,11 @@ const KnowledgeBlocksPage: React.FC = () => {
                 {
                   label: '关联知识点',
                   children: detail.knowledgeNodeIds
-                    .map((id) => leafMap.get(id)?.path.join(' / ') || id)
+                    .map((id) => leafMap.get(id)?.title || id)
                     .join('；'),
                 },
                 {
-                  label: '引用学案',
+                  label: '绑定学案',
                   children: `${detail.referenceStudyGuides.length} 份`,
                 },
                 { label: '创建时间', children: formatDate(detail.createdAt) },
@@ -559,7 +699,7 @@ const KnowledgeBlocksPage: React.FC = () => {
             </Card>
             <Card
               size="small"
-              title="引用学案"
+              title="绑定学案"
               className="knowledge-detail-references"
             >
               {detail.referenceStudyGuides.length ? (
@@ -577,7 +717,7 @@ const KnowledgeBlocksPage: React.FC = () => {
                   </Button>
                 ))
               ) : (
-                <span>暂无引用学案</span>
+                <span>暂无绑定学案</span>
               )}
             </Card>
           </>

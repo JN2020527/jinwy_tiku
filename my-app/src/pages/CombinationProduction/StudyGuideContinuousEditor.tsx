@@ -1,12 +1,16 @@
-import { formatRegisteredColumnCode } from '@/features/study-guide/columnCode';
+import { formatStructureLevelCode } from '@/features/study-guide/columnCode';
+import { STRUCTURE_LEVEL_NUMBERS } from '@/features/study-guide/structureModel';
 import type {
-  KnowledgeLeaf,
-  RegisteredColumn,
   StructureLevel,
   StudyGuideContentBlock,
   StudyGuideStructureNode,
 } from '@/services/resourceAssets';
 import { KNOWLEDGE_BLOCK_TYPE_LABELS } from '@/services/resourceAssets';
+import type {
+  SubjectColumnCodeStyle,
+  SubjectColumnLevel,
+  SubjectLevelCodeRule,
+} from '@/services/subjectColumns';
 import { sanitizeHtml } from '@/utils/sanitize';
 import {
   DeleteOutlined,
@@ -33,6 +37,38 @@ interface OutlineNode {
   code: string | null;
 }
 
+const BlockRichContent: React.FC<{ block: StudyGuideContentBlock }> = ({
+  block,
+}) => {
+  if (block.kind !== 'example' || !block.exampleContent) {
+    return (
+      <div
+        className="rich-content"
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.html) }}
+      />
+    );
+  }
+
+  const parts = [
+    { label: '试题内容', html: block.exampleContent.stemHtml },
+    { label: '思路点拨', html: block.exampleContent.guideHtml },
+    { label: '试题答案', html: block.exampleContent.answerHtml },
+  ];
+  return (
+    <div className="combination-example-content">
+      {parts.map((part) => (
+        <section key={part.label} className="combination-example-part">
+          <div className="combination-example-part-label">{part.label}</div>
+          <div
+            className="rich-content"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(part.html) }}
+          />
+        </section>
+      ))}
+    </div>
+  );
+};
+
 type ColumnDropPosition = 'before' | 'after' | 'inside';
 type ContentDropPosition = 'before' | 'after' | 'append';
 
@@ -40,8 +76,7 @@ interface StudyGuideContinuousEditorProps {
   readOnly?: boolean;
   structure: StudyGuideStructureNode[];
   blocks: StudyGuideContentBlock[];
-  registeredColumns: RegisteredColumn[];
-  knowledgeLeaves: KnowledgeLeaf[];
+  levelCodeRules: SubjectLevelCodeRule[];
   onAdd: (level: StructureLevel, parentId?: string) => void;
   onEdit: (node: StudyGuideStructureNode) => void;
   onDelete: (node: StudyGuideStructureNode) => void;
@@ -66,7 +101,7 @@ interface StudyGuideContinuousEditorProps {
 
 const flattenOutline = (
   nodes: StudyGuideStructureNode[],
-  registeredColumnMap: Map<string, RegisteredColumn>,
+  levelCodeStyleMap: Map<SubjectColumnLevel, SubjectColumnCodeStyle | null>,
   parentId?: string,
   depth = 0,
 ): OutlineNode[] =>
@@ -75,20 +110,19 @@ const flattenOutline = (
       node,
       parentId,
       depth,
-      code: formatRegisteredColumnCode(
-        registeredColumnMap.get(node.referenceId || ''),
+      code: formatStructureLevelCode(
+        levelCodeStyleMap.get(STRUCTURE_LEVEL_NUMBERS[node.level]),
         siblingIndex + 1,
       ),
     },
-    ...flattenOutline(node.children, registeredColumnMap, node.id, depth + 1),
+    ...flattenOutline(node.children, levelCodeStyleMap, node.id, depth + 1),
   ]);
 
 const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
   readOnly = false,
   structure,
   blocks,
-  registeredColumns,
-  knowledgeLeaves,
+  levelCodeRules,
   onAdd,
   onEdit,
   onDelete,
@@ -98,13 +132,16 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
   onEditContent,
   onDeleteContent,
 }) => {
-  const registeredColumnMap = useMemo(
-    () => new Map(registeredColumns.map((column) => [column.id, column])),
-    [registeredColumns],
+  const levelCodeStyleMap = useMemo(
+    () =>
+      new Map(
+        levelCodeRules.map((rule) => [rule.level, rule.codeStyle] as const),
+      ),
+    [levelCodeRules],
   );
   const outline = useMemo(
-    () => flattenOutline(structure, registeredColumnMap),
-    [registeredColumnMap, structure],
+    () => flattenOutline(structure, levelCodeStyleMap),
+    [levelCodeStyleMap, structure],
   );
   const blocksByNode = useMemo(() => {
     const grouped = new Map<string, StudyGuideContentBlock[]>();
@@ -114,10 +151,6 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
     });
     return grouped;
   }, [blocks]);
-  const leafMap = useMemo(
-    () => new Map(knowledgeLeaves.map((leaf) => [leaf.id, leaf])),
-    [knowledgeLeaves],
-  );
   const [selectedId, setSelectedId] = useState(outline[0]?.node.id);
   const [isNavigationCollapsed, setIsNavigationCollapsed] = useState(false);
   const [draggedId, setDraggedId] = useState<string>();
@@ -256,16 +289,6 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
   ): Exclude<ContentDropPosition, 'append'> => {
     const bounds = event.currentTarget.getBoundingClientRect();
     return event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
-  };
-
-  const getLinkedKnowledgePointNames = (block: StudyGuideContentBlock) => {
-    const nodeIds =
-      block.kind === 'comprehensive' && block.currentKnowledgeScope?.length
-        ? block.currentKnowledgeScope
-        : block.knowledgeNodeIds;
-    return (
-      nodeIds.map((id) => leafMap.get(id)?.title || id).join('、') || '未设置'
-    );
   };
 
   return (
@@ -550,6 +573,8 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
                       <div
                         key={block.id}
                         className={`combination-continuous-block ${
+                          readOnly ? 'is-preview' : ''
+                        } ${
                           draggedContentId === block.id ? 'is-dragging' : ''
                         } ${
                           contentDropTarget?.blockId === block.id
@@ -592,9 +617,9 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
                           finishContentDragging();
                         }}
                       >
-                        <div className="combination-continuous-block-heading">
-                          <div className="combination-continuous-block-meta">
-                            {!readOnly ? (
+                        {!readOnly ? (
+                          <div className="combination-continuous-block-heading">
+                            <div className="combination-continuous-block-meta">
                               <button
                                 type="button"
                                 draggable
@@ -626,25 +651,12 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
                               >
                                 <HolderOutlined />
                               </button>
-                            ) : null}
-                            <Tag bordered={false}>
-                              {block.kind === 'columnContent'
-                                ? '栏目内容'
-                                : KNOWLEDGE_BLOCK_TYPE_LABELS[block.kind]}
-                            </Tag>
-                            {block.kind !== 'columnContent' ? (
-                              <span
-                                className="combination-continuous-block-knowledge"
-                                title={`知识点：${getLinkedKnowledgePointNames(
-                                  block,
-                                )}`}
-                              >
-                                知识点：
-                                {getLinkedKnowledgePointNames(block)}
-                              </span>
-                            ) : null}
-                          </div>
-                          {!readOnly ? (
+                              <Tag bordered={false}>
+                                {block.kind === 'columnContent'
+                                  ? '栏目内容'
+                                  : KNOWLEDGE_BLOCK_TYPE_LABELS[block.kind]}
+                              </Tag>
+                            </div>
                             <div className="combination-continuous-block-actions">
                               <Button
                                 type="text"
@@ -668,47 +680,11 @@ const StudyGuideContinuousEditor: React.FC<StudyGuideContinuousEditorProps> = ({
                                 onClick={() => onDeleteContent(block)}
                               />
                             </div>
-                          ) : null}
-                        </div>
-                        <div
-                          className="rich-content"
-                          dangerouslySetInnerHTML={{
-                            __html: sanitizeHtml(block.html),
-                          }}
-                        />
+                          </div>
+                        ) : null}
+                        <BlockRichContent block={block} />
                       </div>
                     ))}
-
-                    {!nodeBlocks.length ? (
-                      <div
-                        className="combination-continuous-section-empty"
-                        onDragOver={(event) => {
-                          if (!draggedContentIdRef.current) return;
-                          event.preventDefault();
-                          event.stopPropagation();
-                          event.dataTransfer.dropEffect = 'move';
-                          setContentDropTarget({
-                            nodeId: item.node.id,
-                            position: 'append',
-                          });
-                        }}
-                        onDrop={(event) => {
-                          if (!draggedContentIdRef.current) return;
-                          event.preventDefault();
-                          event.stopPropagation();
-                          onDragMoveContent(
-                            draggedContentIdRef.current,
-                            item.node.id,
-                            undefined,
-                            'append',
-                          );
-                          setSelectedId(item.node.id);
-                          finishContentDragging();
-                        }}
-                      >
-                        当前栏目暂无内容
-                      </div>
-                    ) : null}
                   </section>
                 );
               })}

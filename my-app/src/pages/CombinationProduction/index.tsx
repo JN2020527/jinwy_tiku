@@ -1,13 +1,19 @@
 import RichTextEditor from '@/components/RichTextEditor';
 import {
+  buildExampleKnowledgeHtml,
+  getDraftContentBlocks,
+  getEffectiveKnowledgeNodeIds,
+  getExampleKnowledgeContent,
   getKnowledgeNodeSelectionError,
-  getSelectedKnowledgeNodeIds,
+  hasRichTextContent,
   isKnowledgeContentKind,
 } from '@/features/study-guide/contentType';
 import { STRUCTURE_LEVEL_NUMBERS } from '@/features/study-guide/structureModel';
 import type {
   ContentBlockKind,
+  ExampleKnowledgeContent,
   KnowledgeLeaf,
+  KnowledgeTreeNode,
   RegisteredColumn,
   StructureLevel,
   StudyGuideContentBlock,
@@ -18,14 +24,15 @@ import {
   createOnlineStudyGuide,
   getAssetDetail,
   getResourceAssetContext,
+  publishOnlineStudyGuide,
   saveKnowledgeBlock,
   updateFormalStudyGuide,
   updateOnlineStudyGuideDraft,
 } from '@/services/resourceAssets';
-import type { KnowledgeNode } from '@/services/tagSystem';
-import { getKnowledgeTree } from '@/services/tagSystem';
+import type { SubjectLevelCodeRule } from '@/services/subjectColumns';
 import {
   ArrowLeftOutlined,
+  CheckCircleOutlined,
   EditOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
@@ -40,9 +47,11 @@ import {
   Input,
   message,
   Modal,
+  Segmented,
   Select,
   Skeleton,
   Tag,
+  TreeSelect,
 } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import FlatColumnPrototype, {
@@ -53,6 +62,7 @@ import './index.less';
 import { parseCombinationProductionRouteContext } from './routeContext';
 
 interface StructureFormValues {
+  source?: 'registered' | 'custom';
   label?: string;
   referenceId?: string;
   knowledgeNodeId?: string;
@@ -62,9 +72,11 @@ interface StructureFormValues {
 
 interface ContentFormValues {
   kind: ContentBlockKind;
-  knowledgeNodeId?: string;
+  html?: string;
   knowledgeNodeIds?: string[];
-  html: string;
+  exampleStemHtml?: string;
+  exampleGuideHtml?: string;
+  exampleAnswerHtml?: string;
 }
 
 const LEVEL_LABELS: Record<StructureLevel, string> = {
@@ -92,16 +104,98 @@ const localId = (prefix: string) => {
   return `${prefix}-local-${Date.now()}-${localSequence}`;
 };
 
-const collectKnowledgeLeaves = (
-  nodes: KnowledgeNode[],
-  parentPath: string[] = [],
-): KnowledgeLeaf[] =>
-  nodes.flatMap((node) => {
-    const path = [...parentPath, node.title];
-    return node.children?.length
-      ? collectKnowledgeLeaves(node.children, path)
-      : [{ id: node.key, title: node.title, path }];
+const requiredRichTextRule = (label: string) => ({
+  validator: (_: unknown, value?: string) =>
+    hasRichTextContent(value)
+      ? Promise.resolve()
+      : Promise.reject(new Error(`请输入${label}`)),
+});
+
+interface KnowledgeTreeSelectOption {
+  title: string;
+  value: string;
+  key: string;
+  selectable?: boolean;
+  disableCheckbox?: boolean;
+  children?: KnowledgeTreeSelectOption[];
+}
+
+const toKnowledgeLeafTreeData = (
+  nodes: KnowledgeTreeNode[],
+): KnowledgeTreeSelectOption[] =>
+  nodes.map((node) => {
+    const children = node.children?.length
+      ? toKnowledgeLeafTreeData(node.children)
+      : undefined;
+    const isLeaf = !children?.length;
+    return {
+      title: node.title,
+      value: node.key,
+      key: node.key,
+      selectable: isLeaf,
+      disableCheckbox: !isLeaf,
+      children,
+    };
   });
+
+const filterKnowledgeTreeData = (
+  nodes: KnowledgeTreeSelectOption[],
+  keyword: string,
+): KnowledgeTreeSelectOption[] => {
+  const normalizedKeyword = keyword.trim().toLocaleLowerCase();
+  if (!normalizedKeyword) return nodes;
+
+  return nodes.flatMap((node) => {
+    const children = filterKnowledgeTreeData(
+      node.children || [],
+      normalizedKeyword,
+    );
+    if (node.title.toLocaleLowerCase().includes(normalizedKeyword)) {
+      return [node];
+    }
+    return children.length ? [{ ...node, children }] : [];
+  });
+};
+
+const renderHighlightedTreeTitle = (title: string, keyword: string) => {
+  const normalizedKeyword = keyword.trim().toLocaleLowerCase();
+  if (!normalizedKeyword) return title;
+
+  const normalizedTitle = title.toLocaleLowerCase();
+  const fragments: React.ReactNode[] = [];
+  let cursor = 0;
+  let matchIndex = normalizedTitle.indexOf(normalizedKeyword, cursor);
+
+  while (matchIndex >= 0) {
+    if (matchIndex > cursor) {
+      fragments.push(title.slice(cursor, matchIndex));
+    }
+    const matchEnd = matchIndex + normalizedKeyword.length;
+    fragments.push(
+      <mark
+        className="knowledge-tree-search-highlight"
+        key={`${matchIndex}-${matchEnd}`}
+      >
+        {title.slice(matchIndex, matchEnd)}
+      </mark>,
+    );
+    cursor = matchEnd;
+    matchIndex = normalizedTitle.indexOf(normalizedKeyword, cursor);
+  }
+
+  if (!fragments.length) return title;
+  if (cursor < title.length) fragments.push(title.slice(cursor));
+  return fragments;
+};
+
+const collectExpandableTreeKeys = (
+  nodes: KnowledgeTreeSelectOption[],
+): string[] =>
+  nodes.flatMap((node) =>
+    node.children?.length
+      ? [node.key, ...collectExpandableTreeKeys(node.children)]
+      : [],
+  );
 
 const mapNodes = (
   nodes: StudyGuideStructureNode[],
@@ -244,6 +338,10 @@ const CombinationProductionPage: React.FC = () => {
   const [structure, setStructure] = useState<StudyGuideStructureNode[]>([]);
   const [blocks, setBlocks] = useState<StudyGuideContentBlock[]>([]);
   const [columns, setColumns] = useState<RegisteredColumn[]>([]);
+  const [levelCodeRules, setLevelCodeRules] = useState<SubjectLevelCodeRule[]>(
+    [],
+  );
+  const [knowledgeTree, setKnowledgeTree] = useState<KnowledgeTreeNode[]>([]);
   const [knowledgeLeaves, setKnowledgeLeaves] = useState<KnowledgeLeaf[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -259,6 +357,10 @@ const CombinationProductionPage: React.FC = () => {
   } | null>(null);
   const [saving, setSaving] = useState(false);
   const [addingContent, setAddingContent] = useState(false);
+  const [knowledgeTreeSearch, setKnowledgeTreeSearch] = useState('');
+  const [knowledgeTreeExpandedKeys, setKnowledgeTreeExpandedKeys] = useState<
+    string[]
+  >([]);
   const [structureForm] = Form.useForm<StructureFormValues>();
   const [contentForm] = Form.useForm<ContentFormValues>();
   const [contentNode, setContentNode] =
@@ -269,34 +371,66 @@ const CombinationProductionPage: React.FC = () => {
     'referenceId',
     structureForm,
   );
+  const selectedStructureSource =
+    Form.useWatch('source', structureForm) || 'registered';
   const selectedContentKind =
     Form.useWatch('kind', contentForm) || 'columnContent';
+  const knowledgeLeafTreeData = useMemo(
+    () => toKnowledgeLeafTreeData(knowledgeTree),
+    [knowledgeTree],
+  );
+  const filteredKnowledgeLeafTreeData = useMemo(
+    () => filterKnowledgeTreeData(knowledgeLeafTreeData, knowledgeTreeSearch),
+    [knowledgeLeafTreeData, knowledgeTreeSearch],
+  );
+  const visibleKnowledgeTreeExpandedKeys = useMemo(
+    () =>
+      knowledgeTreeSearch.trim()
+        ? collectExpandableTreeKeys(filteredKnowledgeLeafTreeData)
+        : knowledgeTreeExpandedKeys,
+    [
+      filteredKnowledgeLeafTreeData,
+      knowledgeTreeExpandedKeys,
+      knowledgeTreeSearch,
+    ],
+  );
   const contentEditorLabel =
     selectedContentKind === 'columnContent'
       ? '栏目内容'
       : `${CONTENT_KIND_LABELS[selectedContentKind]}内容`;
-
-  const refreshKnowledgeLeaves = useCallback(async () => {
+  const inheritedKnowledgeLeaf = contentNode?.knowledgeNodeId
+    ? knowledgeLeaves.find((leaf) => leaf.id === contentNode.knowledgeNodeId)
+    : undefined;
+  const inheritsKnowledgeNode = Boolean(
+    inheritedKnowledgeLeaf && isKnowledgeContentKind(selectedContentKind),
+  );
+  const refreshEditorContext = useCallback(async () => {
     if (!subject) return;
     try {
-      const response = await getKnowledgeTree({
-        subject,
-        targetType: 'knowledgeTree',
-      });
+      const response = await getResourceAssetContext({ subject });
       if (!response.success) {
-        message.error(response.message || '知识树加载失败');
+        message.error(response.message || '学案上下文加载失败');
         return;
       }
-      setKnowledgeLeaves(collectKnowledgeLeaves(response.data));
+      setColumns(response.data.columns);
+      setLevelCodeRules(response.data.levelCodeRules);
+      setKnowledgeTree(response.data.knowledgeTree);
+      setKnowledgeLeaves(response.data.knowledgeLeaves);
     } catch {
-      message.error('知识树加载失败');
+      message.error('学案上下文加载失败');
     }
   }, [subject]);
 
   useEffect(() => {
     if (!structureDrawer && !contentNode) return;
-    void refreshKnowledgeLeaves();
-  }, [contentNode, refreshKnowledgeLeaves, structureDrawer]);
+    void refreshEditorContext();
+  }, [contentNode, refreshEditorContext, structureDrawer]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => void refreshEditorContext();
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [refreshEditorContext]);
 
   useEffect(() => {
     if (!routeContext.valid) {
@@ -323,6 +457,8 @@ const CombinationProductionPage: React.FC = () => {
             return;
           }
           setColumns(contextResponse.data.columns);
+          setLevelCodeRules(contextResponse.data.levelCodeRules);
+          setKnowledgeTree(contextResponse.data.knowledgeTree);
           setKnowledgeLeaves(contextResponse.data.knowledgeLeaves);
           setGuideName('');
           setStructure([]);
@@ -360,6 +496,8 @@ const CombinationProductionPage: React.FC = () => {
 
         if (contextResponse.success) {
           setColumns(contextResponse.data.columns);
+          setLevelCodeRules(contextResponse.data.levelCodeRules);
+          setKnowledgeTree(contextResponse.data.knowledgeTree);
           setKnowledgeLeaves(contextResponse.data.knowledgeLeaves);
         }
       })
@@ -387,37 +525,54 @@ const CombinationProductionPage: React.FC = () => {
     history.replace(`${location.pathname}?${params.toString()}`);
   };
 
+  const getStructureReferenceOptions = (level: StructureLevel) =>
+    columns.filter((column) =>
+      column.applicableLevels.includes(STRUCTURE_LEVEL_NUMBERS[level]),
+    );
+
   const openAddStructure = (level: StructureLevel, parentId?: string) => {
+    const hasRegisteredOptions = getStructureReferenceOptions(level).length > 0;
+    setKnowledgeTreeSearch('');
+    setKnowledgeTreeExpandedKeys([]);
     structureForm.resetFields();
-    structureForm.setFieldsValue({ parentId });
+    structureForm.setFieldsValue({
+      parentId,
+      source: hasRegisteredOptions ? 'registered' : 'custom',
+    });
     setStructureDrawer({ mode: 'add', level, parentId });
   };
 
   const openEditStructure = (node: StudyGuideStructureNode) => {
+    setKnowledgeTreeSearch('');
+    setKnowledgeTreeExpandedKeys([]);
     structureForm.resetFields();
     structureForm.setFieldsValue({
+      source: node.referenceId ? 'registered' : 'custom',
       label: node.label,
       referenceId: node.referenceId,
       knowledgeNodeId: node.knowledgeNodeId,
       temporaryName: node.temporaryName,
     });
-    setStructureDrawer({ mode: 'edit', level: node.level, nodeId: node.id });
+    setStructureDrawer({
+      mode: 'edit',
+      level: node.level,
+      nodeId: node.id,
+    });
   };
 
   const saveStructureDrawer = async () => {
     if (!structureDrawer) return;
     const values = await structureForm.validateFields();
-    const levelColumns = columns.filter(
-      (column) =>
-        column.level === STRUCTURE_LEVEL_NUMBERS[structureDrawer.level],
-    );
-    const selectedColumn = levelColumns.find(
-      (column) => column.id === values.referenceId,
-    );
+    const levelColumns = getStructureReferenceOptions(structureDrawer.level);
+    const useRegisteredColumn =
+      values.source === 'registered' && levelColumns.length > 0;
+    const selectedColumn = useRegisteredColumn
+      ? levelColumns.find((column) => column.id === values.referenceId)
+      : undefined;
     const selectedLeaf = knowledgeLeaves.find(
       (leaf) => leaf.id === values.knowledgeNodeId,
     );
-    const selection = levelColumns.length
+    const selection = useRegisteredColumn
       ? {
           label:
             selectedColumn?.dataSource === 'knowledgeTree'
@@ -482,6 +637,7 @@ const CombinationProductionPage: React.FC = () => {
   const openAddContent = (node: StudyGuideStructureNode) => {
     contentForm.resetFields();
     contentForm.setFieldsValue({ kind: 'columnContent' });
+    setKnowledgeTreeSearch('');
     setEditingContentBlock(null);
     setContentNode(node);
   };
@@ -490,24 +646,27 @@ const CombinationProductionPage: React.FC = () => {
     node: StudyGuideStructureNode,
     block: StudyGuideContentBlock,
   ) => {
+    const exampleContent =
+      block.kind === 'example' ? getExampleKnowledgeContent(block) : undefined;
     contentForm.resetFields();
     contentForm.setFieldsValue({
       kind: block.kind,
-      knowledgeNodeId:
-        block.kind !== 'columnContent' && block.kind !== 'comprehensive'
-          ? block.knowledgeNodeIds[0]
-          : undefined,
+      html: block.html,
       knowledgeNodeIds:
         block.kind === 'comprehensive'
           ? block.currentKnowledgeScope || block.knowledgeNodeIds
           : undefined,
-      html: block.html,
+      exampleStemHtml: exampleContent?.stemHtml,
+      exampleGuideHtml: exampleContent?.guideHtml,
+      exampleAnswerHtml: exampleContent?.answerHtml,
     });
+    setKnowledgeTreeSearch('');
     setEditingContentBlock(block);
     setContentNode(node);
   };
 
   const closeContentEditor = () => {
+    setKnowledgeTreeSearch('');
     setContentNode(null);
     setEditingContentBlock(null);
   };
@@ -515,46 +674,28 @@ const CombinationProductionPage: React.FC = () => {
   const saveContent = async () => {
     if (!contentNode) return;
     const values = await contentForm.validateFields();
-    const knowledgeNodeIds = getSelectedKnowledgeNodeIds(
-      values.kind,
-      values.knowledgeNodeId,
-      values.knowledgeNodeIds,
-    );
-    const selectionError = getKnowledgeNodeSelectionError(
-      values.kind,
-      knowledgeNodeIds,
-    );
-    if (selectionError) {
-      message.error(selectionError);
-      return;
-    }
     setAddingContent(true);
     try {
-      const knowledgeBlockResponse = isKnowledgeContentKind(values.kind)
-        ? await saveKnowledgeBlock({
-            id: editingContentBlock?.knowledgeBlockId,
-            subject,
-            type: values.kind,
-            html: values.html,
-            knowledgeNodeIds,
-          })
-        : null;
-      if (knowledgeBlockResponse && !knowledgeBlockResponse.success) {
-        message.error(knowledgeBlockResponse.message);
-        return;
-      }
-      const knowledgeBlock = knowledgeBlockResponse?.data;
+      const exampleContent: ExampleKnowledgeContent | undefined =
+        values.kind === 'example'
+          ? {
+              stemHtml: values.exampleStemHtml || '',
+              guideHtml: values.exampleGuideHtml || '',
+              answerHtml: values.exampleAnswerHtml || '',
+            }
+          : undefined;
       const nextBlock: StudyGuideContentBlock = {
         id: editingContentBlock?.id || localId('sg-block'),
-        kind: knowledgeBlock?.type || 'columnContent',
+        kind: values.kind,
         structureNodeId: contentNode.id,
-        html: knowledgeBlock?.html || values.html,
-        knowledgeNodeIds: knowledgeBlock?.knowledgeNodeIds || [],
-        knowledgeBlockId: knowledgeBlock?.id,
-        currentKnowledgeScope:
-          knowledgeBlock?.type === 'comprehensive'
-            ? knowledgeBlock.knowledgeNodeIds
-            : undefined,
+        html: exampleContent
+          ? buildExampleKnowledgeHtml(exampleContent)
+          : values.html || '',
+        ...(exampleContent ? { exampleContent } : {}),
+        knowledgeNodeIds:
+          values.kind === 'comprehensive' ? values.knowledgeNodeIds || [] : [],
+        knowledgeBlockId: editingContentBlock?.knowledgeBlockId,
+        currentKnowledgeScope: undefined,
       };
       setBlocks((current) =>
         editingContentBlock
@@ -565,19 +706,9 @@ const CombinationProductionPage: React.FC = () => {
       );
       closeContentEditor();
       if (editingContentBlock) {
-        message.success(
-          knowledgeBlock
-            ? `${CONTENT_KIND_LABELS[knowledgeBlock.type]}已更新`
-            : '栏目内容已更新，请保存学案后生效',
-        );
+        message.success('内容已更新，请保存学案后写入知识点关系');
       } else {
-        message.success(
-          knowledgeBlock
-            ? `${
-                CONTENT_KIND_LABELS[knowledgeBlock.type]
-              }已关联知识树并添加到当前栏目`
-            : '栏目内容已添加到本次编辑，请保存学案后生效',
-        );
+        message.success('内容已添加，请保存学案后写入知识点关系');
       }
     } catch {
       message.error(
@@ -607,7 +738,7 @@ const CombinationProductionPage: React.FC = () => {
     });
   };
 
-  const saveGuide = async () => {
+  const saveGuide = async (targetStatus: 'draft' | 'formal') => {
     const normalizedName = guideName.trim();
     if (!normalizedName) {
       message.error('请输入学案名称');
@@ -616,28 +747,89 @@ const CombinationProductionPage: React.FC = () => {
     const execute = async () => {
       setSaving(true);
       try {
+        let nextBlocks = getDraftContentBlocks(blocks);
+        if (targetStatus === 'formal') {
+          const materializedBlocks: StudyGuideContentBlock[] = [];
+          for (const block of blocks) {
+            if (!isKnowledgeContentKind(block.kind)) {
+              materializedBlocks.push(block);
+              continue;
+            }
+            const ownerNode = findNode(structure, block.structureNodeId);
+            const knowledgeNodeIds = getEffectiveKnowledgeNodeIds(
+              block.kind,
+              ownerNode?.knowledgeNodeId,
+              undefined,
+              block.knowledgeNodeIds,
+            );
+            const selectionError = getKnowledgeNodeSelectionError(
+              block.kind,
+              knowledgeNodeIds,
+            );
+            if (selectionError) {
+              throw new Error(
+                block.kind === 'comprehensive'
+                  ? '综合类知识至少需要手动选择两个末级知识点'
+                  : `“${ownerNode?.label || '未命名栏目'}”未关联考点，无法发布${
+                      CONTENT_KIND_LABELS[block.kind]
+                    }`,
+              );
+            }
+            const knowledgeBlockResponse = await saveKnowledgeBlock({
+              id: block.knowledgeBlockId,
+              subject,
+              type: block.kind,
+              html: block.html,
+              exampleContent: block.exampleContent,
+              knowledgeNodeIds,
+            });
+            if (!knowledgeBlockResponse.success) {
+              throw new Error(knowledgeBlockResponse.message);
+            }
+            materializedBlocks.push({
+              ...block,
+              html: knowledgeBlockResponse.data.html,
+              exampleContent: knowledgeBlockResponse.data.exampleContent,
+              knowledgeNodeIds: knowledgeBlockResponse.data.knowledgeNodeIds,
+              knowledgeBlockId: knowledgeBlockResponse.data.id,
+              currentKnowledgeScope:
+                block.kind === 'comprehensive'
+                  ? knowledgeBlockResponse.data.knowledgeNodeIds
+                  : undefined,
+            });
+          }
+          nextBlocks = materializedBlocks;
+        }
         const response =
-          routeContext.valid && routeContext.mode === 'new'
+          targetStatus === 'draft' && routeContext.mode === 'new'
             ? await createOnlineStudyGuide({
                 subject,
                 name: normalizedName,
                 structure,
-                contentBlocks: blocks,
+                contentBlocks: nextBlocks,
               })
-            : guide?.status === 'draft'
+            : targetStatus === 'draft' && guide?.status === 'draft'
             ? await updateOnlineStudyGuideDraft({
                 id: guide.id,
                 subject,
                 name: normalizedName,
                 structure,
-                contentBlocks: blocks,
+                contentBlocks: nextBlocks,
               })
-            : guide
+            : targetStatus === 'formal' && guide?.status === 'formal'
             ? await updateFormalStudyGuide({
                 id: guide.id,
                 subject,
                 structure,
-                contentBlocks: blocks,
+                contentBlocks: nextBlocks,
+              })
+            : targetStatus === 'formal'
+            ? await publishOnlineStudyGuide({
+                id: guide?.id,
+                subject,
+                name: normalizedName,
+                structure,
+                contentBlocks: nextBlocks,
               })
             : null;
         if (!response) return;
@@ -660,17 +852,36 @@ const CombinationProductionPage: React.FC = () => {
           return;
         }
         setEditing(false);
+        if (routeContext.mode === 'new') {
+          history.replace(
+            `/combination-production/revision/${response.data.id}?subject=${subject}&type=studyGuide&view=preview`,
+          );
+          return;
+        }
         const params = new URLSearchParams(searchParams);
         params.set('view', 'preview');
         history.replace(`${location.pathname}?${params.toString()}`);
-      } catch {
-        message.error('保存失败，当前输入和结构仍保留在页面');
+      } catch (error) {
+        message.error(
+          error instanceof Error
+            ? error.message
+            : '保存失败，当前输入和结构仍保留在页面',
+        );
       } finally {
         setSaving(false);
       }
     };
-    if (!guide || guide.status === 'draft') {
+    if (targetStatus === 'draft') {
       await execute();
+      return;
+    }
+    if (!guide || guide.status === 'draft') {
+      Modal.confirm({
+        title: '发布为正式学案？',
+        content: '发布后将创建正式知识块并写入知识点关系，学案状态将变为正式。',
+        okText: '确认发布',
+        onOk: execute,
+      });
       return;
     }
     const impactTotal =
@@ -739,12 +950,12 @@ const CombinationProductionPage: React.FC = () => {
 
   const structureLevel = structureDrawer?.level;
   const referenceOptions = structureLevel
-    ? columns.filter(
-        (column) => column.level === STRUCTURE_LEVEL_NUMBERS[structureLevel],
-      )
+    ? getStructureReferenceOptions(structureLevel)
     : [];
   const selectedStructureColumn = columns.find(
-    (column) => column.id === selectedStructureReferenceId,
+    (column) =>
+      selectedStructureSource === 'registered' &&
+      column.id === selectedStructureReferenceId,
   );
   const isDraftEditor =
     routeContext.mode === 'new' || guide?.status === 'draft';
@@ -796,6 +1007,16 @@ const CombinationProductionPage: React.FC = () => {
             放弃本次修改
           </Button>
         ) : null,
+        editing && isDraftEditor && !prototypeVariant ? (
+          <Button
+            key="save-draft"
+            icon={<SaveOutlined />}
+            loading={saving}
+            onClick={() => void saveGuide('draft')}
+          >
+            保存学案草稿
+          </Button>
+        ) : null,
         prototypeVariant ? (
           <Button key="prototype" disabled>
             原型只读
@@ -804,11 +1025,11 @@ const CombinationProductionPage: React.FC = () => {
           <Button
             key="save"
             type="primary"
-            icon={<SaveOutlined />}
+            icon={isDraftEditor ? <CheckCircleOutlined /> : <SaveOutlined />}
             loading={saving}
-            onClick={() => void saveGuide()}
+            onClick={() => void saveGuide('formal')}
           >
-            {isDraftEditor ? '保存学案草稿' : '保存正式学案'}
+            {isDraftEditor ? '发布为正式学案' : '保存正式学案'}
           </Button>
         ) : (
           <Button
@@ -827,15 +1048,14 @@ const CombinationProductionPage: React.FC = () => {
           variant={prototypeVariant}
           structure={structure}
           blocks={blocks}
-          registeredColumns={columns}
+          levelCodeRules={levelCodeRules}
         />
       ) : (
         <StudyGuideContinuousEditor
           readOnly={!editing}
           structure={structure}
           blocks={blocks}
-          registeredColumns={columns}
-          knowledgeLeaves={knowledgeLeaves}
+          levelCodeRules={levelCodeRules}
           onAdd={openAddStructure}
           onEdit={openEditStructure}
           onDelete={deleteStructure}
@@ -870,7 +1090,7 @@ const CombinationProductionPage: React.FC = () => {
             : '内容编辑'
         }
         open={Boolean(contentNode)}
-        width={680}
+        width={selectedContentKind === 'example' ? 760 : 680}
         onClose={closeContentEditor}
         extra={
           <Button
@@ -891,109 +1111,149 @@ const CombinationProductionPage: React.FC = () => {
           >
             <Select
               options={CONTENT_KIND_OPTIONS}
-              onChange={() => {
-                contentForm.setFieldsValue({
-                  knowledgeNodeId: undefined,
-                  knowledgeNodeIds: undefined,
-                });
+              onChange={(kind: ContentBlockKind) => {
+                if (kind !== 'comprehensive') {
+                  contentForm.setFieldValue('knowledgeNodeIds', undefined);
+                }
+                setKnowledgeTreeSearch('');
               }}
             />
           </Form.Item>
 
-          {isKnowledgeContentKind(selectedContentKind) ? (
-            selectedContentKind === 'comprehensive' ? (
-              <Form.Item
-                name="knowledgeNodeIds"
-                label="关联知识树末级节点"
-                extra="综合类知识是一对多关系，至少选择两个末级节点。"
-                rules={[
-                  {
-                    validator: (_, values?: string[]) => {
-                      const error = getKnowledgeNodeSelectionError(
-                        selectedContentKind,
-                        values || [],
-                      );
-                      return error
-                        ? Promise.reject(new Error(error))
-                        : Promise.resolve();
-                    },
-                  },
-                ]}
-              >
-                <Select
-                  mode="multiple"
-                  showSearch
-                  optionFilterProp="label"
-                  maxTagCount="responsive"
-                  placeholder="请选择两个或以上末级节点"
-                  options={knowledgeLeaves.map((leaf) => ({
-                    value: leaf.id,
-                    label: leaf.path.join(' / '),
-                  }))}
-                  notFoundContent="当前学科暂无知识树末级节点"
-                />
-              </Form.Item>
-            ) : (
-              <Form.Item
-                name="knowledgeNodeId"
-                label="关联知识树末级节点"
-                extra={`${CONTENT_KIND_LABELS[selectedContentKind]}只能关联一个末级节点。`}
-                rules={[{ required: true, message: '请选择一个末级节点' }]}
-              >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  placeholder="请选择末级节点"
-                  options={knowledgeLeaves.map((leaf) => ({
-                    value: leaf.id,
-                    label: leaf.path.join(' / '),
-                  }))}
-                  notFoundContent="当前学科暂无知识树末级节点"
-                />
-              </Form.Item>
-            )
+          {selectedContentKind === 'comprehensive' ? (
+            <Form.Item
+              name="knowledgeNodeIds"
+              label="知识点"
+              rules={[
+                {
+                  validator: (_, value?: string[]) =>
+                    (value?.length || 0) >= 2
+                      ? Promise.resolve()
+                      : Promise.reject(new Error('请至少选择两个末级知识点')),
+                },
+              ]}
+            >
+              <TreeSelect
+                treeData={filteredKnowledgeLeafTreeData}
+                treeCheckable
+                showCheckedStrategy={TreeSelect.SHOW_CHILD}
+                maxTagCount="responsive"
+                treeTitleRender={(node) =>
+                  renderHighlightedTreeTitle(
+                    String(node.title),
+                    knowledgeTreeSearch,
+                  )
+                }
+                treeExpandedKeys={visibleKnowledgeTreeExpandedKeys}
+                onTreeExpand={(keys) =>
+                  setKnowledgeTreeExpandedKeys(keys.map(String))
+                }
+                popupRender={(menu) => (
+                  <div className="knowledge-tree-select-popup">
+                    <Input.Search
+                      allowClear
+                      value={knowledgeTreeSearch}
+                      placeholder="搜索知识点"
+                      onChange={(event) =>
+                        setKnowledgeTreeSearch(event.target.value)
+                      }
+                    />
+                    {menu}
+                  </div>
+                )}
+                treeLine={{ showLeafIcon: false }}
+                treeExpandAction="click"
+                placeholder="请选择末级知识点"
+                notFoundContent={
+                  knowledgeTreeSearch.trim()
+                    ? '未找到匹配知识点'
+                    : '当前学科暂无知识树末级节点'
+                }
+              />
+            </Form.Item>
+          ) : isKnowledgeContentKind(selectedContentKind) ? (
+            <Form.Item label="知识点关系">
+              {inheritsKnowledgeNode ? (
+                <>
+                  <Tag color="blue">{inheritedKnowledgeLeaf?.title}</Tag>
+                  <span className="combination-inherited-knowledge-hint">
+                    保存学案时随当前考点自动关联
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Tag color="gold">当前栏目未关联考点</Tag>
+                  <span className="combination-inherited-knowledge-hint">
+                    保存前请将内容移动到考点栏目
+                  </span>
+                </>
+              )}
+            </Form.Item>
           ) : null}
 
-          <Form.Item
-            name="html"
-            label={contentEditorLabel}
-            validateTrigger={[]}
-            rules={[
-              {
-                validator: (_, value?: string) => {
-                  const text = (value || '')
-                    .replace(/<[^>]+>/g, '')
-                    .replace(/&nbsp;/g, ' ')
-                    .trim();
-                  const hasNonTextContent = /<(img|table|math)\b/i.test(
-                    value || '',
-                  );
-                  return text || hasNonTextContent
-                    ? Promise.resolve()
-                    : Promise.reject(new Error(`请输入${contentEditorLabel}`));
-                },
-              },
-            ]}
-          >
-            <RichTextEditor
-              key={selectedContentKind}
-              placeholder={`输入${contentEditorLabel}…`}
-            />
-          </Form.Item>
+          {selectedContentKind === 'example' ? (
+            <div className="combination-example-editor-fields">
+              <Form.Item
+                name="exampleStemHtml"
+                label="试题内容"
+                validateTrigger={[]}
+                rules={[requiredRichTextRule('试题内容')]}
+              >
+                <RichTextEditor
+                  placeholder="输入试题内容…"
+                  editorHeight={200}
+                />
+              </Form.Item>
+              <Form.Item
+                name="exampleGuideHtml"
+                label="思路点拨"
+                validateTrigger={[]}
+                rules={[requiredRichTextRule('思路点拨')]}
+              >
+                <RichTextEditor
+                  placeholder="输入思路点拨…"
+                  editorHeight={200}
+                />
+              </Form.Item>
+              <Form.Item
+                name="exampleAnswerHtml"
+                label="试题答案"
+                validateTrigger={[]}
+                rules={[requiredRichTextRule('试题答案')]}
+              >
+                <RichTextEditor
+                  placeholder="输入试题答案…"
+                  editorHeight={200}
+                />
+              </Form.Item>
+            </div>
+          ) : (
+            <Form.Item
+              name="html"
+              label={contentEditorLabel}
+              validateTrigger={[]}
+              rules={[requiredRichTextRule(contentEditorLabel)]}
+            >
+              <RichTextEditor
+                key={selectedContentKind}
+                placeholder={`输入${contentEditorLabel}…`}
+              />
+            </Form.Item>
+          )}
         </Form>
       </Drawer>
 
       <Modal
         title={
           structureDrawer
-            ? `${structureDrawer.mode === 'add' ? '添加' : '更换'}${
+            ? `${structureDrawer.mode === 'add' ? '添加' : '编辑'}${
                 LEVEL_LABELS[structureDrawer.level]
               }`
             : '栏目操作'
         }
         open={Boolean(structureDrawer)}
         width={520}
-        okText={structureDrawer?.mode === 'add' ? '确认添加' : '确认更换'}
+        okText={structureDrawer?.mode === 'add' ? '确认添加' : '确认保存'}
         cancelText="取消"
         onOk={() => void saveStructureDrawer()}
         onCancel={() => setStructureDrawer(null)}
@@ -1001,7 +1261,25 @@ const CombinationProductionPage: React.FC = () => {
       >
         {structureDrawer && (
           <Form form={structureForm} layout="vertical">
-            {referenceOptions.length ? (
+            {referenceOptions.length > 0 && (
+              <Form.Item name="source" label="栏目来源">
+                <Segmented
+                  block
+                  options={[
+                    { label: '注册栏目', value: 'registered' },
+                    { label: '自定义栏目', value: 'custom' },
+                  ]}
+                  onChange={(value) => {
+                    structureForm.setFieldValue(
+                      'source',
+                      value as 'registered' | 'custom',
+                    );
+                  }}
+                />
+              </Form.Item>
+            )}
+            {referenceOptions.length > 0 &&
+            selectedStructureSource === 'registered' ? (
               <>
                 <Form.Item
                   name="referenceId"
@@ -1017,6 +1295,7 @@ const CombinationProductionPage: React.FC = () => {
                     }))}
                     onChange={() => {
                       structureForm.setFieldValue('knowledgeNodeId', undefined);
+                      setKnowledgeTreeSearch('');
                     }}
                   />
                 </Form.Item>
@@ -1028,15 +1307,40 @@ const CombinationProductionPage: React.FC = () => {
                       { required: true, message: '请选择知识树末级节点' },
                     ]}
                   >
-                    <Select
-                      showSearch
-                      optionFilterProp="label"
+                    <TreeSelect
+                      treeData={filteredKnowledgeLeafTreeData}
+                      treeTitleRender={(node) =>
+                        renderHighlightedTreeTitle(
+                          String(node.title),
+                          knowledgeTreeSearch,
+                        )
+                      }
+                      treeExpandedKeys={visibleKnowledgeTreeExpandedKeys}
+                      onTreeExpand={(keys) =>
+                        setKnowledgeTreeExpandedKeys(keys.map(String))
+                      }
+                      popupRender={(menu) => (
+                        <div className="knowledge-tree-select-popup">
+                          <Input.Search
+                            allowClear
+                            value={knowledgeTreeSearch}
+                            placeholder="搜索知识点"
+                            onChange={(event) =>
+                              setKnowledgeTreeSearch(event.target.value)
+                            }
+                          />
+                          {menu}
+                        </div>
+                      )}
+                      treeLine={{ showLeafIcon: false }}
+                      treeExpandAction="click"
                       placeholder="请选择末级节点"
-                      options={knowledgeLeaves.map((leaf) => ({
-                        value: leaf.id,
-                        label: leaf.path.join(' / '),
-                      }))}
-                      notFoundContent="当前学科暂无知识树末级节点"
+                      onChange={() => setKnowledgeTreeSearch('')}
+                      notFoundContent={
+                        knowledgeTreeSearch.trim()
+                          ? '未找到匹配知识点'
+                          : '当前学科暂无知识树末级节点'
+                      }
                     />
                   </Form.Item>
                 )}
@@ -1044,17 +1348,21 @@ const CombinationProductionPage: React.FC = () => {
             ) : (
               <Form.Item
                 name="temporaryName"
-                label={`${LEVEL_LABELS[structureDrawer.level]}名称`}
+                label="自定义栏目名称"
                 rules={[
                   {
                     required: true,
                     whitespace: true,
-                    message: '请输入临时栏目名称',
+                    message: '请输入自定义栏目名称',
                   },
                 ]}
-                extra="当前层级没有注册栏目，可填写仅属于当前学案的临时栏目；不会自动注册到后台。"
+                extra="仅在当前学案中使用，不会加入栏目维护。"
               >
-                <Input placeholder="请输入临时栏目名称" />
+                <Input
+                  placeholder="请输入自定义栏目名称"
+                  maxLength={60}
+                  showCount
+                />
               </Form.Item>
             )}
           </Form>

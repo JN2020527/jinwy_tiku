@@ -9,6 +9,7 @@ interface RichTextEditorProps {
   onChange?: (value: string) => void;
   placeholder?: string;
   style?: React.CSSProperties;
+  editorHeight?: number | string;
 }
 
 const RichTextEditor: React.FC<RichTextEditorProps> = ({
@@ -16,6 +17,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
   onChange,
   placeholder,
   style,
+  editorHeight = 300,
 }) => {
   // editor 实例
   const [editor, setEditor] = useState<IDomEditor | null>(null);
@@ -100,7 +102,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         onCreated={setEditor}
         onChange={handleChange}
         mode="default"
-        style={{ height: '300px', overflowY: 'hidden' }}
+        style={{ height: editorHeight, overflowY: 'hidden' }}
       />
     </div>
   );

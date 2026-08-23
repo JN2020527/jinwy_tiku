@@ -291,15 +291,15 @@
     box-shadow: inset 0 0 0 2px rgba(36, 104, 229, 48%);
   }
 
-  + .combination-continuous-section {
-    border-top: 1px solid #e3e8ef;
-  }
-
   > header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    margin-bottom: 0;
+  }
+
+  &.has-content > header {
     margin-bottom: 16px;
   }
 
@@ -366,6 +366,21 @@
 
   + .combination-continuous-block {
     margin-top: 10px;
+  }
+
+  &.is-preview {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+
+    + .combination-continuous-block {
+      margin-top: 16px;
+    }
+
+    .rich-content {
+      padding: 0;
+    }
   }
 
   .rich-content {
@@ -463,15 +478,46 @@
   }
 }
 
-.combination-continuous-block-knowledge {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .combination-continuous-block-actions {
   flex: none;
   gap: 2px !important;
+}
+
+.combination-example-content {
+  padding: 4px 16px 14px;
+}
+
+.combination-example-part {
+  padding-top: 10px;
+
+  + .combination-example-part {
+    margin-top: 12px;
+    border-top: 1px solid #edf0f4;
+  }
+
+  .rich-content {
+    padding: 6px 0 0;
+  }
+}
+
+.combination-example-part-label {
+  color: #5c6b7d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.combination-continuous-block.is-preview .combination-example-content {
+  padding: 0;
+
+  .combination-example-part .rich-content {
+    padding-top: 6px;
+  }
+}
+
+.combination-example-editor-fields {
+  .ant-form-item + .ant-form-item {
+    margin-top: 28px;
+  }
 }
 
 .combination-content-drag-preview {
@@ -532,15 +578,6 @@
   }
 }
 
-.combination-continuous-section-empty {
-  padding: 22px;
-  border: 1px dashed #cad5e3;
-  border-radius: 7px;
-  color: #91a0b2;
-  background: #fafbfd;
-  text-align: center;
-}
-
 .combination-continuous-document-empty {
   min-height: 420px;
   margin: 18px;
@@ -574,6 +611,28 @@
     color: #78716c;
     font-size: 12px;
   }
+}
+
+.combination-inherited-knowledge-hint {
+  margin-left: 8px;
+  color: #7b8798;
+  font-size: 13px;
+}
+
+.knowledge-tree-select-popup {
+  .ant-input-search {
+    display: block;
+    padding: 8px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+}
+
+.knowledge-tree-search-highlight {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: #fff1b8;
+  color: #ad4e00;
+  font-weight: 600;
 }
 
 @media (max-width: 900px) {

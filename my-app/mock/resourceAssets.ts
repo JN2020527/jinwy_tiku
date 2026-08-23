@@ -6,6 +6,7 @@ import {
 import type {
   AssetItem,
   AttachmentType,
+  ExampleKnowledgeContent,
   HomeworkDetail,
   KnowledgeBlock,
   KnowledgeBlockType,
@@ -30,7 +31,10 @@ import {
   touchAsset,
   touchHomework,
 } from './resourceAssetsStore';
-import { getSubjectColumnsSnapshot } from './subjectColumnsStore';
+import {
+  getSubjectColumnsSnapshot,
+  getSubjectLevelCodeRulesSnapshot,
+} from './subjectColumnsStore';
 
 const queryValue = (value: unknown) =>
   Array.isArray(value) ? String(value[0] || '') : String(value || '');
@@ -147,6 +151,7 @@ const hydrateStudyGuideReferences = (
           ...block,
           kind: source.type,
           html: source.html,
+          exampleContent: source.exampleContent,
           knowledgeNodeIds: clone(source.knowledgeNodeIds),
         }
       : block;
@@ -171,6 +176,7 @@ const syncKnowledgeBlockReferences = (subject: string) => {
     });
 };
 
+// 保存接口与编辑器复用同一套结构规则，避免自定义栏目在提交时被旧口径拦截。
 const prepareStudyGuideStructure = (
   subject: string,
   structure: StudyGuideStructureNode[],
@@ -188,6 +194,41 @@ const prepareStudyGuideStructure = (
       ? structure
       : hydrateStudyGuideStructureLabels(structure, columns, knowledgeLeaves),
   };
+};
+
+const getFormalStudyGuideBlocksError = (
+  subject: string,
+  structure: StudyGuideStructureNode[],
+  blocks: StudyGuideContentBlock[],
+) => {
+  const structureNodeIds = new Set(
+    flattenStructure(structure).map((node) => node.id),
+  );
+  for (const block of blocks) {
+    if (!structureNodeIds.has(block.structureNodeId)) {
+      return '栏目内容关联的栏目已不存在';
+    }
+    if (block.kind === 'columnContent') continue;
+    const source = knowledgeBlockStore.find(
+      (item) => item.id === block.knowledgeBlockId && item.subject === subject,
+    );
+    if (!source) return '引用的知识块已不可用';
+    if (source.type !== block.kind) {
+      return '知识块类型与栏目内容类型不一致';
+    }
+    if (block.kind !== 'comprehensive') continue;
+    if ((block.currentKnowledgeScope?.length || 0) < 2) {
+      return '综合类知识至少关联两个末级节点';
+    }
+    if (
+      block.currentKnowledgeScope?.some(
+        (nodeId) => !source.knowledgeNodeIds.includes(nodeId),
+      )
+    ) {
+      return '综合类知识存在已失效的末级节点关系';
+    }
+  }
+  return null;
 };
 
 export default {
@@ -300,6 +341,67 @@ export default {
     sendSuccess(res, current, '学案草稿已保存');
   },
 
+  'POST /api/resource-assets/study-guide/formal': (
+    req: Request,
+    res: Response,
+  ) => {
+    const { id, subject } = getAssetContext(req);
+    const name = String(req.body?.name || '').trim();
+    const current = id ? studyGuideStore[id] : undefined;
+    if (!subject) return sendFailure(res, '发布学案的学科不可用');
+    if (!name) return sendFailure(res, '请输入学案名称');
+    if (
+      id &&
+      (!current || current.subject !== subject || current.status !== 'draft')
+    ) {
+      return sendFailure(res, '待发布的学案草稿不存在');
+    }
+    if (isNameTaken(subject, 'studyGuide', name, id || undefined)) {
+      return sendFailure(res, '当前学科已存在同名学案');
+    }
+    const requestedStructure = clone(
+      (req.body?.structure || []) as StudyGuideStructureNode[],
+    );
+    const nextBlocks = clone(
+      (req.body?.contentBlocks || []) as StudyGuideContentBlock[],
+    );
+    const prepared = prepareStudyGuideStructure(subject, requestedStructure);
+    if (prepared.error) return sendFailure(res, prepared.error);
+    const blockError = getFormalStudyGuideBlocksError(
+      subject,
+      prepared.structure,
+      nextBlocks,
+    );
+    if (blockError) return sendFailure(res, blockError);
+
+    const published: StudyGuideDetail = current || {
+      id: nextId('asset-study-guide'),
+      subject,
+      type: 'studyGuide',
+      status: 'formal',
+      name,
+      updatedAt: new Date().toISOString(),
+      source: 'online',
+      mountCount: 0,
+      platformTemplateCount: 0,
+      teacherTaskCount: 0,
+      structure: [],
+      contentBlocks: [],
+      skippedColumns: [],
+      autosaveState: 'saved',
+    };
+    published.status = 'formal';
+    published.name = name;
+    published.structure = prepared.structure;
+    published.contentBlocks = nextBlocks;
+    published.autosaveState = 'saved';
+    studyGuideStore[published.id] = published;
+    touchAsset(published);
+    refreshAssetFromDetail(published);
+    syncKnowledgeBlockReferences(subject);
+    sendSuccess(res, published, '学案已发布为正式学案');
+  },
+
   'PUT /api/resource-assets/study-guide/formal': (
     req: Request,
     res: Response,
@@ -322,36 +424,12 @@ export default {
     const prepared = prepareStudyGuideStructure(subject, requestedStructure);
     if (prepared.error) return sendFailure(res, prepared.error);
     const nextStructure = prepared.structure;
-    const structureNodeIds = new Set(
-      flattenStructure(nextStructure).map((node) => node.id),
+    const blockError = getFormalStudyGuideBlocksError(
+      subject,
+      nextStructure,
+      nextBlocks,
     );
-    for (const block of nextBlocks) {
-      if (!structureNodeIds.has(block.structureNodeId)) {
-        return sendFailure(res, '栏目内容关联的栏目已不存在');
-      }
-      if (block.kind !== 'columnContent') {
-        const source = knowledgeBlockStore.find(
-          (item) =>
-            item.id === block.knowledgeBlockId && item.subject === subject,
-        );
-        if (!source) return sendFailure(res, '引用的知识块已不可用');
-        if (source.type !== block.kind) {
-          return sendFailure(res, '知识块类型与栏目内容类型不一致');
-        }
-        if (block.kind === 'comprehensive') {
-          if ((block.currentKnowledgeScope?.length || 0) < 2) {
-            return sendFailure(res, '综合类知识至少关联两个末级节点');
-          }
-          if (
-            block.currentKnowledgeScope?.some(
-              (nodeId) => !source.knowledgeNodeIds.includes(nodeId),
-            )
-          ) {
-            return sendFailure(res, '综合类知识存在已失效的末级节点关系');
-          }
-        }
-      }
-    }
+    if (blockError) return sendFailure(res, blockError);
     if (req.body?.simulateFailure) {
       return sendFailure(res, '保存失败，修改前正式内容保持不变');
     }
@@ -613,11 +691,22 @@ export default {
     const subject = String(req.body?.subject || '').trim();
     const type = req.body?.type as KnowledgeBlockType;
     const html = String(req.body?.html || '').trim();
+    const exampleContent = req.body?.exampleContent as
+      | ExampleKnowledgeContent
+      | undefined;
     const knowledgeNodeIds: string[] = Array.isArray(req.body?.knowledgeNodeIds)
       ? req.body.knowledgeNodeIds.map(String)
       : [];
     if (!subject || !html || !knowledgeNodeIds.length) {
       return sendFailure(res, '请完整填写知识块内容和末级知识点');
+    }
+    if (
+      type === 'example' &&
+      (!exampleContent?.stemHtml?.trim() ||
+        !exampleContent.guideHtml?.trim() ||
+        !exampleContent.answerHtml?.trim())
+    ) {
+      return sendFailure(res, '请完整填写例题的试题内容、思路点拨和试题答案');
     }
     const validLeafIds = new Set(
       collectLeaves(getPreparationKnowledgeTree(subject)).map(
@@ -638,6 +727,7 @@ export default {
       subject,
       type,
       html,
+      ...(type === 'example' && exampleContent ? { exampleContent } : {}),
       knowledgeNodeIds,
       referenceStudyGuides: [],
       createdAt: new Date().toISOString(),
@@ -656,11 +746,22 @@ export default {
     if (!block) return sendFailure(res, '知识块不存在');
     const type = req.body?.type as KnowledgeBlockType;
     const html = String(req.body?.html || '').trim();
+    const exampleContent = req.body?.exampleContent as
+      | ExampleKnowledgeContent
+      | undefined;
     const knowledgeNodeIds: string[] = Array.isArray(req.body?.knowledgeNodeIds)
       ? req.body.knowledgeNodeIds.map(String)
       : [];
     if (!html || !knowledgeNodeIds.length) {
       return sendFailure(res, '请完整填写知识块内容和末级知识点');
+    }
+    if (
+      type === 'example' &&
+      (!exampleContent?.stemHtml?.trim() ||
+        !exampleContent.guideHtml?.trim() ||
+        !exampleContent.answerHtml?.trim())
+    ) {
+      return sendFailure(res, '请完整填写例题的试题内容、思路点拨和试题答案');
     }
     const validLeafIds = new Set(
       collectLeaves(getPreparationKnowledgeTree(subject)).map(
@@ -722,6 +823,8 @@ export default {
     }
     block.type = type;
     block.html = html;
+    block.exampleContent =
+      type === 'example' && exampleContent ? exampleContent : undefined;
     block.knowledgeNodeIds = knowledgeNodeIds;
     block.updatedAt = new Date().toISOString();
     sendSuccess(res, block, '知识块已更新，引用处读取当前内容');
@@ -761,11 +864,10 @@ export default {
           id: column.id,
           name: column.name,
           type: column.type,
-          level: column.level,
+          applicableLevels: column.applicableLevels,
           dataSource: column.dataSource,
-          codeEnabled: column.codeEnabled,
-          codeStyle: column.codeStyle,
         })),
+        levelCodeRules: getSubjectLevelCodeRulesSnapshot(subject),
       },
       '资源资产上下文加载成功',
     );

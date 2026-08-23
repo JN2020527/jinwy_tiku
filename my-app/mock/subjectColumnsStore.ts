@@ -1,12 +1,26 @@
 import { normalizeSubjectColumnSort } from '../src/features/subject-columns/model';
-import type { SubjectColumn } from '../src/services/subjectColumns';
-import { getRegisteredColumnUsageCounts } from './resourceAssetsStore';
+import type {
+  SubjectColumn,
+  SubjectColumnLevel,
+  SubjectColumnSortByLevel,
+  SubjectLevelCodeRule,
+} from '../src/services/subjectColumns';
+import { getRegisteredColumnUsageCountsByLevel } from './resourceAssetsStore';
 
-type SubjectColumnSeed = Omit<SubjectColumn, 'codeEnabled' | 'codeStyle'> &
-  Partial<Pick<SubjectColumn, 'codeEnabled' | 'codeStyle'>>;
+type SubjectColumnSeed = Omit<
+  SubjectColumn,
+  'applicableLevels' | 'sortByLevel' | 'usedCount' | 'usedCountByLevel'
+> & {
+  level?: SubjectColumnLevel;
+  sort?: number;
+  applicableLevels?: SubjectColumnLevel[];
+  sortByLevel?: SubjectColumnSortByLevel;
+  usedCount?: number;
+};
 
 interface SubjectColumnMockState {
   columnsBySubject: Record<string, SubjectColumn[]>;
+  codeRulesBySubject: Record<string, SubjectLevelCodeRule[]>;
   sequence: number;
 }
 
@@ -14,15 +28,33 @@ type SubjectColumnMockGlobal = typeof globalThis & {
   __JINWY_SUBJECT_COLUMN_MOCK_STATE__?: SubjectColumnMockState;
 };
 
-const withCodeDefaults = (columns: SubjectColumnSeed[]): SubjectColumn[] =>
-  columns.map((column) => ({
-    codeEnabled: false,
+const withColumnDefaults = (columns: SubjectColumnSeed[]): SubjectColumn[] =>
+  columns.map(({ level, sort, applicableLevels, sortByLevel, ...column }) => {
+    const normalizedLevels = applicableLevels || (level ? [level] : []);
+    return {
+      ...column,
+      applicableLevels: [...normalizedLevels],
+      sortByLevel:
+        sortByLevel ||
+        Object.fromEntries(
+          normalizedLevels.map((itemLevel) => [
+            itemLevel,
+            itemLevel === level ? sort || 0 : 0,
+          ]),
+        ),
+      usedCount: 0,
+      usedCountByLevel: {},
+    };
+  });
+
+const createDefaultCodeRules = (): SubjectLevelCodeRule[] =>
+  ([1, 2, 3, 4] as SubjectColumnLevel[]).map((level) => ({
+    level,
     codeStyle: null,
-    ...column,
   }));
 
 const createInitialColumns = (): Record<string, SubjectColumn[]> => ({
-  math: withCodeDefaults([
+  math: withColumnDefaults([
     {
       id: 'column-math-goal',
       subject: 'math',
@@ -84,7 +116,7 @@ const createInitialColumns = (): Record<string, SubjectColumn[]> => ({
       usedCount: 0,
     },
   ]),
-  chinese: withCodeDefaults([
+  chinese: withColumnDefaults([
     {
       id: 'column-chinese-goal',
       subject: 'chinese',
@@ -126,7 +158,7 @@ const createInitialColumns = (): Record<string, SubjectColumn[]> => ({
       usedCount: 0,
     },
   ]),
-  english: withCodeDefaults([
+  english: withColumnDefaults([
     {
       id: 'column-english-language',
       subject: 'english',
@@ -148,7 +180,7 @@ const createInitialColumns = (): Record<string, SubjectColumn[]> => ({
       usedCount: 0,
     },
   ]),
-  history: withCodeDefaults([
+  history: withColumnDefaults([
     {
       id: 'column-history-goal',
       subject: 'history',
@@ -203,10 +235,10 @@ const createInitialColumns = (): Record<string, SubjectColumn[]> => ({
       id: 'column-history-key-point',
       subject: 'history',
       name: '考点',
-      level: 3,
+      applicableLevels: [2, 3],
       type: 'knowledge',
       dataSource: 'knowledgeTree',
-      sort: 0,
+      sortByLevel: { 2: 2, 3: 0 },
       usedCount: 0,
     },
   ]),
@@ -215,17 +247,36 @@ const createInitialColumns = (): Record<string, SubjectColumn[]> => ({
 const mockGlobal = globalThis as SubjectColumnMockGlobal;
 const state = (mockGlobal.__JINWY_SUBJECT_COLUMN_MOCK_STATE__ ||= {
   columnsBySubject: createInitialColumns(),
+  codeRulesBySubject: {},
   sequence: 0,
 });
 
+state.codeRulesBySubject ||= {};
+Object.entries(state.columnsBySubject).forEach(([subject, columns]) => {
+  if (columns.some((column) => !Array.isArray(column.applicableLevels))) {
+    state.columnsBySubject[subject] = withColumnDefaults(
+      columns as unknown as SubjectColumnSeed[],
+    );
+  }
+});
+
 export const cloneSubjectColumns = (columns: SubjectColumn[]) =>
-  columns.map((column) => ({ ...column }));
+  columns.map((column) => ({
+    ...column,
+    applicableLevels: [...column.applicableLevels],
+    sortByLevel: { ...column.sortByLevel },
+    usedCountByLevel: { ...column.usedCountByLevel },
+  }));
 
 export const getMutableSubjectColumns = (subject: string) => {
   const columns = (state.columnsBySubject[subject] ||= []);
-  const usageCounts = getRegisteredColumnUsageCounts(subject);
+  const usageCounts = getRegisteredColumnUsageCountsByLevel(subject);
   columns.forEach((column) => {
-    column.usedCount = usageCounts[column.id] || 0;
+    column.usedCountByLevel = { ...(usageCounts[column.id] || {}) };
+    column.usedCount = Object.values(column.usedCountByLevel).reduce(
+      (total, count) => total + (count || 0),
+      0,
+    );
   });
   return columns;
 };
@@ -246,4 +297,16 @@ export const getSubjectColumnsSnapshot = (subject: string) => {
   const columns = cloneSubjectColumns(getMutableSubjectColumns(subject));
   normalizeSubjectColumnSort(columns);
   return columns;
+};
+
+export const getSubjectLevelCodeRulesSnapshot = (subject: string) =>
+  (state.codeRulesBySubject[subject] ||= createDefaultCodeRules()).map(
+    (rule) => ({ ...rule }),
+  );
+
+export const replaceSubjectLevelCodeRules = (
+  subject: string,
+  rules: SubjectLevelCodeRule[],
+) => {
+  state.codeRulesBySubject[subject] = rules.map((rule) => ({ ...rule }));
 };

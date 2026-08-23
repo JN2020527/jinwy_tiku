@@ -1,11 +1,16 @@
 import PrototypeSwitcher from '@/components/PrototypeSwitcher';
-import { formatRegisteredColumnCode } from '@/features/study-guide/columnCode';
+import { formatStructureLevelCode } from '@/features/study-guide/columnCode';
+import { STRUCTURE_LEVEL_NUMBERS } from '@/features/study-guide/structureModel';
 import type {
-  RegisteredColumn,
   StudyGuideContentBlock,
   StudyGuideStructureNode,
 } from '@/services/resourceAssets';
 import { KNOWLEDGE_BLOCK_TYPE_LABELS } from '@/services/resourceAssets';
+import type {
+  SubjectColumnCodeStyle,
+  SubjectColumnLevel,
+  SubjectLevelCodeRule,
+} from '@/services/subjectColumns';
 import { sanitizeHtml } from '@/utils/sanitize';
 import {
   AppstoreOutlined,
@@ -43,7 +48,7 @@ interface FlatColumnPrototypeProps {
   variant: FlatColumnPrototypeVariant;
   structure: StudyGuideStructureNode[];
   blocks: StudyGuideContentBlock[];
-  registeredColumns: RegisteredColumn[];
+  levelCodeRules: SubjectLevelCodeRule[];
 }
 
 const VARIANTS = [
@@ -56,7 +61,7 @@ const VARIANTS = [
 const flattenColumns = (
   nodes: StudyGuideStructureNode[],
   blocks: StudyGuideContentBlock[],
-  registeredColumnMap: Map<string, RegisteredColumn>,
+  levelCodeStyleMap: Map<SubjectColumnLevel, SubjectColumnCodeStyle | null>,
   depth = 0,
 ): FlatColumn[] =>
   nodes.flatMap((node, siblingIndex) => [
@@ -66,12 +71,12 @@ const flattenColumns = (
       blocks: blocks.filter((block) => block.structureNodeId === node.id),
       depth,
       hasChildren: node.children.length > 0,
-      code: formatRegisteredColumnCode(
-        registeredColumnMap.get(node.referenceId || ''),
+      code: formatStructureLevelCode(
+        levelCodeStyleMap.get(STRUCTURE_LEVEL_NUMBERS[node.level]),
         siblingIndex + 1,
       ),
     },
-    ...flattenColumns(node.children, blocks, registeredColumnMap, depth + 1),
+    ...flattenColumns(node.children, blocks, levelCodeStyleMap, depth + 1),
   ]);
 
 const htmlToText = (html: string) =>
@@ -88,19 +93,43 @@ const EmptyColumn = () => (
 
 const BlockContent: React.FC<{ block: StudyGuideContentBlock }> = ({
   block,
-}) => (
-  <div className="flat-prototype-content-block">
-    <Tag bordered={false}>
-      {block.kind === 'columnContent'
-        ? '栏目内容'
-        : KNOWLEDGE_BLOCK_TYPE_LABELS[block.kind]}
-    </Tag>
-    <div
-      className="rich-content"
-      dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.html) }}
-    />
-  </div>
-);
+}) => {
+  const exampleParts =
+    block.kind === 'example' && block.exampleContent
+      ? [
+          { label: '试题内容', html: block.exampleContent.stemHtml },
+          { label: '思路点拨', html: block.exampleContent.guideHtml },
+          { label: '试题答案', html: block.exampleContent.answerHtml },
+        ]
+      : undefined;
+  return (
+    <div className="flat-prototype-content-block">
+      <Tag bordered={false}>
+        {block.kind === 'columnContent'
+          ? '栏目内容'
+          : KNOWLEDGE_BLOCK_TYPE_LABELS[block.kind]}
+      </Tag>
+      {exampleParts ? (
+        <div className="combination-example-content">
+          {exampleParts.map((part) => (
+            <section key={part.label} className="combination-example-part">
+              <div className="combination-example-part-label">{part.label}</div>
+              <div
+                className="rich-content"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(part.html) }}
+              />
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div
+          className="rich-content"
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.html) }}
+        />
+      )}
+    </div>
+  );
+};
 
 const PrototypeHeading: React.FC<{
   icon: React.ReactNode;
@@ -483,16 +512,19 @@ const FlatColumnPrototype: React.FC<FlatColumnPrototypeProps> = ({
   variant,
   structure,
   blocks,
-  registeredColumns,
+  levelCodeRules,
 }) => {
   const location = useLocation();
-  const registeredColumnMap = useMemo(
-    () => new Map(registeredColumns.map((column) => [column.id, column])),
-    [registeredColumns],
+  const levelCodeStyleMap = useMemo(
+    () =>
+      new Map(
+        levelCodeRules.map((rule) => [rule.level, rule.codeStyle] as const),
+      ),
+    [levelCodeRules],
   );
   const columns = useMemo(
-    () => flattenColumns(structure, blocks, registeredColumnMap),
-    [blocks, registeredColumnMap, structure],
+    () => flattenColumns(structure, blocks, levelCodeStyleMap),
+    [blocks, levelCodeStyleMap, structure],
   );
 
   const changeVariant = (nextVariant: FlatColumnPrototypeVariant) => {

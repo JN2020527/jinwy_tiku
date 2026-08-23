@@ -9,7 +9,7 @@
     "prepare": "husky",
     "setup": "max setup",
     "start": "npm run dev",
-    "test:subject-columns": "tsx --test src/features/subject-columns/model.test.ts src/features/study-guide/structureModel.test.ts",
+    "test:subject-columns": "tsx --test src/features/subject-columns/model.test.ts src/features/study-guide/structureModel.test.ts src/features/study-guide/columnCode.test.ts",
     "test:teaching-plan": "tsx --test src/features/teaching-plan/scheduler.test.ts src/features/teaching-plan/templateStore.test.ts"
   },
   "dependencies": {

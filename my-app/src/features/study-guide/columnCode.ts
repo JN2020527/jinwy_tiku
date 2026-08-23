@@ -1,4 +1,4 @@
-import type { RegisteredColumn } from '@/services/resourceAssets';
+import type { SubjectColumnCodeStyle } from '@/services/subjectColumns';
 
 const CHINESE_NUMERALS = [
   '零',
@@ -26,14 +26,14 @@ const toChineseOrdinal = (value: number) => {
   return String(value);
 };
 
-export const formatRegisteredColumnCode = (
-  column: RegisteredColumn | undefined,
+export const formatStructureLevelCode = (
+  codeStyle: SubjectColumnCodeStyle | null | undefined,
   siblingOrder: number,
 ) => {
-  if (!column?.codeEnabled || !column.codeStyle) return null;
+  if (!codeStyle) return null;
   const chineseOrdinal = toChineseOrdinal(siblingOrder);
-  if (column.codeStyle === 'chineseDunhao') return `${chineseOrdinal}、`;
-  if (column.codeStyle === 'chineseParentheses') {
+  if (codeStyle === 'chineseDunhao') return `${chineseOrdinal}、`;
+  if (codeStyle === 'chineseParentheses') {
     return `（${chineseOrdinal}）`;
   }
   return `${siblingOrder}.`;

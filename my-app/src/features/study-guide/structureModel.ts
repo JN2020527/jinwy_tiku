@@ -31,19 +31,19 @@ export const getStudyGuideStructureError = (
     expectedLevel: StructureLevel,
   ): string | null => {
     const levelNumber = STRUCTURE_LEVEL_NUMBERS[expectedLevel];
-    const registeredColumns = columns.filter(
-      (column) => column.level === levelNumber,
+    const registeredColumns = columns.filter((column) =>
+      column.applicableLevels.includes(levelNumber),
     );
     for (const node of nodes) {
       if (node.level !== expectedLevel) {
         return '学案结构必须从一级开始逐级建立，不允许跳级';
       }
-      if (registeredColumns.length) {
+      if (node.referenceId) {
         const selectedColumn = registeredColumns.find(
           (column) => column.id === node.referenceId,
         );
         if (!selectedColumn) {
-          return `${levelNumber}级存在注册栏目，只能从注册栏目中选择`;
+          return `${levelNumber}级栏目引用的注册数据无效`;
         }
         if (
           selectedColumn.dataSource === 'knowledgeTree' &&
@@ -58,14 +58,11 @@ export const getStudyGuideStructureError = (
           return `栏目“${selectedColumn.name}”不是知识树来源栏目`;
         }
       } else {
-        if (node.referenceId) {
-          return `${levelNumber}级没有注册栏目，只能填写当前学案的临时栏目`;
-        }
         if (!(node.temporaryName || node.label).trim()) {
-          return `请输入${levelNumber}级临时栏目名称`;
+          return `请输入${levelNumber}级自定义栏目名称`;
         }
         if (node.knowledgeNodeId) {
-          return '临时栏目不能保存知识树节点引用';
+          return '自定义栏目不能保存知识树节点引用';
         }
       }
       if (node.children.length) {

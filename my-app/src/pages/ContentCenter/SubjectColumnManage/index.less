@@ -43,6 +43,25 @@
   padding: 20px 24px 24px;
 }
 
+.subject-column-code-summary {
+  display: flex;
+  padding: 14px 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.subject-column-code-summary-items {
+  display: flex;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+}
+
 .subject-column-table {
   .ant-table-thead > tr > th {
     color: rgba(0, 0, 0, 0.65);
@@ -103,6 +122,40 @@
   gap: 8px;
 }
 
+.subject-column-code-rule-list {
+  display: grid;
+  gap: 12px;
+}
+
+.subject-column-code-rule-item {
+  display: grid;
+  min-height: 88px;
+  padding: 14px 16px;
+  align-items: center;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #fafafa;
+
+  > div:first-child {
+    display: grid;
+    gap: 4px;
+  }
+}
+
+.subject-column-sort-level {
+  display: flex;
+  margin-bottom: 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  .ant-select {
+    width: 180px;
+  }
+}
+
 @media (max-width: 720px) {
   .subject-column-toolbar {
     align-items: flex-start;
@@ -121,6 +174,20 @@
 
   .subject-column-table-wrap {
     padding-inline: 16px;
+  }
+
+  .subject-column-code-summary {
+    padding-inline: 16px;
+    align-items: flex-start;
+  }
+
+  .subject-column-code-summary-items {
+    display: grid;
+  }
+
+  .subject-column-code-rule-item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
   }
 }
 

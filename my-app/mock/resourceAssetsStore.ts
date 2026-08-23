@@ -9,6 +9,7 @@ import type {
   StudyGuideDetail,
   StudyGuideStructureNode,
 } from '../src/services/resourceAssets';
+import type { SubjectColumnLevel } from '../src/services/subjectColumns';
 import { historyKnowledgeTree } from './historyKnowledgeTree.generated';
 
 const now = () => new Date().toISOString();
@@ -1194,19 +1195,37 @@ export const getHomeworkQuestionReferenceCount = (questionId: string) =>
     homework.questionIds.includes(questionId),
   ).length;
 
-export const getRegisteredColumnUsageCounts = (subject: string) => {
-  const counts: Record<string, number> = {};
+export const getRegisteredColumnUsageCountsByLevel = (subject: string) => {
+  const counts: Record<
+    string,
+    Partial<Record<SubjectColumnLevel, number>>
+  > = {};
   Object.values(studyGuideStore)
     .filter((guide) => guide.subject === subject)
     .flatMap((guide) => guide.structure)
     .forEach(function visit(node) {
       if (node.referenceId) {
-        counts[node.referenceId] = (counts[node.referenceId] || 0) + 1;
+        const level = Number(node.level.slice(-1)) as SubjectColumnLevel;
+        const levelCounts = (counts[node.referenceId] ||= {});
+        levelCounts[level] = (levelCounts[level] || 0) + 1;
       }
       node.children.forEach(visit);
     });
   return counts;
 };
+
+export const getRegisteredColumnUsageCounts = (subject: string) =>
+  Object.fromEntries(
+    Object.entries(getRegisteredColumnUsageCountsByLevel(subject)).map(
+      ([columnId, levelCounts]) => [
+        columnId,
+        Object.values(levelCounts).reduce(
+          (total, count) => total + (count || 0),
+          0,
+        ),
+      ],
+    ),
+  );
 
 export const knowledgeBlockStore: KnowledgeBlock[] = [
   {

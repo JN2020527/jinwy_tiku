@@ -1,21 +1,27 @@
 import { Request, Response } from 'express';
 import {
   getCreateSubjectColumnError,
+  getSubjectLevelCodeRulesError,
   getUpdateSubjectColumnError,
   moveSubjectColumnWithinLevel,
+  normalizeApplicableLevels,
   normalizeSubjectColumnSort,
 } from '../src/features/subject-columns/model';
 import type {
   SaveSubjectColumnInput,
   SubjectColumn,
+  SubjectColumnLevel,
   SubjectColumnMoveDirection,
+  SubjectLevelCodeRule,
   UpdateSubjectColumnInput,
 } from '../src/services/subjectColumns';
 import {
   cloneSubjectColumns,
   getMutableSubjectColumns,
+  getSubjectLevelCodeRulesSnapshot,
   nextSubjectColumnId,
   replaceSubjectColumns,
+  replaceSubjectLevelCodeRules,
 } from './subjectColumnsStore';
 
 const getQueryValue = (value: unknown) =>
@@ -47,11 +53,14 @@ export default {
     const normalizedInput: SaveSubjectColumnInput = {
       subject,
       name: String(input.name || '').trim(),
-      level: Number(input.level) as SaveSubjectColumnInput['level'],
+      applicableLevels: normalizeApplicableLevels(
+        (Array.isArray(input.applicableLevels)
+          ? input.applicableLevels
+          : []
+        ).map(Number) as SubjectColumnLevel[],
+      ),
       type: input.type,
       dataSource: input.dataSource,
-      codeEnabled: input.codeEnabled === true,
-      codeStyle: input.codeEnabled === true ? input.codeStyle : null,
     };
     const error = getCreateSubjectColumnError(columns, normalizedInput);
     if (error) {
@@ -62,9 +71,15 @@ export default {
     const column: SubjectColumn = {
       id: nextSubjectColumnId(subject),
       ...normalizedInput,
-      sort: columns.filter((item) => item.level === normalizedInput.level)
-        .length,
+      sortByLevel: Object.fromEntries(
+        normalizedInput.applicableLevels.map((level) => [
+          level,
+          columns.filter((item) => item.applicableLevels.includes(level))
+            .length,
+        ]),
+      ),
       usedCount: 0,
+      usedCountByLevel: {},
     };
     columns.push(column);
     normalizeSubjectColumnSort(columns);
@@ -83,8 +98,12 @@ export default {
       id: String(input.id || ''),
       subject,
       name: String(input.name || '').trim(),
-      codeEnabled: input.codeEnabled === true,
-      codeStyle: input.codeEnabled === true ? input.codeStyle : null,
+      applicableLevels: normalizeApplicableLevels(
+        (Array.isArray(input.applicableLevels)
+          ? input.applicableLevels
+          : []
+        ).map(Number) as SubjectColumnLevel[],
+      ),
     };
     const error = getUpdateSubjectColumnError(columns, normalizedInput);
     if (error) {
@@ -97,8 +116,19 @@ export default {
       (column) => column.id === normalizedInput.id,
     )!;
     nextCurrent.name = normalizedInput.name;
-    nextCurrent.codeEnabled = normalizedInput.codeEnabled;
-    nextCurrent.codeStyle = normalizedInput.codeStyle;
+    nextCurrent.sortByLevel = Object.fromEntries(
+      normalizedInput.applicableLevels.map((level) => [
+        level,
+        nextCurrent.sortByLevel[level] ??
+          nextColumns.filter(
+            (column) =>
+              column.id !== nextCurrent.id &&
+              column.applicableLevels.includes(level),
+          ).length,
+      ]),
+    );
+    nextCurrent.applicableLevels = normalizedInput.applicableLevels;
+    normalizeSubjectColumnSort(nextColumns);
     replaceSubjectColumns(subject, nextColumns);
     res.send({
       success: true,
@@ -110,10 +140,12 @@ export default {
   'PUT /api/subject-columns/move': (req: Request, res: Response) => {
     const id = String(req.body?.id || '');
     const subject = String(req.body?.subject || '').trim();
+    const level = Number(req.body?.level) as SubjectColumnLevel;
     const direction = req.body?.direction as SubjectColumnMoveDirection;
     const result = moveSubjectColumnWithinLevel(
       getMutableSubjectColumns(subject),
       id,
+      level,
       direction,
     );
     if (!result.success) {
@@ -125,6 +157,50 @@ export default {
       success: true,
       message: direction === 'up' ? '栏目已上移' : '栏目已下移',
       data: cloneSubjectColumns(result.data),
+    });
+  },
+
+  'GET /api/subject-columns/level-code-rules': (
+    req: Request,
+    res: Response,
+  ) => {
+    const subject = getQueryValue(req.query.subject).trim();
+    if (!subject) {
+      sendFailure(res, '请选择学科');
+      return;
+    }
+    res.send({
+      success: true,
+      message: '层级编码规则加载成功',
+      data: getSubjectLevelCodeRulesSnapshot(subject),
+    });
+  },
+
+  'PUT /api/subject-columns/level-code-rules': (
+    req: Request,
+    res: Response,
+  ) => {
+    const subject = String(req.body?.subject || '').trim();
+    const rules = (Array.isArray(req.body?.rules) ? req.body.rules : []).map(
+      (rule: SubjectLevelCodeRule) => ({
+        level: Number(rule.level) as SubjectColumnLevel,
+        codeStyle: rule.codeStyle || null,
+      }),
+    );
+    if (!subject) {
+      sendFailure(res, '请选择学科');
+      return;
+    }
+    const error = getSubjectLevelCodeRulesError(rules);
+    if (error) {
+      sendFailure(res, error);
+      return;
+    }
+    replaceSubjectLevelCodeRules(subject, rules);
+    res.send({
+      success: true,
+      message: '层级编码规则已保存',
+      data: getSubjectLevelCodeRulesSnapshot(subject),
     });
   },
 

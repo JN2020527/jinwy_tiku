@@ -14,20 +14,16 @@ const columns: RegisteredColumn[] = [
   {
     id: 'column-l1',
     name: '学习目标',
-    level: 1,
+    applicableLevels: [1],
     type: 'knowledge',
     dataSource: 'custom',
-    codeEnabled: false,
-    codeStyle: null,
   },
   {
     id: 'column-l3-tree',
     name: '知识点',
-    level: 3,
+    applicableLevels: [3],
     type: 'knowledge',
     dataSource: 'knowledgeTree',
-    codeEnabled: false,
-    codeStyle: null,
   },
 ];
 
@@ -66,17 +62,50 @@ const validStructure: StudyGuideStructureNode[] = [
   },
 ];
 
-test('有注册栏目时必须选择注册栏目，无注册栏目时允许临时栏目', () => {
+test('各层级均允许注册栏目或当前学案自定义栏目', () => {
   assert.equal(
     getStudyGuideStructureError(validStructure, columns, leaves),
     null,
   );
-  const invalid = structuredClone(validStructure);
-  delete invalid[0].referenceId;
-  invalid[0].temporaryName = '临时一级';
+  const custom = structuredClone(validStructure);
+  delete custom[0].referenceId;
+  custom[0].temporaryName = '自定义一级';
+  assert.equal(getStudyGuideStructureError(custom, columns, leaves), null);
+
+  const invalidReference = structuredClone(validStructure);
+  invalidReference[0].referenceId = 'missing-column';
   assert.equal(
-    getStudyGuideStructureError(invalid, columns, leaves),
-    '1级存在注册栏目，只能从注册栏目中选择',
+    getStudyGuideStructureError(invalidReference, columns, leaves),
+    '1级栏目引用的注册数据无效',
+  );
+
+  const registeredUnderCustom = structuredClone(validStructure);
+  registeredUnderCustom[0].children[0].children = [
+    {
+      id: 'node-l3-under-custom',
+      level: 'level3',
+      label: '勾股定理',
+      referenceId: 'column-l3-tree',
+      knowledgeNodeId: 'leaf-1',
+      children: [],
+    },
+  ];
+  assert.equal(
+    getStudyGuideStructureError(registeredUnderCustom, columns, leaves),
+    null,
+  );
+
+  const invalidCrossLevel = structuredClone(registeredUnderCustom);
+  invalidCrossLevel[0].children[0].children[0] = {
+    id: 'node-l3-cross-level',
+    level: 'level3',
+    label: '学习目标',
+    referenceId: 'column-l1',
+    children: [],
+  };
+  assert.equal(
+    getStudyGuideStructureError(invalidCrossLevel, columns, leaves),
+    '3级栏目引用的注册数据无效',
   );
 });
 

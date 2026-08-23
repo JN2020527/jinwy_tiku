@@ -1,5 +1,8 @@
 import { request } from '@umijs/max';
-import type { SubjectColumnCodeStyle } from './subjectColumns';
+import type {
+  SubjectColumnLevel,
+  SubjectLevelCodeRule,
+} from './subjectColumns';
 
 export type AssetType =
   | 'studyGuide'
@@ -17,6 +20,12 @@ export type KnowledgeBlockType =
   | 'example';
 export type ContentBlockKind = 'columnContent' | KnowledgeBlockType;
 export type StructureLevel = 'level1' | 'level2' | 'level3' | 'level4';
+
+export interface ExampleKnowledgeContent {
+  stemHtml: string;
+  guideHtml: string;
+  answerHtml: string;
+}
 
 export interface ApiResult<T> {
   success: boolean;
@@ -59,10 +68,8 @@ export interface RegisteredColumn {
   id: string;
   name: string;
   type: 'knowledge' | 'question';
-  level: 1 | 2 | 3 | 4;
+  applicableLevels: SubjectColumnLevel[];
   dataSource: 'custom' | 'knowledgeTree';
-  codeEnabled: boolean;
-  codeStyle: SubjectColumnCodeStyle | null;
 }
 
 export interface StudyGuideStructureNode {
@@ -80,6 +87,7 @@ export interface StudyGuideContentBlock {
   kind: ContentBlockKind;
   structureNodeId: string;
   html: string;
+  exampleContent?: ExampleKnowledgeContent;
   knowledgeNodeIds: string[];
   knowledgeBlockId?: string;
   currentKnowledgeScope?: string[];
@@ -152,6 +160,7 @@ export interface KnowledgeBlock {
   subject: string;
   type: KnowledgeBlockType;
   html: string;
+  exampleContent?: ExampleKnowledgeContent;
   knowledgeNodeIds: string[];
   referenceStudyGuides: Array<{ id: string; name: string }>;
   createdAt: string;
@@ -201,6 +210,19 @@ export async function updateOnlineStudyGuideDraft(data: {
   return request<ApiResult<StudyGuideDetail>>(
     '/api/resource-assets/study-guide/online',
     { method: 'PUT', data },
+  );
+}
+
+export async function publishOnlineStudyGuide(data: {
+  id?: string;
+  subject: string;
+  name: string;
+  structure: StudyGuideStructureNode[];
+  contentBlocks: StudyGuideContentBlock[];
+}) {
+  return request<ApiResult<StudyGuideDetail>>(
+    '/api/resource-assets/study-guide/formal',
+    { method: 'POST', data },
   );
 }
 
@@ -306,6 +328,7 @@ export async function saveKnowledgeBlock(data: {
   subject: string;
   type: KnowledgeBlockType;
   html: string;
+  exampleContent?: ExampleKnowledgeContent;
   knowledgeNodeIds: string[];
 }) {
   return request<ApiResult<KnowledgeBlock>>(
@@ -333,6 +356,7 @@ export async function getResourceAssetContext(params: { subject: string }) {
       knowledgeTree: KnowledgeTreeNode[];
       knowledgeLeaves: KnowledgeLeaf[];
       columns: RegisteredColumn[];
+      levelCodeRules: SubjectLevelCodeRule[];
     }>
   >('/api/resource-assets/context', { method: 'GET', params });
 }

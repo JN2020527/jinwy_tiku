@@ -3,107 +3,102 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   getCreateSubjectColumnError,
+  getSubjectLevelCodeRulesError,
   getUpdateSubjectColumnError,
   moveSubjectColumnWithinLevel,
 } from './model';
 
 const columns: SubjectColumn[] = [
   {
-    id: 'l1-a',
+    id: 'column-goal',
     subject: 'math',
     name: '学习目标',
-    level: 1,
+    applicableLevels: [1],
     type: 'knowledge',
     dataSource: 'custom',
-    codeEnabled: false,
-    codeStyle: null,
-    sort: 0,
+    sortByLevel: { 1: 0 },
     usedCount: 1,
+    usedCountByLevel: { 1: 1 },
   },
   {
-    id: 'l1-b',
+    id: 'column-task',
     subject: 'math',
-    name: '学习准备',
-    level: 1,
+    name: '学习任务',
+    applicableLevels: [1, 2],
     type: 'knowledge',
     dataSource: 'custom',
-    codeEnabled: false,
-    codeStyle: null,
-    sort: 1,
+    sortByLevel: { 1: 1, 2: 0 },
     usedCount: 0,
+    usedCountByLevel: {},
   },
   {
-    id: 'l3-knowledge',
+    id: 'column-key-point',
     subject: 'math',
-    name: '知识点',
-    level: 3,
+    name: '考点',
+    applicableLevels: [2, 3],
     type: 'knowledge',
     dataSource: 'knowledgeTree',
-    codeEnabled: false,
-    codeStyle: null,
-    sort: 0,
-    usedCount: 0,
+    sortByLevel: { 2: 1, 3: 0 },
+    usedCount: 1,
+    usedCountByLevel: { 3: 1 },
   },
 ];
 
-test('栏目名称按同一学科跨层级校验唯一', () => {
+test('栏目名称按同一学科保持唯一', () => {
   assert.equal(
     getCreateSubjectColumnError(columns, {
       subject: 'math',
-      name: '知识点',
-      level: 2,
+      name: '考点',
+      applicableLevels: [1],
       type: 'knowledge',
       dataSource: 'custom',
-      codeEnabled: false,
-      codeStyle: null,
-    }),
-    '当前学科已存在同名栏目',
-  );
-  assert.equal(
-    getUpdateSubjectColumnError(columns, {
-      id: 'l1-b',
-      subject: 'math',
-      name: '知识点',
-      codeEnabled: false,
-      codeStyle: null,
     }),
     '当前学科已存在同名栏目',
   );
 });
 
-test('编辑栏目时允许修改编码属性', () => {
+test('同一个栏目可以选择多个适用层级', () => {
   assert.equal(
-    getUpdateSubjectColumnError(columns, {
-      id: 'l1-b',
+    getCreateSubjectColumnError(columns, {
       subject: 'math',
-      name: '学习准备',
-      codeEnabled: true,
-      codeStyle: null,
+      name: '课堂练习',
+      applicableLevels: [2, 3],
+      type: 'question',
+      dataSource: 'custom',
     }),
-    '请选择有效的编码样式',
+    null,
   );
   assert.equal(
     getUpdateSubjectColumnError(columns, {
-      id: 'l1-b',
+      id: 'column-task',
       subject: 'math',
-      name: '学习准备',
-      codeEnabled: true,
-      codeStyle: 'chineseParentheses',
+      name: '学习任务',
+      applicableLevels: [1, 2, 4],
     }),
     null,
   );
 });
 
-test('知识树来源只能为知识型且同层级最多一个', () => {
+test('已被学案引用的适用层级不能取消', () => {
+  assert.equal(
+    getUpdateSubjectColumnError(columns, {
+      id: 'column-key-point',
+      subject: 'math',
+      name: '考点',
+      applicableLevels: [2],
+    }),
+    '3级已有 1 处学案引用，不能取消该适用层级',
+  );
+});
+
+test('知识树来源只能为知识型且每个层级最多一个', () => {
   assert.equal(
     getCreateSubjectColumnError(columns, {
       subject: 'math',
       name: '考点入口',
-      level: 2,
+      applicableLevels: [4],
       type: 'question',
       dataSource: 'knowledgeTree',
-      codeEnabled: false,
-      codeStyle: null,
     }),
     '知识树来源栏目只能选择知识型',
   );
@@ -111,55 +106,39 @@ test('知识树来源只能为知识型且同层级最多一个', () => {
     getCreateSubjectColumnError(columns, {
       subject: 'math',
       name: '知识树入口',
-      level: 3,
+      applicableLevels: [1, 3],
       type: 'knowledge',
       dataSource: 'knowledgeTree',
-      codeEnabled: false,
-      codeStyle: null,
     }),
     '当前学科3级已有知识树来源栏目',
   );
 });
 
-test('需要编码时必须选择受支持的编码样式', () => {
+test('排序只调整指定层级，不影响同一栏目的其他层级顺序', () => {
+  const result = moveSubjectColumnWithinLevel(columns, 'column-task', 1, 'up');
+  assert.equal(result.success, true);
+  if (!result.success) return;
+  const task = result.data.find((column) => column.id === 'column-task');
+  assert.equal(task?.sortByLevel[1], 0);
+  assert.equal(task?.sortByLevel[2], 0);
   assert.equal(
-    getCreateSubjectColumnError(columns, {
-      subject: 'math',
-      name: '课堂导入',
-      level: 2,
-      type: 'knowledge',
-      dataSource: 'custom',
-      codeEnabled: true,
-      codeStyle: null,
-    }),
-    '请选择有效的编码样式',
-  );
-  (['chineseDunhao', 'chineseParentheses', 'arabicPeriod'] as const).forEach(
-    (codeStyle) => {
-      assert.equal(
-        getCreateSubjectColumnError(columns, {
-          subject: 'math',
-          name: '课堂导入',
-          level: 2,
-          type: 'knowledge',
-          dataSource: 'custom',
-          codeEnabled: true,
-          codeStyle,
-        }),
-        null,
-      );
-    },
+    result.data.find((column) => column.id === 'column-goal')?.sortByLevel[1],
+    1,
   );
 });
 
-test('排序只交换当前层级栏目', () => {
-  const result = moveSubjectColumnWithinLevel(columns, 'l1-b', 'up');
-  assert.equal(result.success, true);
-  if (!result.success) return;
-  assert.equal(result.data.find((column) => column.id === 'l1-b')?.sort, 0);
-  assert.equal(result.data.find((column) => column.id === 'l1-a')?.sort, 1);
+test('层级编码规则必须覆盖一级至四级并使用受支持样式', () => {
   assert.equal(
-    result.data.find((column) => column.id === 'l3-knowledge')?.sort,
-    0,
+    getSubjectLevelCodeRulesError([
+      { level: 1, codeStyle: 'chineseDunhao' },
+      { level: 2, codeStyle: 'chineseParentheses' },
+      { level: 3, codeStyle: null },
+      { level: 4, codeStyle: 'arabicPeriod' },
+    ]),
+    null,
+  );
+  assert.equal(
+    getSubjectLevelCodeRulesError([{ level: 1, codeStyle: null }]),
+    '请完整设置一级至四级的编码方式',
   );
 });
